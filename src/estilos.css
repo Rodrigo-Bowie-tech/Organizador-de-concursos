@@ -1,0 +1,214 @@
+@import "tailwindcss";
+
+/*
+  Identidade visual inspirada no Estudei (docs/referencias): menu lateral verde-água
+  em degradê, fundo cinza-esverdeado, cartões brancos e blocos em ciano claro.
+  Todas as cores são tokens; o tema escuro redefine só os tokens.
+*/
+
+:root {
+  --verde: #22b495;
+  --verde-forte: #14866e;
+  --verde-suave: #daf4ed;
+  --menu-de: #36caa7;
+  --menu-ate: #1f9f82;
+  --menu-texto: #ffffff;
+  --menu-ativo: rgba(8, 60, 48, 0.2);
+  --fundo: #f1f5f3;
+  --superficie: #ffffff;
+  --superficie-2: #f6f9f8;
+  --borda: #dde6e2;
+  --texto: #33403c;
+  --texto-suave: #687873;
+  --bloco: #b8ebe9;
+  --roxo: #6a3fb0;
+  --ok: #23905a;
+  --alerta: #b8740f;
+  --perigo: #cc3d3d;
+  --perigo-suave: #fbe6e6;
+  --sombra: 0 1px 2px rgba(20, 50, 40, 0.06), 0 4px 16px rgba(20, 50, 40, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --verde: #33cfa8;
+    --verde-forte: #62e0c1;
+    --verde-suave: #16382f;
+    --menu-de: #12574a;
+    --menu-ate: #0c3f35;
+    --menu-texto: #e8f5f1;
+    --menu-ativo: rgba(255, 255, 255, 0.1);
+    --fundo: #0f1614;
+    --superficie: #16201d;
+    --superficie-2: #1b2724;
+    --borda: #293733;
+    --texto: #e2ebe8;
+    --texto-suave: #97a9a3;
+    --bloco: #1d4a47;
+    --roxo: #a888ec;
+    --ok: #4cc58a;
+    --alerta: #e0a347;
+    --perigo: #f07474;
+    --perigo-suave: #3a1c1c;
+    --sombra: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --verde: #33cfa8;
+  --verde-forte: #62e0c1;
+  --verde-suave: #16382f;
+  --menu-de: #12574a;
+  --menu-ate: #0c3f35;
+  --menu-texto: #e8f5f1;
+  --menu-ativo: rgba(255, 255, 255, 0.1);
+  --fundo: #0f1614;
+  --superficie: #16201d;
+  --superficie-2: #1b2724;
+  --borda: #293733;
+  --texto: #e2ebe8;
+  --texto-suave: #97a9a3;
+  --bloco: #1d4a47;
+  --roxo: #a888ec;
+  --ok: #4cc58a;
+  --alerta: #e0a347;
+  --perigo: #f07474;
+  --perigo-suave: #3a1c1c;
+  --sombra: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* Escolha feita dentro do app (Configurações > Tema) vence o tema do claude.ai. */
+:root[data-tema="claro"] {
+  color-scheme: light;
+  --verde: #22b495;
+  --verde-forte: #14866e;
+  --verde-suave: #daf4ed;
+  --menu-de: #36caa7;
+  --menu-ate: #1f9f82;
+  --menu-texto: #ffffff;
+  --menu-ativo: rgba(8, 60, 48, 0.2);
+  --fundo: #f1f5f3;
+  --superficie: #ffffff;
+  --superficie-2: #f6f9f8;
+  --borda: #dde6e2;
+  --texto: #33403c;
+  --texto-suave: #687873;
+  --bloco: #b8ebe9;
+  --roxo: #6a3fb0;
+  --ok: #23905a;
+  --alerta: #b8740f;
+  --perigo: #cc3d3d;
+  --perigo-suave: #fbe6e6;
+  --sombra: 0 1px 2px rgba(20, 50, 40, 0.06), 0 4px 16px rgba(20, 50, 40, 0.06);
+}
+
+:root[data-tema="escuro"] {
+  color-scheme: dark;
+  --verde: #33cfa8;
+  --verde-forte: #62e0c1;
+  --verde-suave: #16382f;
+  --menu-de: #12574a;
+  --menu-ate: #0c3f35;
+  --menu-texto: #e8f5f1;
+  --menu-ativo: rgba(255, 255, 255, 0.1);
+  --fundo: #0f1614;
+  --superficie: #16201d;
+  --superficie-2: #1b2724;
+  --borda: #293733;
+  --texto: #e2ebe8;
+  --texto-suave: #97a9a3;
+  --bloco: #1d4a47;
+  --roxo: #a888ec;
+  --ok: #4cc58a;
+  --alerta: #e0a347;
+  --perigo: #f07474;
+  --perigo-suave: #3a1c1c;
+  --sombra: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+@theme inline {
+  --font-sans: "Nunito", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Roboto Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --color-verde: var(--verde);
+  --color-verde-forte: var(--verde-forte);
+  --color-verde-suave: var(--verde-suave);
+  --color-fundo: var(--fundo);
+  --color-superficie: var(--superficie);
+  --color-superficie-2: var(--superficie-2);
+  --color-borda: var(--borda);
+  --color-texto: var(--texto);
+  --color-suave: var(--texto-suave);
+  --color-bloco: var(--bloco);
+  --color-roxo: var(--roxo);
+  --color-ok: var(--ok);
+  --color-alerta: var(--alerta);
+  --color-perigo: var(--perigo);
+  --color-perigo-suave: var(--perigo-suave);
+  --color-menu-texto: var(--menu-texto);
+  --color-menu-ativo: var(--menu-ativo);
+  --shadow-cartao: var(--sombra);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--texto);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+#raiz {
+  min-height: 100%;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+.numeros {
+  font-variant-numeric: tabular-nums;
+}
+
+.menu-lateral {
+  background: linear-gradient(170deg, var(--menu-de), var(--menu-ate));
+}
+
+:focus-visible {
+  outline: 2px solid var(--verde);
+  outline-offset: 2px;
+}
+
+dialog::backdrop {
+  background: rgba(10, 25, 20, 0.45);
+}
+
+dialog {
+  color: var(--texto);
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

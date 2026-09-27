@@ -1,0 +1,69 @@
+{
+  "_comentario": "Dados iniciais (seção 6 da SPEC). Aplicados uma vez no banco do Artifact com a ferramenta ArtifactData (ação batch, op set). Ver CLAUDE.md, 'Seed'.",
+  "documentos": {
+    "concursos/fundacao-florestal-sp": {
+      "id": "fundacao-florestal-sp",
+      "nome": "Fundação Florestal SP · Edital 01/2026",
+      "orgao": "Fundação Florestal do Estado de São Paulo",
+      "banca": "FCC",
+      "cargo": "",
+      "area": "Engenharia Elétrica",
+      "dataProva": null,
+      "status": "edital_aberto",
+      "link": "",
+      "notaCorte": null,
+      "prioridade": 5,
+      "criadoEm": "2026-09-27T15:30:00.000Z"
+    },
+    "concursos/petrobras": {
+      "id": "petrobras",
+      "nome": "Petrobras",
+      "orgao": "Petrobras",
+      "banca": "",
+      "cargo": "",
+      "area": "Engenharia Elétrica",
+      "dataProva": null,
+      "status": "previsto",
+      "link": "",
+      "notaCorte": null,
+      "prioridade": 4,
+      "criadoEm": "2026-09-27T15:30:00.000Z"
+    },
+    "concursos/transpetro": {
+      "id": "transpetro",
+      "nome": "Transpetro",
+      "orgao": "Transpetro",
+      "banca": "",
+      "cargo": "",
+      "area": "Engenharia Elétrica",
+      "dataProva": null,
+      "status": "previsto",
+      "link": "",
+      "notaCorte": null,
+      "prioridade": 4,
+      "criadoEm": "2026-09-27T15:30:00.000Z"
+    },
+    "concursos/tribunais": {
+      "id": "tribunais",
+      "nome": "Tribunais",
+      "orgao": "Tribunais (TRF, TRT, TJ)",
+      "banca": "",
+      "cargo": "",
+      "area": "Engenharia Elétrica",
+      "dataProva": null,
+      "status": "previsto",
+      "link": "",
+      "notaCorte": null,
+      "prioridade": 3,
+      "criadoEm": "2026-09-27T15:30:00.000Z"
+    },
+    "radar_filtros/padrao": {
+      "id": "padrao",
+      "nome": "Engenharia elétrica em SP e RJ",
+      "areas": ["Engenharia Elétrica"],
+      "ufs": ["SP", "RJ"],
+      "bancas": [],
+      "salarioMinimo": null
+    }
+  }
+}
