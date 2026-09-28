@@ -1,6 +1,7 @@
 import { Check, ChevronLeft, ChevronRight, Clock, Play, RefreshCcw, Settings2, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { DragEvent } from 'react';
+import { AvisosPlano } from '../componentes/AvisosPlano';
 import { Botao, BotaoIcone, CabecalhoTela, Campo, Cartao, Confirmar, Entrada, Modal, Selecao, Vazio, cx } from '../componentes/ui';
 import { segundosLiquidos } from '../dominio/cronometro';
 import { diaSP, diasEntre, formatarData, formatarDuracao, formatarHora, inicioDaSemana, inicioDoMes, nomeDiaCurto, nomeMes, somarDias } from '../dominio/datas';
@@ -423,6 +424,8 @@ export function Planejamento() {
           acao={<Botao onClick={() => irPara('disponibilidade')}>Configurar disponibilidade</Botao>}
         />
       ) : (
+        <>
+        <AvisosPlano />
         <div className="grid gap-4 lg:grid-cols-[1fr_17rem]">
           <Cartao className="min-w-0">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -496,6 +499,7 @@ export function Planejamento() {
             </div>
           </Cartao>
         </div>
+        </>
       )}
 
       <ModalBloco bloco={blocoAtual} aoFechar={() => setAberto(null)} />

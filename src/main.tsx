@@ -37,6 +37,8 @@ async function iniciar() {
   const repo = new Repositorio(store, undefined, arquivos);
   repo.iniciar();
   await repo.pronto();
+  // O "replanejar de madrugada": na primeira abertura do dia.
+  void repo.replanejarDoDia().catch(() => undefined);
   raiz.render(
     <ProvedorDados repo={repo} recursos={recursos}>
       <App />

@@ -210,7 +210,7 @@ function LinhaTopico({
           aria-label={`Teoria concluída: ${topico.titulo}`}
           onChange={(e) => atualizar({ status: e.target.checked ? 'teoria_concluida' : 'em_estudo' })}
         />
-        <span className={cx('min-w-0', nivel === 0 && 'font-bold', concluido && 'text-suave')}>
+        <span className={cx('min-w-0', nivel === 0 && 'font-bold', concluido && 'text-suave', topico.cortado && 'text-suave line-through')}>
           <span className="numeros mr-1.5 text-suave">{numero}</span>
           {topico.titulo}
           {vinculos.length > 0 && (
@@ -263,6 +263,16 @@ function LinhaTopico({
           >
             rev. {formatarData(topico.revisao.proxima).slice(0, 5)}
           </span>
+        )}
+        {topico.cortado && (
+          <button
+            type="button"
+            className="rounded-full bg-alerta/15 px-2 py-0.5 text-xs font-bold text-alerta hover:brightness-95"
+            title="Cortado do plano. Clique para devolver."
+            onClick={() => void executar(() => repo.cortarTopicos([{ disciplinaId: disciplina.id, topicoId: topico.id }], false), 'Tópico de volta ao plano.')}
+          >
+            fora do plano · devolver
+          </button>
         )}
         <span className="flex">
           <BotaoIcone rotulo={`Materiais (${nMateriais})`} onClick={aoMateriais} className={nMateriais ? 'text-verde-forte' : undefined}>

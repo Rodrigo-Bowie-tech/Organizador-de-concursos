@@ -225,14 +225,25 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
     .flatMap((d) => topicosFolha(d.topicos).filter((t) => topicoConcluido(t) && !t.cortado).map((t) => ({ d, t })))
     .sort((a, b) => (acertos.get(a.t.id)?.taxa ?? 0.5) - (acertos.get(b.t.id)?.taxa ?? 0.5));
 
-  // Horários ocupados por blocos que ficam.
+  // Horários ocupados por blocos que ficam: marcados, passados e os movidos por você (fixos).
   const agoraMs = e.agora.getTime();
-  const ficam = e.existentes.filter((b) => b.status !== 'planejado' || instanteSP(b.dia, b.inicio).getTime() < agoraMs);
+  const ficam = e.existentes.filter((b) => b.status !== 'planejado' || b.fixo || instanteSP(b.dia, b.inicio).getTime() < agoraMs);
+  const fixosFuturos = e.existentes.filter((b) => b.status === 'planejado' && b.fixo && instanteSP(b.dia, b.inicio).getTime() >= agoraMs);
   const ocupado = (dia: DiaISO, s: BlocoHorario) =>
     ficam.some((b) => b.dia === dia && b.inicio < s.fim && s.inicio < b.fim);
 
   const plano: BlocoPlanejado[] = [];
   const restantes = fila.map((i) => ({ ...i }));
+  // O que os blocos fixos já cobrem não entra de novo.
+  for (const b of fixosFuturos) {
+    if (b.motivo === 'teoria') {
+      const i = restantes.findIndex((x) => x.topico.id === b.topicoId);
+      if (i >= 0 && --restantes[i].blocos <= 0) restantes.splice(i, 1);
+    } else {
+      const r = revisoes.findIndex((x) => x.topico.id === b.topicoId);
+      if (r >= 0) revisoes.splice(r, 1);
+    }
+  }
   let blocosRevisao = 0;
   let blocosTotal = 0;
   let questoesIdx = 0;

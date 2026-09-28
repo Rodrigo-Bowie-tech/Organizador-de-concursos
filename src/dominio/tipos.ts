@@ -171,6 +171,8 @@ export interface Configuracao {
   metaMensalMin: number;
   pomodoro: ConfigPomodoro;
   tema: Tema;
+  /** Fase 4: planejar com a média real dos últimos 14 dias quando ela fica abaixo da disponibilidade. */
+  usarCapacidadeReal: boolean;
 }
 
 // ------------------------------------------------- Fases seguintes (tipos já definidos)
@@ -255,6 +257,8 @@ export interface BlocoPlanejado {
   status: StatusBloco;
   /** Por que o planejador escolheu este bloco. */
   motivo: 'teoria' | 'revisao' | 'revisao_atrasada' | 'questoes';
+  /** Movido por você: replanejar não mexe nele. */
+  fixo?: boolean;
 }
 
 /** Fase 5. */

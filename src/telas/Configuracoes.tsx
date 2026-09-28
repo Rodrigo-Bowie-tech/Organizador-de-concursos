@@ -125,6 +125,23 @@ export function Configuracoes() {
           </form>
         </Cartao>
 
+        <Cartao titulo="Planejamento">
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 accent-[var(--verde)]"
+              checked={dados.config.usarCapacidadeReal}
+              onChange={(e) => salvar({ ...dados.config, usarCapacidadeReal: e.target.checked }, 'Planejamento atualizado.')}
+            />
+            <span>
+              <span className="font-bold">Planejar com a capacidade real</span>
+              <span className="block text-sm text-suave">
+                Se nos últimos 14 dias você estudou bem menos que a disponibilidade de um dia da semana, o plano usa a sua média real nesse dia.
+              </span>
+            </span>
+          </label>
+        </Cartao>
+
         <Cartao titulo="Tema">
           <div role="radiogroup" aria-label="Tema" className="flex flex-wrap gap-2">
             {(

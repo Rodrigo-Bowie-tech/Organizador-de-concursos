@@ -1,5 +1,6 @@
 import { CalendarClock, CalendarDays, Check, Flame, Play, RefreshCcw } from 'lucide-react';
 import { useMemo } from 'react';
+import { AvisosPlano } from '../componentes/AvisosPlano';
 import { Botao, CabecalhoTela, Cartao, Etiqueta, Progresso, Vazio, cx } from '../componentes/ui';
 import { estadoDaSessao, segundosLiquidos, segundosPorDia } from '../dominio/cronometro';
 import { diaDaSemana, formatarData, formatarDuracao, formatarRelogio } from '../dominio/datas';
@@ -134,6 +135,7 @@ export function Home() {
         )}
 
         <BlocosDeHoje hoje={hoje} />
+        <AvisosPlano compacto />
 
         <div className="grid gap-4 sm:grid-cols-3">
           <Meta rotulo="Hoje" segundos={totais.hoje} metaMin={dados.config.metaDiariaMin} />

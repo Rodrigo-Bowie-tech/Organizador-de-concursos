@@ -12,12 +12,14 @@
 //   editais/<id>              Edital importado (PDF no armazenamento de arquivos)
 //   disponibilidade/geral     Disponibilidade (grade semanal, exceções, duração do bloco)
 //   plano/<AAAA-MM-DD>        { semana, itens: { <id>: BlocoPlanejado } }, blocos do calendário
+//   estado/planejamento       { ultimoReplanejamento: AAAA-MM-DD }, replanejamento do dia
 //   estado/vinculos           { ignorados: string[] }, sugestões de equivalência recusadas
 //   radar_filtros/<id>        FiltroRadar (Fase 6; já vem no seed)
 
 import * as crono from '../dominio/cronometro';
 import { diaSP, inicioDaSemana, instanteSP } from '../dominio/datas';
 import { chavePar, topicosDaImportacao } from '../dominio/edital';
+import { capacidadeParaPlano, capacidadeReal } from '../dominio/adaptacao';
 import { acertoRecente, DISPONIBILIDADE_VAZIA, gerarPlano, minutos } from '../dominio/planejador';
 import type { DisciplinaImportada } from '../dominio/edital';
 import { lerLote, topicosDoLote } from '../dominio/lote';
@@ -72,6 +74,7 @@ export const CONFIG_PADRAO: Configuracao = {
   metaMensalMin: 5400,
   pomodoro: { ativo: false, focoMin: 25, pausaCurtaMin: 5, pausaLongaMin: 15, ciclosAtePausaLonga: 4 },
   tema: 'sistema',
+  usarCapacidadeReal: true,
 };
 
 export interface Dados {
@@ -649,12 +652,24 @@ export class Repositorio {
     return this.dados.sessoes.map((s) => ({ topicoId: s.topicoId, feitas: s.questoesFeitas, acertos: s.acertos, dia: diaSP(s.inicio) }));
   }
 
+  /** Minutos por dia da semana que o plano deve usar (capacidade real), se o ajuste estiver ligado. */
+  capacidadeDoPlano(): Record<string, number> | undefined {
+    if (!this.dados.config.usarCapacidadeReal) return undefined;
+    const todas = this.dados.ativa ? [...this.dados.sessoes, this.dados.ativa] : this.dados.sessoes;
+    return capacidadeParaPlano(capacidadeReal(todas, this.dados.disponibilidade, this.relogio()), this.dados.disponibilidade);
+  }
+
+  temDisponibilidade(): boolean {
+    const d = this.dados.disponibilidade;
+    return Object.values(d.dias).some((l) => l.length > 0) || Object.values(d.excecoes).some((e) => e.blocos.length > 0);
+  }
+
   /**
    * Refaz os blocos planejados de agora em diante. Blocos marcados (feito,
-   * parcial, pulado) e os que já começaram ficam como estão: o histórico nunca
-   * é apagado. Devolve quantos blocos foram planejados.
+   * parcial, pulado), os que já começaram e os movidos por você ficam como
+   * estão: o histórico nunca é apagado. Devolve quantos blocos foram planejados.
    */
-  async replanejar(opcoes: { capacidadeMin?: Record<string, number> } = {}): Promise<number> {
+  async replanejar(): Promise<number> {
     const agora = this.relogio();
     const novos = gerarPlano({
       agora,
@@ -663,15 +678,43 @@ export class Repositorio {
       disponibilidade: this.dados.disponibilidade,
       existentes: this.dados.blocos,
       acertos: acertoRecente(this.registrosDeQuestoes(), diaSP(agora)),
-      capacidadeMin: opcoes.capacidadeMin,
+      capacidadeMin: this.capacidadeDoPlano(),
       novoId,
     });
     await this.substituirFuturos(novos);
+    await this.store.definir('estado/planejamento', { ultimoReplanejamento: diaSP(agora) });
     return novos.length;
   }
 
-  /** Apaga os blocos planejados de agora em diante (o histórico fica). */
+  /** Replaneja se houver disponibilidade configurada (depois de sessões e blocos marcados). */
+  private async replanejarSePuder(): Promise<void> {
+    if (this.temDisponibilidade()) await this.replanejar();
+  }
+
+  /** Na primeira abertura do dia, refaz o plano (o "replanejar de madrugada"). */
+  async replanejarDoDia(): Promise<boolean> {
+    const ultimo = this.col('estado').get('planejamento')?.ultimoReplanejamento;
+    if (ultimo === diaSP(this.relogio()) || !this.temDisponibilidade()) return false;
+    await this.replanejar();
+    return true;
+  }
+
+  /** Tira tópicos do plano (edital não fecha). Continuam no edital e voltam quando quiser. */
+  async cortarTopicos(refs: { disciplinaId: Id; topicoId: Id }[], cortado = true): Promise<void> {
+    const mudancas = refs.flatMap((r) => {
+      const t = this.dados.disciplinas.find((d) => d.id === r.disciplinaId)?.topicos[r.topicoId];
+      const grupo = t?.grupoEquivalenciaId ? this.membrosDoGrupo(t.grupoEquivalenciaId, r.topicoId) : [];
+      return [r, ...grupo].map((m) => ({ ...m, patch: { cortado } as Partial<Topico> }));
+    });
+    await this.aplicarEmTopicos(mudancas);
+    await this.replanejarSePuder();
+  }
+
+  /** Apaga os blocos planejados de agora em diante, inclusive os movidos (o histórico fica). */
   async removerPlanoFuturo(): Promise<number> {
+    const agora = this.relogio().getTime();
+    const fixos = this.dados.blocos.filter((b) => b.status === 'planejado' && b.fixo && instanteSP(b.dia, b.inicio).getTime() >= agora);
+    for (const b of fixos) await this.gravarItemSemanal('plano', inicioDaSemana(b.dia), { ...b, fixo: false } as BlocoPlanejado);
     const antes = this.futurosPlanejados().length;
     await this.substituirFuturos([]);
     return antes;
@@ -679,7 +722,7 @@ export class Repositorio {
 
   private futurosPlanejados(): BlocoPlanejado[] {
     const agora = this.relogio().getTime();
-    return this.dados.blocos.filter((b) => b.status === 'planejado' && instanteSP(b.dia, b.inicio).getTime() >= agora);
+    return this.dados.blocos.filter((b) => b.status === 'planejado' && !b.fixo && instanteSP(b.dia, b.inicio).getTime() >= agora);
   }
 
   private async substituirFuturos(novos: BlocoPlanejado[]): Promise<void> {
@@ -714,6 +757,7 @@ export class Repositorio {
     const b = this.dados.blocos.find((x) => x.id === id);
     if (!b) throw falha('nao_encontrado', 'Bloco não encontrado.');
     await this.gravarItemSemanal('plano', inicioDaSemana(b.dia), { ...b, status } as BlocoPlanejado);
+    await this.replanejarSePuder();
   }
 
   /** Move o bloco para outro dia e horário, mantendo a duração. */
@@ -724,7 +768,7 @@ export class Repositorio {
     const fimMin = h * 60 + m + minutos(b);
     if (fimMin > 24 * 60) throw falha('horario_invalido', 'O bloco passaria da meia-noite. Escolha um horário mais cedo.');
     const fim = `${String(Math.floor(fimMin / 60)).padStart(2, '0')}:${String(fimMin % 60).padStart(2, '0')}`;
-    await this.gravarItemSemanal('plano', inicioDaSemana(dia), { ...b, dia, inicio, fim } as BlocoPlanejado);
+    await this.gravarItemSemanal('plano', inicioDaSemana(dia), { ...b, dia, inicio, fim, fixo: true } as BlocoPlanejado);
   }
 
   // ----------------------------------------------------------- cronômetro
@@ -803,6 +847,7 @@ export class Repositorio {
     await this.gravarSessao(s);
     await this.store.definir('estado/cronometro', { sessao: null });
     if (s.concluiuTeoria) await this.avancarStatus(s.disciplinaId, s.topicoId, 'teoria_concluida');
+    await this.replanejarSePuder();
     return s;
   }
 
@@ -842,6 +887,7 @@ export class Repositorio {
     };
     await this.gravarSessao(s);
     if (s.concluiuTeoria) await this.avancarStatus(s.disciplinaId, s.topicoId, 'teoria_concluida');
+    await this.replanejarSePuder();
     return s;
   }
 

@@ -54,6 +54,7 @@ src/
     balanco.ts     tempo × peso, disciplinas esquecidas, tópicos parados, projeção de cobertura
     edital.ts      importação: achar o conteúdo programático, dividir para a IA, validar/juntar, equivalências
     planejador.ts  núcleo (5.1/5.2/5.4): slots da disponibilidade, domínio, fila por prioridade, gerarPlano
+    adaptacao.ts   capacidade real (média de 14 dias por dia da semana) e viabilidade do edital com cortes
   dados/
     store.ts       interface Store; ArtifactStore (claude.use("db")) e MemoriaStore (localStorage)
     repositorio.ts espelho do banco via assinaturas + todas as gravações
@@ -103,6 +104,7 @@ Limites: **5.000 documentos** no total e 256 KiB por documento. Por isso os regi
 | `estado/vinculos` | `{ ignorados: string[] }` sugestões de tópicos equivalentes recusadas (`chavePar`) |
 | `disponibilidade/geral` | Disponibilidade: `dias` ("0"–"6" → janelas), `excecoes` (dia → janelas + motivo), `blocoMin` |
 | `plano/<AAAA-MM-DD>` | `{ semana, itens: { <id>: BlocoPlanejado } }`, blocos do calendário por semana |
+| `estado/planejamento` | `{ ultimoReplanejamento }`: dia do último replanejamento (o "de madrugada") |
 | `radar_filtros/<id>` | FiltroRadar (Fase 6; já vem no seed) |
 
 - O estado da revisão de cada tópico fica no próprio tópico (`topico.revisao`), junto com `concluidoEm`.
@@ -163,7 +165,13 @@ seed sozinho.
   - revisão atrasada entra no primeiro bloco livre; revisão/questões ocupam 20% dos blocos, subindo até
     60% nas últimas 3 semanas; no máximo 2 blocos seguidos da mesma disciplina quando há outra;
   - tópicos vinculados entram uma vez só (prioridades somadas); horizonte de 28 dias, até a última prova;
-  - replanejar troca só os blocos `planejado` que ainda não começaram; marcados ficam para sempre.
+  - replanejar troca só os blocos `planejado` que ainda não começaram e não foram movidos (`fixo`);
+    marcados ficam para sempre.
+- **Adaptação** (Fase 4, `dominio/adaptacao.ts`): replaneja ao finalizar/registrar sessão, ao marcar bloco e
+  na primeira abertura do dia (`replanejarDoDia` em `main.tsx`). Capacidade real = média dos últimos 14 dias
+  por dia da semana; com ≥ 14 dias de uso e real < 80% do declarado, o plano usa a média (mínimo 1 bloco) e
+  avisa. Viabilidade: blocos de teoria necessários × os que cabem até a prova (descontada a cota de
+  revisão); se não fecha, sugere cortar os de menor prioridade (`topico.cortado`, reversível no Edital).
 - **Rede do container**: o proxy bloqueia cdnjs e pciconcursos.com.br. A Fase 6 (coletor do PCI) precisa
   liberar `www.pciconcursos.com.br` nas configurações de rede do ambiente.
 
@@ -174,7 +182,7 @@ seed sozinho.
   (offline/PWA e editais compartilhados dependem da hospedagem própria; ver IDEIAS.md)
 - [x] Fase 2: editais com IA (PDF ou texto, revisão editável, tópicos equivalentes entre editais)
 - [x] Fase 3: disponibilidade (grade + exceções), Planejamento dia/semana/mês, planejador, blocos na Home
-- [ ] Fase 4: adaptação e revisões
+- [x] Fase 4: replanejamento automático, capacidade real, edital que não fecha com cortes, blocos fixos
 - [ ] Fase 5: desempenho
 - [ ] Fase 6: radar
 - [ ] Fase 7: provas anteriores

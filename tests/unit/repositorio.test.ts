@@ -410,3 +410,49 @@ describe('planejamento no repositório', () => {
     expect(repo.atual.blocos.map((b) => b.id)).toEqual([primeiro.id]);
   });
 });
+
+describe('adaptação no repositório (Fase 4)', () => {
+  const grade = {
+    blocoMin: 60,
+    excecoes: {},
+    dias: Object.fromEntries(['0', '1', '2', '3', '4', '5', '6'].map((d) => [d, [{ inicio: '20:00', fim: '22:00' }]])),
+  };
+
+  async function comPlano() {
+    agora = new Date('2026-09-27T12:00:00Z'); // domingo, 09:00 em SP
+    const { repo } = await novoRepo();
+    const ids = await concursoComDisciplina(repo);
+    await repo.salvarDisponibilidade(grade);
+    await repo.replanejar();
+    return { repo, ...ids };
+  }
+
+  it('bloco movido por você sobrevive ao replanejamento', async () => {
+    const { repo } = await comPlano();
+    const b = repo.atual.blocos[3];
+    await repo.moverBloco(b.id, '2026-10-10', '09:00');
+    await repo.replanejar();
+    expect(repo.atual.blocos.find((x) => x.id === b.id)).toMatchObject({ dia: '2026-10-10', inicio: '09:00', fixo: true });
+  });
+
+  it('marcar bloco replaneja sozinho; replanejar do dia roda uma vez por dia', async () => {
+    const { repo } = await comPlano();
+    const antes = repo.atual.blocos.filter((b) => b.status === 'planejado').map((b) => b.id);
+    await repo.marcarBloco(repo.atual.blocos[0].id, 'pulado');
+    const depois = repo.atual.blocos.filter((b) => b.status === 'planejado').map((b) => b.id);
+    expect(depois.some((id) => antes.includes(id))).toBe(false); // blocos novos
+    expect(await repo.replanejarDoDia()).toBe(false); // já replanejou hoje
+    agora = new Date('2026-09-28T12:00:00Z');
+    expect(await repo.replanejarDoDia()).toBe(true);
+  });
+
+  it('cortar tópicos tira do plano; devolver traz de volta', async () => {
+    const { repo, disciplinaId } = await comPlano();
+    const ohm = Object.values(repo.atual.disciplinas[0].topicos).find((t) => t.titulo === 'Lei de Ohm')!;
+    await repo.cortarTopicos([{ disciplinaId, topicoId: ohm.id }]);
+    expect(repo.atual.disciplinas[0].topicos[ohm.id].cortado).toBe(true);
+    expect(repo.atual.blocos.some((b) => b.topicoId === ohm.id && b.status === 'planejado')).toBe(false);
+    await repo.cortarTopicos([{ disciplinaId, topicoId: ohm.id }], false);
+    expect(repo.atual.blocos.some((b) => b.topicoId === ohm.id)).toBe(true);
+  });
+});
