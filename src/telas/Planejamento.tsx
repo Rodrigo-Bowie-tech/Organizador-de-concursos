@@ -247,11 +247,11 @@ function VisaoSemana({ base: dataRef, camadas, aoAbrir }: { base: DiaISO; camada
     if (b && b.dia !== dia) void executar(() => repo.moverBloco(id, dia, b.inicio), 'Bloco movido.');
   };
   return (
-    <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0" tabIndex={0} role="region" aria-label="Semana (role para os lados)">
       <div className="grid min-w-[760px] grid-cols-7 overflow-hidden rounded-lg border border-borda lg:min-w-0">
         {dias.map((dia) => (
           <div key={dia} className="border-r border-borda last:border-r-0" onDragOver={(e) => e.preventDefault()} onDrop={soltar(dia)}>
-            <div className={cx('border-b border-borda py-2 text-center font-bold', dia === hoje ? 'bg-verde text-white' : 'text-texto')}>
+            <div className={cx('border-b border-borda py-2 text-center font-bold', dia === hoje ? 'bg-verde-botao text-sobre-verde' : 'text-texto')}>
               {nomeDiaCurto(dia)}, {Number(dia.slice(8))}
             </div>
             <div className="min-h-64 p-1.5">
@@ -287,7 +287,7 @@ function VisaoMes({ base: dataRef, aoEscolher }: { base: DiaISO; aoEscolher: (di
             aria-label={`${formatarData(dia)}: ${blocos.length} blocos`}
             className={cx('grid min-h-20 content-start gap-1 border-r border-b border-borda p-1.5 text-left hover:bg-superficie-2', dia.slice(0, 7) !== mes && 'opacity-40')}
           >
-            <span className={cx('numeros grid h-6 w-6 place-items-center rounded-full text-xs font-bold', dia === hoje && 'bg-verde text-white')}>{Number(dia.slice(8))}</span>
+            <span className={cx('numeros grid h-6 w-6 place-items-center rounded-full text-xs font-bold', dia === hoje && 'bg-verde-botao text-sobre-verde')}>{Number(dia.slice(8))}</span>
             {blocos.slice(0, 3).map((b) => (
               <span
                 key={b.id}
@@ -347,7 +347,7 @@ function MiniCalendario({ base: dataRef, aoEscolher }: { base: DiaISO; aoEscolhe
                 dia.slice(0, 7) !== mesVisto.slice(0, 7) && 'text-suave opacity-50',
               )}
             >
-              <span className={cx('inline-grid h-6 w-6 place-items-center rounded-md', dia === hoje && 'bg-verde text-white')}>{Number(dia.slice(8))}</span>
+              <span className={cx('inline-grid h-6 w-6 place-items-center rounded-md', dia === hoje && 'bg-verde-botao text-sobre-verde')}>{Number(dia.slice(8))}</span>
             </button>
           )),
         )}

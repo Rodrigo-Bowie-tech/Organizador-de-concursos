@@ -82,7 +82,7 @@ export function Estatisticas() {
       <CabecalhoTela titulo="Estatísticas" subtitulo={concursoAtivo.nome} />
       <div className="grid gap-4">
         <Cartao titulo="Dias estudados no último ano" acao={<Etiqueta tom="verde">{totalAno} {totalAno === 1 ? 'dia' : 'dias'}</Etiqueta>}>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Dias estudados no último ano (role para os lados)">
             <div className="inline-grid gap-[3px]" style={{ gridTemplateColumns: `2rem repeat(${mapa.length}, 11px)` }} role="img" aria-label={`Heatmap: ${totalAno} ${totalAno === 1 ? 'dia' : 'dias'} com estudo no último ano`}>
               <span />
               {mapa.map((semana, w) => {

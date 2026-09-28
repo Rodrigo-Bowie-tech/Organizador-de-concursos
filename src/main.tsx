@@ -19,6 +19,8 @@ function Carregando() {
 }
 
 async function iniciar() {
+  // A página do Artifact não tem <html> próprio: o idioma vai por aqui (leitores de tela, hifenização).
+  document.documentElement.lang = 'pt-BR';
   const raiz = createRoot(document.getElementById('raiz') as HTMLElement);
   raiz.render(<Carregando />);
   const [store, ia, armazem] = await Promise.all([

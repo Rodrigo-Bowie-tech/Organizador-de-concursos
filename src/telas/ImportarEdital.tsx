@@ -221,7 +221,7 @@ export function ImportarEdital() {
         {(['fonte', 'trecho', 'revisao'] as const).map((e, i) => {
           const atual = etapa === e || (etapa === 'processando' && e === 'trecho');
           return (
-            <li key={e} className={cx('rounded-full px-3 py-1', atual ? 'bg-verde text-white' : 'bg-superficie-2 text-suave')} aria-current={atual ? 'step' : undefined}>
+            <li key={e} className={cx('rounded-full px-3 py-1', atual ? 'bg-verde-botao text-sobre-verde' : 'bg-superficie-2 text-suave')} aria-current={atual ? 'step' : undefined}>
               {i + 1}. {e === 'fonte' ? 'Arquivo ou texto' : e === 'trecho' ? 'Conteúdo programático' : 'Revisão'}
             </li>
           );

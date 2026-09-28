@@ -33,7 +33,7 @@ O app é um **Artifact privado do claude.ai**, aberto com o login do Claude no n
 | `npm run preview` | serve `dist/preview.html` em http://localhost:4173 |
 | `npm run radar:coletar` | coleta o PCI para `.cache/radar/oportunidades.json` (precisa da rede liberada) |
 | `npm run radar:mesclar` | junta a coleta com o banco baixado e gera `.cache/radar/escritas/lote.json` |
-| `npm run test:e2e` | Playwright (celular e desktop) sobre o build; rode `npm run build` antes. No container remoto: `PLAYWRIGHT_CHROMIUM=/opt/pw-browsers/chromium npm run test:e2e` |
+| `npm run test:e2e` | Playwright (celular e desktop) sobre o build, com a varredura de acessibilidade do axe; rode `npm run build` antes. No container remoto: `PLAYWRIGHT_CHROMIUM=/opt/pw-browsers/chromium npm run test:e2e` |
 
 O GitHub Actions (`.github/workflows/testes.yml`) roda tipos, unitários, build e Playwright a cada push.
 
@@ -59,6 +59,7 @@ src/
     adaptacao.ts   capacidade real (média de 14 dias por dia da semana) e viabilidade do edital com cortes
     desempenho.ts  questões (sessões + avulsas), CSV, caderno de erros (D+3/D+14), simulados, séries das estatísticas
     provas.ts      provas anteriores: dividir para a IA, pedido/validação, gabarito colado, incidência por tópico e banca
+    exportacao.ts  planilhas CSV (sessões, questões) e regra do lembrete de backup
   radar/         radar de concursos, sem React (roda também no Node pelo coletor)
     radar.ts       interface FonteConcursos, filtros (área por radical), id estável, junção com o banco
     pci.ts         parser das listagens do PCI Concursos (testado sobre HTML salvo) e leitor de robots.txt
@@ -96,6 +97,12 @@ scripts/
   `null` fora do claude.ai. Telas escondem o que depende deles (ex.: `BotaoPraticar`).
 - **IA (`sample`)**: chamar só em clique, nunca em laço; `cache: false` para gerar questões novas; erros
   viram mensagem por `mensagemErroIA`. O e2e simula `window.claude` só com `sample` (ver `melhorias.spec.ts`).
+- **Contraste e acessibilidade** (Fase 8): todo texto passa de 4,5:1 nos dois temas. Nada de `text-white`
+  fixo: sobre o verde use `bg-verde-botao text-sobre-verde`, sobre o vermelho `text-sobre-perigo`
+  (`--verde` fica para barras e ícones). `tests/e2e/acessibilidade.spec.ts` roda o axe (WCAG 2.1 A/AA) em
+  todas as telas e num modal; tela nova entra na lista `TELAS` dele. Área com rolagem horizontal leva
+  `tabIndex={0}`, `role="region"` e `aria-label`; botão não fica dentro de `<summary>`. O `lang="pt-BR"`
+  é posto em `main.tsx` (a página do Artifact não tem `<html>` próprio).
 - **Gráficos**: tokens `--grafico-tempo`/`--grafico-peso` validados com o script do skill dataviz nos dois
   temas (contraste, daltonismo). Barras ≤ 24 px, ponta arredondada, legenda sempre presente.
 
@@ -123,6 +130,7 @@ Limites: **5.000 documentos** no total e 256 KiB por documento. Por isso os regi
 | `oportunidades/<UF>` | `{ uf, itens: { <id>: Oportunidade } }`, radar ("BR" = nacional); id = hash do link |
 | `radar_filtros/<id>` | FiltroRadar (áreas, UFs, bancas, salário mínimo; o `padrao` vem do seed) |
 | `estado/radar` | `{ vistoAte }`: oportunidades coletadas depois disso são "novas" (alerta na Home) |
+| `estado/backup` | `{ ultimoEm }`: último backup exportado (lembrete na Home depois de 30 dias, com ≥ 10 sessões) |
 | `provas/<id>` | ProvaAnterior com as questões dentro (`questoes: { <id>: QuestaoProva }`); PDF em `arquivoId` |
 
 - O estado da revisão de cada tópico fica no próprio tópico (`topico.revisao`), junto com `concluidoEm`.
@@ -213,6 +221,10 @@ seed sozinho.
   viabilidade só onde `topico.incidencia` está vazio: o valor digitado no Edital vence. Refazer a prova
   grava um RegistroQuestoes por tópico (fonte = título da prova) e as erradas podem ir para o caderno.
   Prova com mais de ~240 KB de questões: importar em duas partes.
+- **Polimento** (Fase 8, dentro do que o Artifact permite): planilhas CSV com `;`, vírgula decimal e BOM
+  (abrem direto no Excel); lembrete de backup; espaço pausa/retoma o cronômetro no desktop (fora de
+  campos, botões e modais). PWA, notificações com o app fechado e deploy próprio dependem da hospedagem
+  própria (IDEIAS.md).
 - **Rede do container**: o proxy bloqueia cdnjs e pciconcursos.com.br. A rotina do radar só funciona
   depois de liberar `www.pciconcursos.com.br` nas configurações de rede do ambiente.
 
@@ -240,4 +252,5 @@ Para testar o parser com a página real: `npm run radar:amostra` (troca o fixtur
 - [x] Fase 5: questões avulsas e CSV, caderno de erros, simulados, estatísticas
 - [x] Fase 6: radar (parser do PCI + rotina diária, colar página com IA, filtros, alerta, transformar em concurso)
 - [x] Fase 7: provas anteriores (PDF/texto → questões por tópico com IA, gabarito, incidência no planejador, refazer)
-- [ ] Fase 8: polimento
+- [x] Fase 8: polimento (CSV, lembrete de backup, contraste AA + teste axe, atalho no cronômetro; PWA,
+  notificações e deploy próprio ficam para a hospedagem própria)

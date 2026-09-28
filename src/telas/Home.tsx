@@ -12,6 +12,7 @@ import { errosParaRevisar } from '../dominio/desempenho';
 import { TIPO_SESSAO } from '../dominio/rotulos';
 import { useAgora, useApp } from '../estado';
 import { oportunidadesNovas } from '../radar/radar';
+import { backupAtrasado } from '../dominio/exportacao';
 
 const DIAS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 
@@ -153,7 +154,7 @@ export function Home() {
           <button
             type="button"
             onClick={() => irPara('cronometro')}
-            className="flex flex-wrap items-center gap-3 rounded-xl bg-verde px-5 py-4 text-left text-white shadow-cartao transition hover:brightness-95"
+            className="flex flex-wrap items-center gap-3 rounded-xl bg-verde-botao px-5 py-4 text-left text-sobre-verde shadow-cartao transition hover:brightness-95"
           >
             <Play size={22} />
             <span className="min-w-0 flex-1">
@@ -167,6 +168,15 @@ export function Home() {
         )}
 
         <AlertaRadar hoje={hoje} />
+        {backupAtrasado(dados.ultimoBackup, dados.sessoes.length, agora) && (
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-alerta/12 px-4 py-2.5 text-sm font-bold text-alerta">
+            {dados.ultimoBackup ? `O último backup foi em ${formatarData(dados.ultimoBackup)}.` : 'Você ainda não exportou um backup.'} Os dados ficam na
+            nuvem do app, mas uma cópia no seu computador não custa nada.
+            <button type="button" className="underline" onClick={() => irPara('configuracoes')}>
+              Fazer backup
+            </button>
+          </p>
+        )}
         <BlocosDeHoje hoje={hoje} />
         <AvisosPlano compacto />
 
@@ -286,8 +296,15 @@ export function Home() {
                   aria-label={`${formatarData(dia)}: ${formatarDuracao(segundos)}`}
                   className={cx('flex h-9 items-end justify-end rounded-md p-1 text-[10px] font-bold sm:h-10', dia === hoje && 'ring-2 ring-verde')}
                   style={{
-                    background: nivel ? `color-mix(in srgb, var(--verde) ${20 + nivel * 20}%, var(--superficie-2))` : 'var(--superficie-2)',
-                    color: nivel >= 3 ? '#fff' : 'var(--texto-suave)',
+                    // Níveis 1–2 claros com texto escuro; 3–4 cheios com a cor de texto sobre o verde (contraste ≥ 4,5).
+                    background: [
+                      'var(--superficie-2)',
+                      'color-mix(in srgb, var(--verde) 25%, var(--superficie-2))',
+                      'color-mix(in srgb, var(--verde) 45%, var(--superficie-2))',
+                      'var(--verde-botao)',
+                      'var(--verde-forte)',
+                    ][nivel],
+                    color: nivel >= 3 ? 'var(--sobre-verde)' : nivel ? 'var(--texto)' : 'var(--texto-suave)',
                   }}
                 >
                   {Number(dia.slice(8))}

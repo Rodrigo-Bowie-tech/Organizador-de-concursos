@@ -67,7 +67,7 @@ export function dentroDoClaude(): boolean {
  * (o navegador pede confirmação); fora dele, um download comum.
  * Devolve `false` se a pessoa recusou.
  */
-export async function salvarArquivo(nome: string, conteudo: string): Promise<boolean> {
+export async function salvarArquivo(nome: string, conteudo: string, tipo = 'application/json'): Promise<boolean> {
   if (dentroDoClaude()) {
     const downloads = await recursoClaude<Downloads>('downloads');
     if (!downloads) throw { codigo: 'indisponivel', mensagem: 'Salvar arquivos não está disponível nesta visualização.' };
@@ -80,7 +80,7 @@ export async function salvarArquivo(nome: string, conteudo: string): Promise<boo
       throw { codigo: codigo ?? 'indisponivel', mensagem: 'Não foi possível salvar o arquivo. Tente de novo.' };
     }
   }
-  const url = URL.createObjectURL(new Blob([conteudo], { type: 'application/json' }));
+  const url = URL.createObjectURL(new Blob([conteudo], { type: tipo }));
   const a = document.createElement('a');
   a.href = url;
   a.download = nome;

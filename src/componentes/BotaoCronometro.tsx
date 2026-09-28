@@ -15,7 +15,7 @@ export function BotaoCronometro() {
       type="button"
       onClick={() => irPara('cronometro')}
       aria-label={ativa ? 'Abrir cronômetro (sessão em andamento)' : 'Abrir cronômetro'}
-      className="fixed right-4 z-30 flex items-center gap-2 rounded-full bg-verde px-4 py-3.5 font-extrabold text-white shadow-cartao ring-4 ring-fundo transition hover:brightness-95 sm:right-6"
+      className="fixed right-4 z-30 flex items-center gap-2 rounded-full bg-verde-botao px-4 py-3.5 font-extrabold text-sobre-verde shadow-cartao ring-4 ring-fundo transition hover:brightness-95 sm:right-6"
       style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)' }}
     >
       {pausada ? <Pause size={22} /> : <Timer size={22} />}

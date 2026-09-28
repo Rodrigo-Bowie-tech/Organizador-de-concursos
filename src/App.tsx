@@ -137,7 +137,7 @@ function Avisos() {
           role={a.tipo === 'erro' ? 'alert' : 'status'}
           className={cx(
             'pointer-events-auto max-w-md rounded-lg px-4 py-2.5 font-bold shadow-cartao',
-            a.tipo === 'erro' ? 'bg-perigo text-white' : 'bg-texto text-fundo',
+            a.tipo === 'erro' ? 'bg-perigo text-sobre-perigo' : 'bg-texto text-fundo',
           )}
         >
           {a.texto}

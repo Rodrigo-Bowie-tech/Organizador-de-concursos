@@ -7,10 +7,10 @@ export { cx };
 type Variante = 'primario' | 'secundario' | 'fantasma' | 'perigo';
 
 const VARIANTES: Record<Variante, string> = {
-  primario: 'bg-verde text-white hover:brightness-95 shadow-sm',
+  primario: 'bg-verde-botao text-sobre-verde hover:brightness-95 shadow-sm',
   secundario: 'bg-superficie text-verde-forte border border-borda hover:bg-verde-suave',
   fantasma: 'text-suave hover:bg-superficie-2 hover:text-texto',
-  perigo: 'bg-perigo text-white hover:brightness-95',
+  perigo: 'bg-perigo text-sobre-perigo hover:brightness-95',
 };
 
 export function Botao({

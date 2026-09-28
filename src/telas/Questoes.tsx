@@ -107,7 +107,7 @@ function ModalCsv({ aoFechar }: { aoFechar: () => void }) {
           </ul>
         )}
         {lido.linhas.length > 0 && (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Linhas do CSV">
             <table className="w-full text-sm">
               <thead className="text-left text-suave">
                 <tr>

@@ -18,6 +18,7 @@
 //   simulados/<id>            Simulado
 //   oportunidades/<UF>        { uf, itens: { <id>: Oportunidade } }, radar de concursos
 //   estado/radar              { vistoAte }: até quando as oportunidades já foram vistas
+//   estado/backup             { ultimoEm }: quando o último backup foi exportado
 //   estado/vinculos           { ignorados: string[] }, sugestões de equivalência recusadas
 //   radar_filtros/<id>        FiltroRadar (Fase 6; já vem no seed)
 //   provas/<id>               ProvaAnterior (questões dentro, PDF no armazenamento de arquivos)
@@ -127,6 +128,8 @@ export interface Dados {
   radarVistoAte: string | null;
   /** Fase 7: provas anteriores importadas, mais novas primeiro. */
   provas: ProvaAnterior[];
+  /** Instante do último backup exportado (lembrete na Home). */
+  ultimoBackup: string | null;
   config: Configuracao;
   erro: ErroStore | null;
 }
@@ -268,6 +271,7 @@ export class Repositorio {
     const provas = [...this.col('provas').entries()]
       .map(([id, p]) => ({ ...(p as unknown as ProvaAnterior), id, questoes: (p.questoes as unknown as ProvaAnterior['questoes']) ?? {} }))
       .sort((a, b) => (b.ano ?? 0) - (a.ano ?? 0) || b.importadaEm.localeCompare(a.importadaEm));
+    const ultimoBackup = (this.col('estado').get('backup')?.ultimoEm as string | undefined) ?? null;
     const ativa = ((this.col('estado').get('cronometro')?.sessao as Sessao | null) ?? null) || null;
     const cfg = this.col('config').get('geral') as Partial<Configuracao> | undefined;
     const config: Configuracao = {
@@ -295,6 +299,7 @@ export class Repositorio {
       filtrosRadar,
       radarVistoAte,
       provas,
+      ultimoBackup,
       config,
       erro: this.erro,
     };
@@ -1215,6 +1220,10 @@ export class Repositorio {
   }
 
   // --------------------------------------------------------------- backup
+
+  async marcarBackup(): Promise<void> {
+    await this.store.definir('estado/backup', { ultimoEm: this.relogio().toISOString() });
+  }
 
   exportar(): Backup {
     const documentos: Record<string, Json> = {};

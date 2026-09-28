@@ -43,6 +43,24 @@ export function Cronometro() {
     };
   }, [estado]);
 
+  // Atalho no teclado: espaço pausa ou retoma (fora de campos, botões e modais).
+  useEffect(() => {
+    if (!estado) return;
+    const tecla = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+      const alvo = e.target as HTMLElement | null;
+      if (alvo?.closest('input, textarea, select, button, a, [contenteditable="true"], dialog[open]') || document.querySelector('dialog[open]')) return;
+      e.preventDefault();
+      if (estado === 'rodando') void executar(() => repo.pausarSessao());
+      else {
+        prepararAudio();
+        void executar(() => repo.retomarSessao());
+      }
+    };
+    window.addEventListener('keydown', tecla);
+    return () => window.removeEventListener('keydown', tecla);
+  }, [estado, executar, repo]);
+
   const liquido = ativa ? segundosLiquidos(ativa, agora) : 0;
   const fase = ativa && pomodoro.ativo ? fasePomodoro(ativa, pomodoro, agora) : null;
   const disciplina = ativa ? dados.disciplinas.find((d) => d.id === ativa.disciplinaId) : null;
@@ -118,6 +136,11 @@ export function Cronometro() {
             </Botao>
           )}
         </div>
+        {ativa && (
+          <p className="mt-3 hidden text-xs text-suave lg:block">
+            Atalho: <kbd className="rounded border border-borda bg-superficie-2 px-1.5 py-0.5 font-mono">espaço</kbd> pausa e retoma.
+          </p>
+        )}
       </Cartao>
 
       {(!ativa || trocando) && (

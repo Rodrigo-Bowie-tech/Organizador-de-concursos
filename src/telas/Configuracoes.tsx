@@ -1,8 +1,9 @@
-import { Download, Upload } from 'lucide-react';
+import { Download, FileSpreadsheet, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Botao, CabecalhoTela, Campo, Cartao, Confirmar, Entrada, Progresso, cx } from '../componentes/ui';
 import type { Backup } from '../dados/repositorio';
-import { diaSP } from '../dominio/datas';
+import { diaSP, formatarData } from '../dominio/datas';
+import { csvQuestoes, csvSessoes } from '../dominio/exportacao';
 import type { Configuracao, Tema } from '../dominio/tipos';
 import { useApp } from '../estado';
 import { dentroDoClaude, salvarArquivo } from '../plataforma';
@@ -35,7 +36,22 @@ export function Configuracoes() {
     const backup = repo.exportar();
     await executar(async () => {
       const ok = await salvarArquivo(`organizador-concursos-backup-${diaSP(Date.now())}.json`, JSON.stringify(backup, null, 2));
-      if (ok) avisar('Backup exportado.');
+      if (ok) {
+        await repo.marcarBackup();
+        avisar('Backup exportado.');
+      }
+    });
+  }
+
+  async function planilha(qual: 'sessoes' | 'questoes') {
+    const sessoes = dados.ativa ? [...dados.sessoes, dados.ativa] : dados.sessoes;
+    const csv =
+      qual === 'sessoes'
+        ? csvSessoes(sessoes, dados.concursos, dados.disciplinas, new Date())
+        : csvQuestoes(dados.sessoes, dados.registrosQuestoes, dados.concursos, dados.disciplinas);
+    await executar(async () => {
+      const ok = await salvarArquivo(`organizador-${qual}-${diaSP(Date.now())}.csv`, csv, 'text/csv;charset=utf-8');
+      if (ok) avisar('Planilha exportada.');
     });
   }
 
@@ -173,6 +189,9 @@ export function Configuracoes() {
             Exporte tudo (concursos, edital, sessões e configurações) num arquivo JSON. Importar um backup substitui todo o
             conteúdo atual.
           </p>
+          <p className="mt-2 text-sm font-bold text-suave">
+            {dados.ultimoBackup ? `Último backup: ${formatarData(dados.ultimoBackup)}` : 'Nenhum backup exportado ainda.'}
+          </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Botao onClick={() => void exportar()}>
               <Download size={18} /> Exportar backup
@@ -181,6 +200,18 @@ export function Configuracoes() {
               <Upload size={18} /> Importar backup
             </Botao>
             <input ref={arquivo} type="file" accept="application/json,.json" className="hidden" onChange={(e) => lerArquivo(e.target.files?.[0])} />
+          </div>
+        </Cartao>
+
+        <Cartao titulo="Planilhas">
+          <p className="text-suave">Sessões e questões em CSV, para abrir no Excel ou no Google Planilhas (separador “;”).</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Botao variante="secundario" onClick={() => void planilha('sessoes')}>
+              <FileSpreadsheet size={18} /> Sessões (CSV)
+            </Botao>
+            <Botao variante="secundario" onClick={() => void planilha('questoes')}>
+              <FileSpreadsheet size={18} /> Questões (CSV)
+            </Botao>
           </div>
         </Cartao>
 

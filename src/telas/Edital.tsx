@@ -420,8 +420,9 @@ export function Edital() {
             const linhas = achatar(d.topicos);
             const c = cobertura([d]);
             return (
-              <details key={d.id} open className="group rounded-xl bg-superficie shadow-cartao">
-                <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-2 p-4 [&::-webkit-details-marker]:hidden">
+              <div key={d.id} className="relative">
+              <details open className="group rounded-xl bg-superficie shadow-cartao">
+                <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-2 p-4 pr-28 [&::-webkit-details-marker]:hidden">
                   <span className="h-8 w-1.5 shrink-0 rounded-full" style={{ background: d.cor }} aria-hidden />
                   <span className="min-w-0 flex-1 basis-40">
                     <span className="block font-extrabold">{d.nome}</span>
@@ -432,16 +433,6 @@ export function Edital() {
                   <span className="w-full sm:w-40">
                     <Progresso rotulo={`Cobertura de ${d.nome}`} fracao={c.fracao} cor={d.cor} />
                   </span>
-                  <Botao
-                    tamanho="pequeno"
-                    variante="secundario"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setNovo({ disciplina: d, paiId: null });
-                    }}
-                  >
-                    <Plus size={16} /> Tópico
-                  </Botao>
                 </summary>
                 <div className="border-t border-borda px-4">
                   {linhas.length ? (
@@ -473,6 +464,11 @@ export function Edital() {
                   )}
                 </div>
               </details>
+              {/* Fora do <summary>: botão dentro dele é "interativo aninhado" para leitores de tela. */}
+              <Botao tamanho="pequeno" variante="secundario" className="absolute top-4 right-4" onClick={() => setNovo({ disciplina: d, paiId: null })}>
+                <Plus size={16} /> Tópico
+              </Botao>
+              </div>
             );
           })}
         </div>
