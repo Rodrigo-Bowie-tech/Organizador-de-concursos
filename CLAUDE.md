@@ -53,12 +53,13 @@ src/
     pratica.ts     pedido de questões no estilo da banca e validação da resposta da IA
     balanco.ts     tempo × peso, disciplinas esquecidas, tópicos parados, projeção de cobertura
     edital.ts      importação: achar o conteúdo programático, dividir para a IA, validar/juntar, equivalências
+    planejador.ts  núcleo (5.1/5.2/5.4): slots da disponibilidade, domínio, fila por prioridade, gerarPlano
   dados/
     store.ts       interface Store; ArtifactStore (claude.use("db")) e MemoriaStore (localStorage)
     repositorio.ts espelho do banco via assinaturas + todas as gravações
   estado.tsx     contexto React: dados, concurso ativo, navegação, avisos
-  telas/         Home, Concursos, Disciplinas, Edital, Revisoes, Historico, Balanco, Biblioteca,
-                 Cronometro, Configuracoes
+  telas/         Home, Concursos, Disciplinas, Edital, ImportarEdital, Planejamento, Disponibilidade,
+                 Revisoes, Historico, Balanco, Biblioteca, Cronometro, Configuracoes
   componentes/   ui.tsx (botões, modal <dialog>, campos), campos/modais de sessão, botão flutuante,
                  Pomodoro, Materiais (biblioteca), PraticaIA
   plataforma.ts  recursos do claude.ai (IA, arquivos, downloads), wake lock, bipes, localStorage
@@ -100,6 +101,8 @@ Limites: **5.000 documentos** no total e 256 KiB por documento. Por isso os regi
 | `biblioteca/<disciplinaId>` | `{ disciplinaId, itens: { <id>: Material } }`; PDFs no `assets`, id em `arquivoId` |
 | `editais/<id>` | Edital importado (cargo, trecho usado, PDF em `arquivoId`) |
 | `estado/vinculos` | `{ ignorados: string[] }` sugestões de tópicos equivalentes recusadas (`chavePar`) |
+| `disponibilidade/geral` | Disponibilidade: `dias` ("0"–"6" → janelas), `excecoes` (dia → janelas + motivo), `blocoMin` |
+| `plano/<AAAA-MM-DD>` | `{ semana, itens: { <id>: BlocoPlanejado } }`, blocos do calendário por semana |
 | `radar_filtros/<id>` | FiltroRadar (Fase 6; já vem no seed) |
 
 - O estado da revisão de cada tópico fica no próprio tópico (`topico.revisao`), junto com `concluidoEm`.
@@ -151,6 +154,16 @@ seed sozinho.
 - **Tópicos equivalentes**: sugestão por Jaccard das palavras-chave dos títulos (≥ 0,6) entre concursos
   diferentes. Vinculados compartilham `grupoEquivalenciaId`; status, conclusão e revisões se propagam no
   repositório (`aplicarEmTopicos`), e o Edital soma horas e questões do grupo.
+- **Planejador** (Fase 3, `dominio/planejador.ts`, testes da seção 5.5 em `planejador.test.ts`):
+  - janelas divididas em blocos de `blocoMin` (sobra ≥ 25 min vira bloco menor; menor que isso estica o último);
+  - domínio = teoria (até 0,5) + autoavaliação (0,25) + acerto recente com meia-vida de 30 dias (0,25, a
+    partir de 5 questões); prioridade = peso×questões normalizado × incidência (1 a 2) × (1 − domínio) ×
+    urgência (cresce nos 120 dias antes da prova) × prioridade do concurso;
+  - teoria estimada em 2 blocos por tópico não iniciado e 1 em estudo; ao fim, o plano já agenda D+1 e D+7;
+  - revisão atrasada entra no primeiro bloco livre; revisão/questões ocupam 20% dos blocos, subindo até
+    60% nas últimas 3 semanas; no máximo 2 blocos seguidos da mesma disciplina quando há outra;
+  - tópicos vinculados entram uma vez só (prioridades somadas); horizonte de 28 dias, até a última prova;
+  - replanejar troca só os blocos `planejado` que ainda não começaram; marcados ficam para sempre.
 - **Rede do container**: o proxy bloqueia cdnjs e pciconcursos.com.br. A Fase 6 (coletor do PCI) precisa
   liberar `www.pciconcursos.com.br` nas configurações de rede do ambiente.
 
@@ -160,7 +173,7 @@ seed sozinho.
 - [x] Melhorias: revisões adaptativas, biblioteca, prática com IA, balanço semanal, CI no GitHub
   (offline/PWA e editais compartilhados dependem da hospedagem própria; ver IDEIAS.md)
 - [x] Fase 2: editais com IA (PDF ou texto, revisão editável, tópicos equivalentes entre editais)
-- [ ] Fase 3: calendário e planejador
+- [x] Fase 3: disponibilidade (grade + exceções), Planejamento dia/semana/mês, planejador, blocos na Home
 - [ ] Fase 4: adaptação e revisões
 - [ ] Fase 5: desempenho
 - [ ] Fase 6: radar

@@ -57,6 +57,8 @@ export interface Topico {
   concluidoEm?: InstanteISO | null;
   /** Agenda de revisões espaçadas; existe a partir da teoria concluída. */
   revisao?: EstadoRevisao | null;
+  /** Cortado do plano (edital não fecha até a prova). Continua no edital, fora do planejador. */
+  cortado?: boolean;
 }
 
 /** Estado da repetição espaçada de um tópico (ver dominio/revisoes.ts). */
@@ -222,31 +224,37 @@ export interface BlocoHorario {
   rotulo?: string;
 }
 
-/** Fase 3: grade semanal. `diaSemana` 0 = domingo. */
-export interface Disponibilidade {
-  diaSemana: number;
-  blocos: BlocoHorario[];
-}
-
-/** Fase 3: plantão, viagem, folga. */
+/** Plantão, viagem, folga: blocos daquele dia no lugar da grade (lista vazia = sem estudo). */
 export interface ExcecaoDisponibilidade {
-  dia: DiaISO;
   blocos: BlocoHorario[];
   motivo: string;
 }
 
-export type StatusBloco = 'planejado' | 'feito' | 'parcial' | 'pulado' | 'remanejado';
+/** Fase 3: grade semanal e exceções, em `disponibilidade/geral`. */
+export interface Disponibilidade {
+  /** Chave "0" (domingo) a "6" (sábado). */
+  dias: Record<string, BlocoHorario[]>;
+  excecoes: Record<DiaISO, ExcecaoDisponibilidade>;
+  /** Duração de cada bloco de estudo, em minutos. */
+  blocoMin: number;
+}
 
-/** Fase 3: bloco do calendário com o tópico planejado. */
+export type StatusBloco = 'planejado' | 'feito' | 'parcial' | 'pulado';
+
+/** Fase 3: bloco do calendário com o tópico planejado, em `plano/<domingo>`. */
 export interface BlocoPlanejado {
   id: Id;
   dia: DiaISO;
+  /** `HH:mm` no fuso de São Paulo. */
   inicio: string;
   fim: string;
-  topicoId: Id | null;
+  concursoId: Id | null;
   disciplinaId: Id | null;
+  topicoId: Id | null;
   tipo: TipoSessao;
   status: StatusBloco;
+  /** Por que o planejador escolheu este bloco. */
+  motivo: 'teoria' | 'revisao' | 'revisao_atrasada' | 'questoes';
 }
 
 /** Fase 5. */

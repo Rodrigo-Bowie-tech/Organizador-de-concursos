@@ -1,11 +1,13 @@
-import { CalendarClock, Flame, Play, RefreshCcw } from 'lucide-react';
+import { CalendarClock, CalendarDays, Check, Flame, Play, RefreshCcw } from 'lucide-react';
 import { useMemo } from 'react';
 import { Botao, CabecalhoTela, Cartao, Etiqueta, Progresso, Vazio, cx } from '../componentes/ui';
 import { estadoDaSessao, segundosLiquidos, segundosPorDia } from '../dominio/cronometro';
 import { diaDaSemana, formatarData, formatarDuracao, formatarRelogio } from '../dominio/datas';
 import { projecaoCobertura } from '../dominio/balanco';
 import { cobertura, hojeSP, provasFuturas, sequenciaDeDias, totaisPorPeriodo, ultimosDias } from '../dominio/painel';
+import { minutos } from '../dominio/planejador';
 import { revisoesAgendadas, separarRevisoes } from '../dominio/revisoes';
+import { TIPO_SESSAO } from '../dominio/rotulos';
 import { useAgora, useApp } from '../estado';
 
 const DIAS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -20,6 +22,58 @@ function Meta({ rotulo, segundos, metaMin }: { rotulo: string; segundos: number;
       <p className="numeros text-sm text-suave">
         {Math.round(fracao * 100)}% da meta de {formatarDuracao(metaMin * 60)}
       </p>
+    </Cartao>
+  );
+}
+
+function BlocosDeHoje({ hoje }: { hoje: string }) {
+  const { dados, repo, executar, irPara } = useApp();
+  const blocos = dados.blocos.filter((b) => b.dia === hoje);
+  if (!blocos.length) return null;
+  return (
+    <Cartao
+      titulo={<span className="flex items-center gap-2"><CalendarDays size={18} /> Blocos de hoje</span>}
+      acao={
+        <Botao tamanho="pequeno" variante="fantasma" onClick={() => irPara('planejamento')}>
+          Ver planejamento
+        </Botao>
+      }
+    >
+      <ul className="grid gap-2">
+        {blocos.map((b) => {
+          const d = dados.disciplinas.find((x) => x.id === b.disciplinaId);
+          const t = d && b.topicoId ? d.topicos[b.topicoId] : undefined;
+          return (
+            <li key={b.id} className="flex flex-wrap items-center gap-3 rounded-lg border-l-4 bg-superficie-2 px-3 py-2" style={{ borderLeftColor: d?.cor }}>
+              <span className="numeros w-24 shrink-0 font-bold">
+                {b.inicio}–{b.fim}
+              </span>
+              <span className="min-w-0 flex-1 basis-48">
+                <span className={b.status === 'feito' ? 'block font-bold text-suave line-through' : 'block font-bold'}>{d?.nome ?? 'Disciplina'}</span>
+                <span className="block truncate text-sm text-suave">
+                  {t?.titulo ?? 'Disciplina inteira'} · {TIPO_SESSAO[b.tipo]} · {Math.round(minutos(b))} min
+                </span>
+              </span>
+              {b.status === 'planejado' ? (
+                <Botao
+                  tamanho="pequeno"
+                  disabled={Boolean(dados.ativa)}
+                  onClick={async () => {
+                    const s = await executar(() => repo.iniciarSessao({ concursoId: b.concursoId, disciplinaId: b.disciplinaId, topicoId: b.topicoId, tipo: b.tipo }));
+                    if (s) irPara('cronometro');
+                  }}
+                >
+                  <Play size={15} /> Começar
+                </Botao>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-sm font-bold text-verde-forte">
+                  <Check size={15} /> {b.status === 'feito' ? 'Feito' : b.status === 'parcial' ? 'Parcial' : 'Pulado'}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </Cartao>
   );
 }
@@ -78,6 +132,8 @@ export function Home() {
             <span className="numeros font-mono text-2xl font-semibold">{formatarRelogio(segundosLiquidos(ativa, agora))}</span>
           </button>
         )}
+
+        <BlocosDeHoje hoje={hoje} />
 
         <div className="grid gap-4 sm:grid-cols-3">
           <Meta rotulo="Hoje" segundos={totais.hoje} metaMin={dados.config.metaDiariaMin} />

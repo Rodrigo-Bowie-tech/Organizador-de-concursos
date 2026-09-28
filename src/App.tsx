@@ -1,4 +1,4 @@
-import { BookOpenCheck, ChartColumnBig, FolderOpen, History, House, Layers, Library, Menu, RefreshCcw, Settings, Timer, X } from 'lucide-react';
+import { BookOpenCheck, CalendarDays, ChartColumnBig, FolderOpen, History, House, Layers, Library, Menu, RefreshCcw, Settings, Timer, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
@@ -18,7 +18,9 @@ import { Cronometro } from './telas/Cronometro';
 import { Disciplinas } from './telas/Disciplinas';
 import { Edital } from './telas/Edital';
 import { Historico } from './telas/Historico';
+import { Disponibilidade } from './telas/Disponibilidade';
 import { Home } from './telas/Home';
+import { Planejamento } from './telas/Planejamento';
 import { ImportarEdital } from './telas/ImportarEdital';
 import { Revisoes } from './telas/Revisoes';
 
@@ -27,6 +29,7 @@ const ITENS: { tela: Tela; rotulo: string; icone: LucideIcon }[] = [
   { tela: 'concursos', rotulo: 'Concursos', icone: FolderOpen },
   { tela: 'disciplinas', rotulo: 'Disciplinas', icone: Layers },
   { tela: 'edital', rotulo: 'Edital', icone: BookOpenCheck },
+  { tela: 'planejamento', rotulo: 'Planejamento', icone: CalendarDays },
   { tela: 'revisoes', rotulo: 'Revisões', icone: RefreshCcw },
   { tela: 'historico', rotulo: 'Histórico', icone: History },
   { tela: 'balanco', rotulo: 'Balanço', icone: ChartColumnBig },
@@ -41,6 +44,8 @@ const TELAS: Record<Tela, ComponentType> = {
   disciplinas: Disciplinas,
   edital: Edital,
   importar: ImportarEdital,
+  planejamento: Planejamento,
+  disponibilidade: Disponibilidade,
   revisoes: Revisoes,
   balanco: Balanco,
   biblioteca: Biblioteca,

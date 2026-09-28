@@ -10,12 +10,15 @@
 //   revisoes/<AAAA-MM-DD>     { semana, itens: { <id>: RegistroRevisao } }, histórico de revisões
 //   biblioteca/<disciplinaId> { disciplinaId, itens: { <id>: Material } }
 //   editais/<id>              Edital importado (PDF no armazenamento de arquivos)
+//   disponibilidade/geral     Disponibilidade (grade semanal, exceções, duração do bloco)
+//   plano/<AAAA-MM-DD>        { semana, itens: { <id>: BlocoPlanejado } }, blocos do calendário
 //   estado/vinculos           { ignorados: string[] }, sugestões de equivalência recusadas
 //   radar_filtros/<id>        FiltroRadar (Fase 6; já vem no seed)
 
 import * as crono from '../dominio/cronometro';
-import { diaSP, inicioDaSemana } from '../dominio/datas';
+import { diaSP, inicioDaSemana, instanteSP } from '../dominio/datas';
 import { chavePar, topicosDaImportacao } from '../dominio/edital';
+import { acertoRecente, DISPONIBILIDADE_VAZIA, gerarPlano, minutos } from '../dominio/planejador';
 import type { DisciplinaImportada } from '../dominio/edital';
 import { lerLote, topicosDoLote } from '../dominio/lote';
 import { topicoConcluido } from '../dominio/painel';
@@ -24,9 +27,11 @@ import { CORES_DISCIPLINA } from '../dominio/rotulos';
 import { comDescendentes, mover, proximaOrdem } from '../dominio/topicos';
 import type {
   AvaliacaoRevisao,
+  BlocoPlanejado,
   Concurso,
   Configuracao,
   Disciplina,
+  Disponibilidade,
   Edital,
   EstadoRevisao,
   Id,
@@ -48,10 +53,12 @@ export const COLECOES = [
   'revisoes',
   'biblioteca',
   'editais',
+  'disponibilidade',
+  'plano',
   'radar_filtros',
 ] as const;
 type Colecao = (typeof COLECOES)[number];
-type ColecaoSemanal = 'sessoes' | 'revisoes';
+type ColecaoSemanal = 'sessoes' | 'revisoes' | 'plano';
 
 /** Armazenamento de arquivos (PDFs da biblioteca). No claude.ai, o recurso `assets`. */
 export interface Arquivos {
@@ -82,6 +89,9 @@ export interface Dados {
   editais: Edital[];
   /** Pares de tópicos (`chavePar`) cuja sugestão de equivalência foi recusada. */
   vinculosIgnorados: Set<string>;
+  disponibilidade: Disponibilidade;
+  /** Blocos do calendário, em ordem de dia e horário. */
+  blocos: BlocoPlanejado[];
   config: Configuracao;
   erro: ErroStore | null;
 }
@@ -203,6 +213,9 @@ export class Repositorio {
       .map((e) => e as unknown as Edital)
       .sort((a, b) => b.importadoEm.localeCompare(a.importadoEm));
     const vinculosIgnorados = new Set((this.col('estado').get('vinculos')?.ignorados as string[] | undefined) ?? []);
+    const disp = this.col('disponibilidade').get('geral') as Partial<Disponibilidade> | undefined;
+    const disponibilidade: Disponibilidade = { ...DISPONIBILIDADE_VAZIA, ...disp, dias: disp?.dias ?? {}, excecoes: disp?.excecoes ?? {} };
+    const blocos = this.itensSemanais<BlocoPlanejado>('plano').sort((a, b) => a.dia.localeCompare(b.dia) || a.inicio.localeCompare(b.inicio));
     const ativa = ((this.col('estado').get('cronometro')?.sessao as Sessao | null) ?? null) || null;
     const cfg = this.col('config').get('geral') as Partial<Configuracao> | undefined;
     const config: Configuracao = {
@@ -221,6 +234,8 @@ export class Repositorio {
       materiais,
       editais,
       vinculosIgnorados,
+      disponibilidade,
+      blocos,
       config,
       erro: this.erro,
     };
@@ -621,6 +636,95 @@ export class Repositorio {
     delete itens[m.id];
     if (Object.keys(itens).length) await this.store.definir(`biblioteca/${m.disciplinaId}`, { disciplinaId: m.disciplinaId, itens });
     else await this.store.remover(`biblioteca/${m.disciplinaId}`);
+  }
+
+  // --------------------------------------------------------- planejamento
+
+  async salvarDisponibilidade(d: Disponibilidade): Promise<void> {
+    await this.store.definir('disponibilidade/geral', d as unknown as Json);
+  }
+
+  /** Registros de questões (sessões) no formato do cálculo de acerto recente. */
+  private registrosDeQuestoes() {
+    return this.dados.sessoes.map((s) => ({ topicoId: s.topicoId, feitas: s.questoesFeitas, acertos: s.acertos, dia: diaSP(s.inicio) }));
+  }
+
+  /**
+   * Refaz os blocos planejados de agora em diante. Blocos marcados (feito,
+   * parcial, pulado) e os que já começaram ficam como estão: o histórico nunca
+   * é apagado. Devolve quantos blocos foram planejados.
+   */
+  async replanejar(opcoes: { capacidadeMin?: Record<string, number> } = {}): Promise<number> {
+    const agora = this.relogio();
+    const novos = gerarPlano({
+      agora,
+      concursos: this.dados.concursos,
+      disciplinas: this.dados.disciplinas,
+      disponibilidade: this.dados.disponibilidade,
+      existentes: this.dados.blocos,
+      acertos: acertoRecente(this.registrosDeQuestoes(), diaSP(agora)),
+      capacidadeMin: opcoes.capacidadeMin,
+      novoId,
+    });
+    await this.substituirFuturos(novos);
+    return novos.length;
+  }
+
+  /** Apaga os blocos planejados de agora em diante (o histórico fica). */
+  async removerPlanoFuturo(): Promise<number> {
+    const antes = this.futurosPlanejados().length;
+    await this.substituirFuturos([]);
+    return antes;
+  }
+
+  private futurosPlanejados(): BlocoPlanejado[] {
+    const agora = this.relogio().getTime();
+    return this.dados.blocos.filter((b) => b.status === 'planejado' && instanteSP(b.dia, b.inicio).getTime() >= agora);
+  }
+
+  private async substituirFuturos(novos: BlocoPlanejado[]): Promise<void> {
+    const sair = new Set(this.futurosPlanejados().map((b) => b.id));
+    const porSemana = new Map<string, Record<Id, Json>>();
+    const semanasTocadas = new Set<string>();
+    for (const b of this.dados.blocos) {
+      const semana = inicioDaSemana(b.dia);
+      if (sair.has(b.id)) {
+        semanasTocadas.add(semana);
+        continue;
+      }
+      const m = porSemana.get(semana) ?? {};
+      m[b.id] = b as unknown as Json;
+      porSemana.set(semana, m);
+    }
+    for (const b of novos) {
+      const semana = inicioDaSemana(b.dia);
+      semanasTocadas.add(semana);
+      const m = porSemana.get(semana) ?? {};
+      m[b.id] = b as unknown as Json;
+      porSemana.set(semana, m);
+    }
+    for (const semana of semanasTocadas) {
+      const itens = porSemana.get(semana);
+      if (itens && Object.keys(itens).length) await this.store.definir(`plano/${semana}`, { semana, itens });
+      else if (this.col('plano').has(semana)) await this.store.remover(`plano/${semana}`);
+    }
+  }
+
+  async marcarBloco(id: Id, status: BlocoPlanejado['status']): Promise<void> {
+    const b = this.dados.blocos.find((x) => x.id === id);
+    if (!b) throw falha('nao_encontrado', 'Bloco não encontrado.');
+    await this.gravarItemSemanal('plano', inicioDaSemana(b.dia), { ...b, status } as BlocoPlanejado);
+  }
+
+  /** Move o bloco para outro dia e horário, mantendo a duração. */
+  async moverBloco(id: Id, dia: string, inicio: string): Promise<void> {
+    const b = this.dados.blocos.find((x) => x.id === id);
+    if (!b) throw falha('nao_encontrado', 'Bloco não encontrado.');
+    const [h, m] = inicio.split(':').map(Number);
+    const fimMin = h * 60 + m + minutos(b);
+    if (fimMin > 24 * 60) throw falha('horario_invalido', 'O bloco passaria da meia-noite. Escolha um horário mais cedo.');
+    const fim = `${String(Math.floor(fimMin / 60)).padStart(2, '0')}:${String(fimMin % 60).padStart(2, '0')}`;
+    await this.gravarItemSemanal('plano', inicioDaSemana(dia), { ...b, dia, inicio, fim } as BlocoPlanejado);
   }
 
   // ----------------------------------------------------------- cronômetro

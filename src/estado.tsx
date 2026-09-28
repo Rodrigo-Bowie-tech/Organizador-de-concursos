@@ -12,6 +12,8 @@ export type Tela =
   | 'disciplinas'
   | 'edital'
   | 'importar'
+  | 'planejamento'
+  | 'disponibilidade'
   | 'revisoes'
   | 'historico'
   | 'balanco'

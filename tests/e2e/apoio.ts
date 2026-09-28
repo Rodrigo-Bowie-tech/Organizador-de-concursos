@@ -74,9 +74,9 @@ export const BANCO: Record<string, unknown> = {
   },
 };
 
-export async function preparar(page: Page, opcoes: { ia?: boolean; extras?: Record<string, unknown> } = {}) {
-  // Domingo, 27/09/2026, 20:00 em São Paulo.
-  await page.clock.install({ time: new Date('2026-09-27T23:00:00Z') });
+export async function preparar(page: Page, opcoes: { ia?: boolean; extras?: Record<string, unknown>; agora?: string } = {}) {
+  // Padrão: domingo, 27/09/2026, 20:00 em São Paulo.
+  await page.clock.install({ time: new Date(opcoes.agora ?? '2026-09-27T23:00:00Z') });
   await page.addInitScript(
     ([chave, banco]) => {
       if (!localStorage.getItem(chave as string)) localStorage.setItem(chave as string, JSON.stringify(banco));

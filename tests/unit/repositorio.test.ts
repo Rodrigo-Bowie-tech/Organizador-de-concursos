@@ -376,3 +376,37 @@ describe('tópicos equivalentes', () => {
     expect(repo.atual.vinculosIgnorados.has([t1, t2].sort().join('|'))).toBe(true);
   });
 });
+
+describe('planejamento no repositório', () => {
+  const grade = {
+    blocoMin: 60,
+    excecoes: {},
+    dias: Object.fromEntries(['0', '1', '2', '3', '4', '5', '6'].map((d) => [d, [{ inicio: '20:00', fim: '22:00' }]])),
+  };
+
+  it('replaneja por semanas, mantém o histórico marcado e move blocos', async () => {
+    const store = new MemoriaStore();
+    agora = new Date('2026-09-27T12:00:00Z'); // domingo, 09:00 em SP
+    const { repo } = await novoRepo(store);
+    await concursoComDisciplina(repo);
+    await repo.salvarDisponibilidade(grade);
+    const n = await repo.replanejar();
+    expect(n).toBeGreaterThan(0);
+    expect(repo.atual.blocos[0]).toMatchObject({ dia: '2026-09-27', inicio: '20:00', fim: '21:00', status: 'planejado' });
+    expect(Object.keys(store.despejar())).toContain('plano/2026-09-27');
+
+    const primeiro = repo.atual.blocos[0];
+    await repo.marcarBloco(primeiro.id, 'feito');
+    await repo.replanejar();
+    expect(repo.atual.blocos.find((b) => b.id === primeiro.id)?.status).toBe('feito');
+    expect(repo.atual.blocos.filter((b) => b.dia === '2026-09-27' && b.inicio === '20:00')).toHaveLength(1);
+
+    const outro = repo.atual.blocos.find((b) => b.status === 'planejado')!;
+    await repo.moverBloco(outro.id, '2026-10-05', '06:30');
+    expect(repo.atual.blocos.find((b) => b.id === outro.id)).toMatchObject({ dia: '2026-10-05', inicio: '06:30', fim: '07:30' });
+
+    const removidos = await repo.removerPlanoFuturo();
+    expect(removidos).toBeGreaterThan(0);
+    expect(repo.atual.blocos.map((b) => b.id)).toEqual([primeiro.id]);
+  });
+});
