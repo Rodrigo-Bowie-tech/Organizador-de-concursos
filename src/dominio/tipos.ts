@@ -173,13 +173,17 @@ export interface Configuracao {
 
 // ------------------------------------------------- Fases seguintes (tipos já definidos)
 
-/** Fase 2: edital importado de PDF ou texto colado. */
+/** Fase 2: edital importado de PDF ou texto colado, em `editais/<id>`. */
 export interface Edital {
   id: Id;
   concursoId: Id;
-  /** Id do arquivo no armazenamento de arquivos do Artifact. */
+  /** PDF guardado no armazenamento de arquivos do app (recurso `assets`). */
   arquivoId: string | null;
-  textoExtraido: string;
+  arquivoNome: string | null;
+  cargo: string;
+  /** Trecho do conteúdo programático usado na importação (até 150 mil caracteres). */
+  trecho: string;
+  importadoEm: InstanteISO;
   dataPublicacao: DiaISO | null;
 }
 

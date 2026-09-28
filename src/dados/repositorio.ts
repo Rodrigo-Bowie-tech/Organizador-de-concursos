@@ -9,10 +9,14 @@
 //   config/geral              Configuracao
 //   revisoes/<AAAA-MM-DD>     { semana, itens: { <id>: RegistroRevisao } }, histórico de revisões
 //   biblioteca/<disciplinaId> { disciplinaId, itens: { <id>: Material } }
+//   editais/<id>              Edital importado (PDF no armazenamento de arquivos)
+//   estado/vinculos           { ignorados: string[] }, sugestões de equivalência recusadas
 //   radar_filtros/<id>        FiltroRadar (Fase 6; já vem no seed)
 
 import * as crono from '../dominio/cronometro';
 import { diaSP, inicioDaSemana } from '../dominio/datas';
+import { chavePar, topicosDaImportacao } from '../dominio/edital';
+import type { DisciplinaImportada } from '../dominio/edital';
 import { lerLote, topicosDoLote } from '../dominio/lote';
 import { topicoConcluido } from '../dominio/painel';
 import * as rev from '../dominio/revisoes';
@@ -23,6 +27,7 @@ import type {
   Concurso,
   Configuracao,
   Disciplina,
+  Edital,
   EstadoRevisao,
   Id,
   Material,
@@ -42,6 +47,7 @@ export const COLECOES = [
   'config',
   'revisoes',
   'biblioteca',
+  'editais',
   'radar_filtros',
 ] as const;
 type Colecao = (typeof COLECOES)[number];
@@ -73,6 +79,9 @@ export interface Dados {
   /** Revisões feitas, da mais recente para a mais antiga. */
   revisoesFeitas: RegistroRevisao[];
   materiais: Material[];
+  editais: Edital[];
+  /** Pares de tópicos (`chavePar`) cuja sugestão de equivalência foi recusada. */
+  vinculosIgnorados: Set<string>;
   config: Configuracao;
   erro: ErroStore | null;
 }
@@ -190,6 +199,10 @@ export class Repositorio {
       for (const m of Object.values((doc.itens as Record<Id, Material | null>) ?? {})) if (m) materiais.push(m);
     }
     materiais.sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'));
+    const editais = [...this.col('editais').values()]
+      .map((e) => e as unknown as Edital)
+      .sort((a, b) => b.importadoEm.localeCompare(a.importadoEm));
+    const vinculosIgnorados = new Set((this.col('estado').get('vinculos')?.ignorados as string[] | undefined) ?? []);
     const ativa = ((this.col('estado').get('cronometro')?.sessao as Sessao | null) ?? null) || null;
     const cfg = this.col('config').get('geral') as Partial<Configuracao> | undefined;
     const config: Configuracao = {
@@ -206,6 +219,8 @@ export class Repositorio {
       ativa,
       revisoesFeitas,
       materiais,
+      editais,
+      vinculosIgnorados,
       config,
       erro: this.erro,
     };
@@ -254,6 +269,7 @@ export class Repositorio {
     for (const d of this.dados.disciplinas.filter((x) => x.concursoId === id)) {
       await this.excluirDisciplina(d.id);
     }
+    for (const e of this.dados.editais.filter((x) => x.concursoId === id)) await this.excluirEdital(e);
     await this.store.remover(`concursos/${id}`);
   }
 
@@ -356,7 +372,149 @@ export class Repositorio {
         extra.revisao = null;
       }
     }
-    await this.store.mesclar(`disciplinas/${disciplinaId}`, { topicos: { [topicoId]: { ...patch, ...extra } } });
+    const mudancas = [{ disciplinaId, topicoId, patch: { ...patch, ...extra } }];
+    // Tópicos equivalentes em outros editais acompanham o status (estudar um conta para o outro).
+    if (t?.grupoEquivalenciaId && patch.status) {
+      for (const m of this.membrosDoGrupo(t.grupoEquivalenciaId, topicoId)) {
+        mudancas.push({ ...m, patch: { status: patch.status, ...extra } });
+      }
+    }
+    await this.aplicarEmTopicos(mudancas);
+  }
+
+  /** Grava alterações de vários tópicos, uma gravação por disciplina. */
+  private async aplicarEmTopicos(mudancas: { disciplinaId: Id; topicoId: Id; patch: Partial<Topico> }[]): Promise<void> {
+    const porDisciplina = new Map<Id, Record<Id, Json>>();
+    for (const m of mudancas) {
+      const topicos = porDisciplina.get(m.disciplinaId) ?? {};
+      topicos[m.topicoId] = { ...(topicos[m.topicoId] ?? {}), ...(m.patch as Json) };
+      porDisciplina.set(m.disciplinaId, topicos);
+    }
+    for (const [id, topicos] of porDisciplina) await this.store.mesclar(`disciplinas/${id}`, { topicos });
+  }
+
+  private membrosDoGrupo(grupo: Id, excetoTopicoId?: Id): { disciplinaId: Id; topicoId: Id }[] {
+    const membros: { disciplinaId: Id; topicoId: Id }[] = [];
+    for (const d of this.dados.disciplinas) {
+      for (const t of Object.values(d.topicos)) {
+        if (t.grupoEquivalenciaId === grupo && t.id !== excetoTopicoId) membros.push({ disciplinaId: d.id, topicoId: t.id });
+      }
+    }
+    return membros;
+  }
+
+  // ------------------------------------------------ tópicos equivalentes
+
+  /**
+   * Vincula dois tópicos de editais diferentes. Os dois (e os que já estavam
+   * vinculados a eles) passam a ter o status mais avançado entre eles.
+   */
+  async vincularTopicos(a: { disciplinaId: Id; topicoId: Id }, b: { disciplinaId: Id; topicoId: Id }): Promise<void> {
+    const ta = this.disciplina(a.disciplinaId).topicos[a.topicoId];
+    const tb = this.disciplina(b.disciplinaId).topicos[b.topicoId];
+    if (!ta || !tb) throw falha('nao_encontrado', 'Tópico não encontrado.');
+    const grupo = ta.grupoEquivalenciaId ?? tb.grupoEquivalenciaId ?? novoId();
+    const membros = [a, b];
+    for (const g of [ta.grupoEquivalenciaId, tb.grupoEquivalenciaId]) {
+      if (g) membros.push(...this.membrosDoGrupo(g));
+    }
+    const unicos = [...new Map(membros.map((m) => [m.topicoId, m])).values()];
+    const topicos = unicos.map((m) => this.disciplina(m.disciplinaId).topicos[m.topicoId]).filter(Boolean);
+    const lider = topicos.reduce((x, y) => (ORDEM_STATUS.indexOf(y.status) > ORDEM_STATUS.indexOf(x.status) ? y : x));
+    const concluidoEm = topicos.map((t) => t.concluidoEm).filter(Boolean).sort()[0] ?? null;
+    await this.aplicarEmTopicos(
+      unicos.map((m) => ({
+        ...m,
+        patch: { grupoEquivalenciaId: grupo, status: lider.status, concluidoEm, revisao: lider.revisao ?? null },
+      })),
+    );
+  }
+
+  async desvincularTopico(disciplinaId: Id, topicoId: Id): Promise<void> {
+    const t = this.disciplina(disciplinaId).topicos[topicoId];
+    if (!t?.grupoEquivalenciaId) return;
+    const resto = this.membrosDoGrupo(t.grupoEquivalenciaId, topicoId);
+    const mudancas = [{ disciplinaId, topicoId, patch: { grupoEquivalenciaId: null } as Partial<Topico> }];
+    // Um grupo de um só tópico não faz sentido: desfaz também.
+    if (resto.length === 1) mudancas.push({ ...resto[0], patch: { grupoEquivalenciaId: null } });
+    await this.aplicarEmTopicos(mudancas);
+  }
+
+  async ignorarEquivalencia(topicoA: Id, topicoB: Id): Promise<void> {
+    const ignorados = [...this.dados.vinculosIgnorados, chavePar(topicoA, topicoB)];
+    await this.store.definir('estado/vinculos', { ignorados });
+  }
+
+  // --------------------------------------------------------------- editais
+
+  /**
+   * Salva o resultado revisado da importação: o edital (com o PDF, se houver)
+   * e as disciplinas. `destinoId` junta os tópicos numa disciplina existente.
+   */
+  async importarEdital(d: {
+    concursoId: Id;
+    cargo: string;
+    trecho: string;
+    arquivo: File | null;
+    disciplinas: (DisciplinaImportada & { destinoId: Id | null })[];
+  }): Promise<{ disciplinas: number; topicos: number }> {
+    const editalId = novoId();
+    let arquivoId: string | null = null;
+    if (d.arquivo && this.arquivos) {
+      try {
+        arquivoId = (await this.arquivos.enviar(d.arquivo)).id;
+      } catch {
+        arquivoId = null; // o PDF é um extra: a importação segue sem ele
+      }
+    }
+    const edital: Edital = {
+      id: editalId,
+      concursoId: d.concursoId,
+      arquivoId,
+      arquivoNome: arquivoId && d.arquivo ? d.arquivo.name : null,
+      cargo: d.cargo,
+      trecho: d.trecho.slice(0, 150_000),
+      importadoEm: this.relogio().toISOString(),
+      dataPublicacao: null,
+    };
+    await this.store.definir(`editais/${editalId}`, edital as unknown as Json);
+
+    let nTopicos = 0;
+    const irmas = this.dados.disciplinas.filter((x) => x.concursoId === d.concursoId);
+    let ordem = irmas.length ? Math.max(...irmas.map((x) => x.ordem)) + 1 : 0;
+    for (const imp of d.disciplinas) {
+      const destino = imp.destinoId ? this.dados.disciplinas.find((x) => x.id === imp.destinoId) : undefined;
+      if (destino) {
+        const novos = topicosDaImportacao(imp.topicos, novoId, proximaOrdem(destino.topicos, null));
+        nTopicos += novos.length;
+        if (novos.length) {
+          await this.store.mesclar(`disciplinas/${destino.id}`, { topicos: Object.fromEntries(novos.map((t) => [t.id, t])) });
+        }
+        continue;
+      }
+      const novos = topicosDaImportacao(imp.topicos, novoId);
+      nTopicos += novos.length;
+      const id = novoId();
+      const nova: Disciplina = {
+        id,
+        concursoId: d.concursoId,
+        editalId,
+        nome: imp.nome,
+        peso: imp.peso ?? 1,
+        numQuestoes: imp.numQuestoes,
+        tipo: imp.tipo,
+        ordem: ordem++,
+        cor: CORES_DISCIPLINA[(ordem - 1) % CORES_DISCIPLINA.length],
+        topicos: Object.fromEntries(novos.map((t) => [t.id, t])),
+      };
+      await this.store.definir(`disciplinas/${id}`, nova as unknown as Json);
+    }
+    return { disciplinas: d.disciplinas.length, topicos: nTopicos };
+  }
+
+  async excluirEdital(e: Edital): Promise<void> {
+    await this.store.remover(`editais/${e.id}`);
+    if (e.arquivoId) await this.arquivos?.remover(e.arquivoId).catch(() => undefined);
   }
 
   /** Remove o tópico e os subtópicos dele. */
@@ -393,7 +551,8 @@ export class Repositorio {
     const estado = rev.registrarRevisao(t.revisao ?? rev.iniciarRevisao(hoje), avaliacao, hoje);
     const patch: Partial<Topico> = { revisao: estado };
     if ((avaliacao === 'bom' || avaliacao === 'facil') && t.status === 'teoria_concluida') patch.status = 'revisado';
-    await this.store.mesclar(`disciplinas/${disciplinaId}`, { topicos: { [topicoId]: patch } });
+    const membros = t.grupoEquivalenciaId ? this.membrosDoGrupo(t.grupoEquivalenciaId, topicoId) : [];
+    await this.aplicarEmTopicos([{ disciplinaId, topicoId, patch }, ...membros.map((m) => ({ ...m, patch }))]);
     const registro: RegistroRevisao = {
       id: novoId(),
       concursoId: d.concursoId,

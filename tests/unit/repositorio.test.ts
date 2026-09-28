@@ -305,3 +305,74 @@ describe('prática com IA', () => {
     expect(repo.atual.sessoes).toHaveLength(0);
   });
 });
+
+describe('importação de edital', () => {
+  it('cria disciplinas novas com tópicos e junta numa disciplina existente', async () => {
+    const store = new MemoriaStore();
+    const { repo } = await novoRepo(store);
+    const { concursoId, disciplinaId } = await concursoComDisciplina(repo);
+    type No = { titulo: string; filhos: No[] };
+    const t = (titulo: string, filhos: No[] = []): No => ({ titulo, filhos });
+    const r = await repo.importarEdital({
+      concursoId,
+      cargo: 'Engenheiro Eletricista',
+      trecho: 'CONTEÚDO PROGRAMÁTICO ...',
+      arquivo: null,
+      disciplinas: [
+        { nome: 'Língua Portuguesa', peso: 1, numQuestoes: 20, tipo: 'basica', topicos: [t('Crase'), t('Concordância')], destinoId: null },
+        { nome: 'Engenharia Elétrica', peso: null, numQuestoes: null, tipo: 'especifica', topicos: [t('Proteção', [t('Relés')])], destinoId: disciplinaId },
+      ],
+    });
+    expect(r).toEqual({ disciplinas: 2, topicos: 4 });
+    const pt = repo.atual.disciplinas.find((d) => d.nome === 'Língua Portuguesa')!;
+    expect(pt.editalId).toBe(repo.atual.editais[0].id);
+    expect(Object.values(pt.topicos).map((x) => x.titulo).sort()).toEqual(['Concordância', 'Crase']);
+    const ee = repo.atual.disciplinas.find((d) => d.id === disciplinaId)!;
+    expect(Object.values(ee.topicos).map((x) => x.titulo)).toContain('Relés');
+    expect(repo.atual.editais[0]).toMatchObject({ cargo: 'Engenheiro Eletricista', arquivoId: null });
+  });
+});
+
+describe('tópicos equivalentes', () => {
+  async function doisConcursos() {
+    const { repo } = await novoRepo();
+    const base = { orgao: '', banca: '', cargo: '', area: '', dataProva: null, status: 'previsto' as const, link: '', notaCorte: null, prioridade: 3 };
+    const c1 = await repo.salvarConcurso({ ...base, nome: 'Petrobras' });
+    const c2 = await repo.salvarConcurso({ ...base, nome: 'Transpetro' });
+    const d1 = await repo.salvarDisciplina({ concursoId: c1, nome: 'Elétrica', peso: 1, numQuestoes: null, tipo: 'especifica' });
+    const d2 = await repo.salvarDisciplina({ concursoId: c2, nome: 'Elétrica', peso: 1, numQuestoes: null, tipo: 'especifica' });
+    const t1 = await repo.adicionarTopico(d1, 'Máquinas elétricas');
+    const t2 = await repo.adicionarTopico(d2, 'Máquinas Elétricas');
+    const topico = (d: string, t: string) => repo.atual.disciplinas.find((x) => x.id === d)!.topicos[t];
+    return { repo, d1, d2, t1, t2, topico };
+  }
+
+  it('vincular leva o status mais avançado para os dois', async () => {
+    const { repo, d1, d2, t1, t2, topico } = await doisConcursos();
+    await repo.atualizarTopico(d1, t1, { status: 'teoria_concluida' });
+    await repo.vincularTopicos({ disciplinaId: d1, topicoId: t1 }, { disciplinaId: d2, topicoId: t2 });
+    expect(topico(d2, t2).grupoEquivalenciaId).toBe(topico(d1, t1).grupoEquivalenciaId);
+    expect(topico(d2, t2).status).toBe('teoria_concluida');
+    expect(topico(d2, t2).revisao?.proxima).toBe('2026-09-28');
+  });
+
+  it('estudar um conta para o outro: status e revisão se propagam', async () => {
+    const { repo, d1, d2, t1, t2, topico } = await doisConcursos();
+    await repo.vincularTopicos({ disciplinaId: d1, topicoId: t1 }, { disciplinaId: d2, topicoId: t2 });
+    await repo.atualizarTopico(d2, t2, { status: 'teoria_concluida' });
+    expect(topico(d1, t1).status).toBe('teoria_concluida');
+    agora = new Date('2026-09-28T12:00:00Z');
+    await repo.registrarRevisao(d1, t1, 'bom');
+    expect(topico(d2, t2)).toMatchObject({ status: 'revisado', revisao: { proxima: '2026-10-04' } });
+  });
+
+  it('desvincular desfaz o grupo e ignorar some com a sugestão', async () => {
+    const { repo, d1, d2, t1, t2, topico } = await doisConcursos();
+    await repo.vincularTopicos({ disciplinaId: d1, topicoId: t1 }, { disciplinaId: d2, topicoId: t2 });
+    await repo.desvincularTopico(d1, t1);
+    expect(topico(d1, t1).grupoEquivalenciaId).toBeNull();
+    expect(topico(d2, t2).grupoEquivalenciaId).toBeNull();
+    await repo.ignorarEquivalencia(t2, t1);
+    expect(repo.atual.vinculosIgnorados.has([t1, t2].sort().join('|'))).toBe(true);
+  });
+});

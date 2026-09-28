@@ -19,6 +19,7 @@ import { Disciplinas } from './telas/Disciplinas';
 import { Edital } from './telas/Edital';
 import { Historico } from './telas/Historico';
 import { Home } from './telas/Home';
+import { ImportarEdital } from './telas/ImportarEdital';
 import { Revisoes } from './telas/Revisoes';
 
 const ITENS: { tela: Tela; rotulo: string; icone: LucideIcon }[] = [
@@ -39,6 +40,7 @@ const TELAS: Record<Tela, ComponentType> = {
   concursos: Concursos,
   disciplinas: Disciplinas,
   edital: Edital,
+  importar: ImportarEdital,
   revisoes: Revisoes,
   balanco: Balanco,
   biblioteca: Biblioteca,

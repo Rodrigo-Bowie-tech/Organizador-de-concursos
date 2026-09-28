@@ -57,7 +57,11 @@ const artifact = pagina(REACT, REACT_DOM);
 writeFileSync(join(dist, 'organizador-de-concursos.html'), artifact);
 writeFileSync(
   join(dist, 'preview.html'),
-  ESQUELETO_INICIO + pagina('vendor/react.production.min.js', 'vendor/react-dom.production.min.js', false) + ESQUELETO_FIM,
+  ESQUELETO_INICIO +
+    // No preview, o pdf.js vem de node_modules (o sandbox não alcança o CDN).
+    `<script>window.__PDFJS_BASE__ = 'vendor/pdfjs/';</script>\n` +
+    pagina('vendor/react.production.min.js', 'vendor/react-dom.production.min.js', false) +
+    ESQUELETO_FIM,
 );
 
 const kb = (s) => `${(Buffer.byteLength(s) / 1024).toFixed(0)} KB`;

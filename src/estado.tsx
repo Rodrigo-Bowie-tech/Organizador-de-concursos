@@ -11,6 +11,7 @@ export type Tela =
   | 'concursos'
   | 'disciplinas'
   | 'edital'
+  | 'importar'
   | 'revisoes'
   | 'historico'
   | 'balanco'

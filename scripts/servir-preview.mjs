@@ -13,6 +13,8 @@ const ROTAS = {
   '/': ['dist/preview.html', 'text/html; charset=utf-8'],
   '/vendor/react.production.min.js': ['node_modules/react/umd/react.production.min.js', 'text/javascript'],
   '/vendor/react-dom.production.min.js': ['node_modules/react-dom/umd/react-dom.production.min.js', 'text/javascript'],
+  '/vendor/pdfjs/pdf.min.js': ['node_modules/pdfjs-dist/build/pdf.min.js', 'text/javascript'],
+  '/vendor/pdfjs/pdf.worker.min.js': ['node_modules/pdfjs-dist/build/pdf.worker.min.js', 'text/javascript'],
 };
 
 createServer(async (req, res) => {

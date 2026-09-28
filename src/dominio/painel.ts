@@ -121,3 +121,22 @@ export function segundosPorTopico(sessoes: Sessao[], agora: Date | number): Map<
 export function hojeSP(agora: Date | number = Date.now()): DiaISO {
   return diaSP(agora);
 }
+
+export interface Acerto {
+  feitas: number;
+  acertos: number;
+}
+
+/** Questões feitas e acertos por tópico, somando sessões (e registros avulsos, quando houver). */
+export function questoesPorTopico(registros: { topicoId: string | null; questoesFeitas?: number; acertos: number; feitas?: number }[]): Map<string, Acerto> {
+  const mapa = new Map<string, Acerto>();
+  for (const r of registros) {
+    const feitas = r.questoesFeitas ?? r.feitas ?? 0;
+    if (!r.topicoId || !feitas) continue;
+    const a = mapa.get(r.topicoId) ?? { feitas: 0, acertos: 0 };
+    a.feitas += feitas;
+    a.acertos += Math.min(r.acertos, feitas);
+    mapa.set(r.topicoId, a);
+  }
+  return mapa;
+}

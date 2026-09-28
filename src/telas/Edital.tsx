@@ -1,11 +1,13 @@
-import { ArrowDown, ArrowUp, ClipboardList, CornerDownRight, Library, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ClipboardList, CornerDownRight, FileUp, Library, Link2, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { PainelMateriais } from '../componentes/Materiais';
 import { ModalPratica } from '../componentes/PraticaIA';
 import { AreaTexto, Botao, BotaoIcone, CabecalhoTela, Campo, Confirmar, Entrada, Modal, Progresso, Selecao, Vazio, cx } from '../componentes/ui';
 import { formatarData, formatarDuracao } from '../dominio/datas';
 import { lerLote } from '../dominio/lote';
-import { cobertura, segundosPorTopico, topicoConcluido } from '../dominio/painel';
+import { cobertura, questoesPorTopico, segundosPorTopico, topicoConcluido } from '../dominio/painel';
+import type { Acerto } from '../dominio/painel';
+import { PainelEquivalencias } from '../componentes/Equivalencias';
 import { STATUS_TOPICO } from '../dominio/rotulos';
 import { achatar, comDescendentes } from '../dominio/topicos';
 import type { Disciplina, StatusTopico, Topico } from '../dominio/tipos';
@@ -169,6 +171,8 @@ function LinhaTopico({
   nivel,
   numero,
   segundos,
+  acerto,
+  vinculos,
   nMateriais,
   aoMateriais,
   aoPraticar,
@@ -181,6 +185,9 @@ function LinhaTopico({
   nivel: number;
   numero: string;
   segundos: number;
+  acerto: Acerto | undefined;
+  /** Onde este tópico aparece em outros editais (tópicos vinculados). */
+  vinculos: string[];
   nMateriais: number;
   aoMateriais: () => void;
   aoPraticar: (() => void) | null;
@@ -206,6 +213,11 @@ function LinhaTopico({
         <span className={cx('min-w-0', nivel === 0 && 'font-bold', concluido && 'text-suave')}>
           <span className="numeros mr-1.5 text-suave">{numero}</span>
           {topico.titulo}
+          {vinculos.length > 0 && (
+            <span className="ml-1.5 inline-flex translate-y-0.5 text-roxo" title={`Vinculado a: ${vinculos.join('; ')}`} aria-label={`Vinculado a: ${vinculos.join('; ')}`}>
+              <Link2 size={15} />
+            </span>
+          )}
         </span>
       </label>
       <div className="flex flex-wrap items-center gap-2 pl-6 text-sm sm:pl-0">
@@ -241,8 +253,14 @@ function LinhaTopico({
         <span className="numeros w-16 text-right text-xs text-suave" title="Tempo líquido estudado">
           {segundos ? formatarDuracao(segundos) : '–'}
         </span>
+        <span className="numeros w-12 text-right text-xs text-suave" title={acerto ? `${acerto.acertos} acertos em ${acerto.feitas} questões` : 'Sem questões'}>
+          {acerto ? `${Math.round((acerto.acertos / acerto.feitas) * 100)}%` : '–'}
+        </span>
         {topico.revisao && (
-          <span className="numeros text-xs font-bold text-roxo" title="Próxima revisão">
+          <span
+            className="numeros text-xs font-bold text-roxo"
+            title={`Próxima revisão${topico.revisao.ultima ? ` · última em ${formatarData(topico.revisao.ultima)}` : ''}`}
+          >
             rev. {formatarData(topico.revisao.proxima).slice(0, 5)}
           </span>
         )}
@@ -285,6 +303,33 @@ export function Edital() {
   const [materiais, setMateriais] = useState<{ disciplina: Disciplina; topico: Topico } | null>(null);
   const [praticar, setPraticar] = useState<{ disciplina: Disciplina; topico: Topico } | null>(null);
   const porTopico = useMemo(() => segundosPorTopico(dados.sessoes, Date.now()), [dados.sessoes]);
+  const acertos = useMemo(() => questoesPorTopico(dados.sessoes), [dados.sessoes]);
+  // Tópicos vinculados somam horas e questões entre si e mostram onde mais aparecem.
+  const grupos = useMemo(() => {
+    const membros = new Map<string, { concurso: string; topicoId: string; titulo: string }[]>();
+    for (const d of dados.disciplinas) {
+      const concurso = dados.concursos.find((c) => c.id === d.concursoId)?.nome ?? '';
+      for (const t of Object.values(d.topicos)) {
+        if (!t.grupoEquivalenciaId) continue;
+        membros.set(t.grupoEquivalenciaId, [...(membros.get(t.grupoEquivalenciaId) ?? []), { concurso, topicoId: t.id, titulo: t.titulo }]);
+      }
+    }
+    return membros;
+  }, [dados.disciplinas, dados.concursos]);
+  const doGrupo = (t: Topico) => (t.grupoEquivalenciaId ? grupos.get(t.grupoEquivalenciaId) ?? [] : []);
+  const somaSegundos = (t: Topico) => {
+    const m = doGrupo(t);
+    return m.length ? m.reduce((s, x) => s + (porTopico.get(x.topicoId) ?? 0), 0) : porTopico.get(t.id) ?? 0;
+  };
+  const somaAcerto = (t: Topico): Acerto | undefined => {
+    const ids = doGrupo(t).length ? doGrupo(t).map((x) => x.topicoId) : [t.id];
+    const total = ids.reduce((a, id) => {
+      const x = acertos.get(id);
+      return x ? { feitas: a.feitas + x.feitas, acertos: a.acertos + x.acertos } : a;
+    }, { feitas: 0, acertos: 0 });
+    return total.feitas ? total : undefined;
+  };
+  const editalImportado = concursoAtivo ? dados.editais.find((e) => e.concursoId === concursoAtivo.id) : undefined;
 
   if (!concursoAtivo) {
     return (
@@ -303,13 +348,33 @@ export function Edital() {
         titulo="Edital"
         subtitulo={`${concursoAtivo.nome} · ${cob.total ? `${cob.concluidos} de ${cob.total} tópicos com teoria concluída` : 'edital verticalizado'}`}
         acoes={
-          disciplinas.length > 0 && (
-            <Botao onClick={() => setLote(true)}>
-              <ClipboardList size={18} /> Colar lista de tópicos
+          <>
+            <Botao onClick={() => irPara('importar')}>
+              <FileUp size={18} /> Importar edital
             </Botao>
-          )
+            {disciplinas.length > 0 && (
+              <Botao variante="secundario" onClick={() => setLote(true)}>
+                <ClipboardList size={18} /> Colar lista de tópicos
+              </Botao>
+            )}
+          </>
         }
       />
+
+      {editalImportado && (
+        <p className="-mt-2 mb-4 text-sm text-suave">
+          Edital importado em {formatarData(editalImportado.importadoEm)}
+          {editalImportado.cargo && ` · cargo ${editalImportado.cargo}`}
+          {editalImportado.arquivoId && (
+            <>
+              {' · '}
+              <a className="font-bold text-verde-forte underline" href={`/_blob/${editalImportado.arquivoId}`} target="_blank" rel="noreferrer">
+                abrir o PDF
+              </a>
+            </>
+          )}
+        </p>
+      )}
 
       {!disciplinas.length ? (
         <Vazio
@@ -356,7 +421,9 @@ export function Edital() {
                           topico={l.topico}
                           nivel={l.nivel}
                           numero={l.numero}
-                          segundos={porTopico.get(l.topico.id) ?? 0}
+                          segundos={somaSegundos(l.topico)}
+                          acerto={somaAcerto(l.topico)}
+                          vinculos={doGrupo(l.topico).filter((x) => x.topicoId !== l.topico.id).map((x) => `${x.concurso} › ${x.titulo}`)}
                           nMateriais={dados.materiais.filter((m) => m.topicoId === l.topico.id).length}
                           aoMateriais={() => setMateriais({ disciplina: d, topico: l.topico })}
                           aoPraticar={recursos.ia ? () => setPraticar({ disciplina: d, topico: l.topico }) : null}
@@ -377,6 +444,8 @@ export function Edital() {
           })}
         </div>
       )}
+
+      {disciplinas.length > 0 && <PainelEquivalencias />}
 
       <ModalTopico alvo={novo} editar={editar} aoFechar={() => { setNovo(null); setEditar(null); }} />
       <ModalLote aberto={lote} aoFechar={() => setLote(false)} />

@@ -52,6 +52,7 @@ src/
     revisoes.ts    repetição espaçada adaptativa (escada D+1/7/30/90 + facilidade estilo SM-2)
     pratica.ts     pedido de questões no estilo da banca e validação da resposta da IA
     balanco.ts     tempo × peso, disciplinas esquecidas, tópicos parados, projeção de cobertura
+    edital.ts      importação: achar o conteúdo programático, dividir para a IA, validar/juntar, equivalências
   dados/
     store.ts       interface Store; ArtifactStore (claude.use("db")) e MemoriaStore (localStorage)
     repositorio.ts espelho do banco via assinaturas + todas as gravações
@@ -61,6 +62,7 @@ src/
   componentes/   ui.tsx (botões, modal <dialog>, campos), campos/modais de sessão, botão flutuante,
                  Pomodoro, Materiais (biblioteca), PraticaIA
   plataforma.ts  recursos do claude.ai (IA, arquivos, downloads), wake lock, bipes, localStorage
+  pdf.ts         texto de PDFs com pdf.js 3.11 (cdnjs, carregado sob demanda; worker na própria página)
 scripts/
   montar-artifact.mjs  junta app.js + app.css numa página única (React via cdnjs, reserva no jsDelivr)
   servir-preview.mjs   servidor local do preview com React de node_modules
@@ -96,6 +98,8 @@ Limites: **5.000 documentos** no total e 256 KiB por documento. Por isso os regi
 | `config/geral` | Configuracao (metas, Pomodoro, tema). Ausente = `CONFIG_PADRAO` |
 | `revisoes/<AAAA-MM-DD>` | `{ semana, itens: { <id>: RegistroRevisao } }`, histórico de revisões feitas |
 | `biblioteca/<disciplinaId>` | `{ disciplinaId, itens: { <id>: Material } }`; PDFs no `assets`, id em `arquivoId` |
+| `editais/<id>` | Edital importado (cargo, trecho usado, PDF em `arquivoId`) |
+| `estado/vinculos` | `{ ignorados: string[] }` sugestões de tópicos equivalentes recusadas (`chavePar`) |
 | `radar_filtros/<id>` | FiltroRadar (Fase 6; já vem no seed) |
 
 - O estado da revisão de cada tópico fica no próprio tópico (`topico.revisao`), junto com `concluidoEm`.
@@ -140,6 +144,13 @@ seed sozinho.
   questões (`origem: 'pratica_ia'`) com o tempo da prática.
 - **Projeção de cobertura**: ritmo = tópicos-folha concluídos nas últimas 4 semanas; data de conclusão
   vem de `concluidoEm` ou da sessão com "concluí a teoria".
+- **Importação de edital** (Fase 2): pdf.js extrai o texto no navegador; o trecho do conteúdo
+  programático é o mais longo entre "conteúdo programático" e o próximo "ANEXO"; a IA recebe partes de
+  até 48 KB (uma chamada cada) e devolve disciplinas → tópicos → subtópicos (até 3 níveis). A tela de
+  revisão é obrigatória; disciplinas com o mesmo nome de uma existente vão para ela por padrão.
+- **Tópicos equivalentes**: sugestão por Jaccard das palavras-chave dos títulos (≥ 0,6) entre concursos
+  diferentes. Vinculados compartilham `grupoEquivalenciaId`; status, conclusão e revisões se propagam no
+  repositório (`aplicarEmTopicos`), e o Edital soma horas e questões do grupo.
 - **Rede do container**: o proxy bloqueia cdnjs e pciconcursos.com.br. A Fase 6 (coletor do PCI) precisa
   liberar `www.pciconcursos.com.br` nas configurações de rede do ambiente.
 
@@ -148,7 +159,7 @@ seed sozinho.
 - [x] Fase 1: fundação (modelo, CRUD manual, cronômetro persistido, painel, backup JSON)
 - [x] Melhorias: revisões adaptativas, biblioteca, prática com IA, balanço semanal, CI no GitHub
   (offline/PWA e editais compartilhados dependem da hospedagem própria; ver IDEIAS.md)
-- [ ] Fase 2: editais com IA (`sample` + `assets`)
+- [x] Fase 2: editais com IA (PDF ou texto, revisão editável, tópicos equivalentes entre editais)
 - [ ] Fase 3: calendário e planejador
 - [ ] Fase 4: adaptação e revisões
 - [ ] Fase 5: desempenho
