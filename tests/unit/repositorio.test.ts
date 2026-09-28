@@ -495,3 +495,31 @@ describe('desempenho no repositório (Fase 5)', () => {
     expect(repo.atual.simulados).toHaveLength(0);
   });
 });
+
+describe('radar no repositório (Fase 6)', () => {
+  const op = (id: string, uf: string, extra = {}) => ({
+    id, titulo: id, orgao: id, banca: '', cargos: ['Engenheiro Eletricista'], salario: 9000, vagas: 2, uf, inscricoesAte: '2026-10-30', link: `https://x/${id}`, fonte: 'PCI Concursos', coletadoEm: '2026-09-27T12:00:00.000Z', ...extra,
+  });
+
+  it('junta por id, mantém a data em que apareceu e o "ignorada", e poda as encerradas há 30 dias', async () => {
+    const store = new MemoriaStore();
+    const { repo } = await novoRepo(store);
+    expect(await repo.salvarOportunidades([op('a', 'SP'), op('b', 'RJ'), op('velha', 'SP', { inscricoesAte: '2026-08-01' })])).toEqual({ novas: 3, atualizadas: 0 });
+    await repo.ignorarOportunidade(repo.atual.oportunidades.find((o) => o.id === 'b')!);
+    const r = await repo.salvarOportunidades([op('a', 'SP', { coletadoEm: '2026-09-28T12:00:00.000Z', vagas: 5 }), op('c', 'MG')]);
+    expect(r).toEqual({ novas: 1, atualizadas: 1 });
+    const a = repo.atual.oportunidades.find((o) => o.id === 'a')!;
+    expect(a).toMatchObject({ vagas: 5, coletadoEm: '2026-09-27T12:00:00.000Z' });
+    expect(repo.atual.oportunidades.find((o) => o.id === 'b')?.ignorada).toBe(true);
+    expect(repo.atual.oportunidades.some((o) => o.id === 'velha')).toBe(false);
+    expect(Object.keys(store.despejar()).filter((c) => c.startsWith('oportunidades/')).sort()).toEqual(['oportunidades/MG', 'oportunidades/RJ', 'oportunidades/SP']);
+  });
+
+  it('transforma em concurso e marca o radar como visto', async () => {
+    const { repo } = await novoRepo();
+    const id = await repo.transformarEmConcurso(op('Fundação Florestal', 'SP'), 'Engenharia Elétrica');
+    expect(repo.atual.concursos.find((c) => c.id === id)).toMatchObject({ nome: 'Fundação Florestal', cargo: 'Engenheiro Eletricista', status: 'edital_aberto', link: 'https://x/Fundação Florestal' });
+    await repo.marcarRadarVisto();
+    expect(repo.atual.radarVistoAte).toBe(agora.toISOString());
+  });
+});

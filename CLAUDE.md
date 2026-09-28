@@ -31,6 +31,8 @@ O app é um **Artifact privado do claude.ai**, aberto com o login do Claude no n
 | `npm run typecheck` | checagem de tipos (TypeScript) |
 | `npm run build` | tipos + build + monta `dist/organizador-de-concursos.html` (página publicada) e `dist/preview.html` |
 | `npm run preview` | serve `dist/preview.html` em http://localhost:4173 |
+| `npm run radar:coletar` | coleta o PCI para `.cache/radar/oportunidades.json` (precisa da rede liberada) |
+| `npm run radar:mesclar` | junta a coleta com o banco baixado e gera `.cache/radar/escritas/lote.json` |
 | `npm run test:e2e` | Playwright (celular e desktop) sobre o build; rode `npm run build` antes. No container remoto: `PLAYWRIGHT_CHROMIUM=/opt/pw-browsers/chromium npm run test:e2e` |
 
 O GitHub Actions (`.github/workflows/testes.yml`) roda tipos, unitários, build e Playwright a cada push.
@@ -56,13 +58,17 @@ src/
     planejador.ts  núcleo (5.1/5.2/5.4): slots da disponibilidade, domínio, fila por prioridade, gerarPlano
     adaptacao.ts   capacidade real (média de 14 dias por dia da semana) e viabilidade do edital com cortes
     desempenho.ts  questões (sessões + avulsas), CSV, caderno de erros (D+3/D+14), simulados, séries das estatísticas
+  radar/         radar de concursos, sem React (roda também no Node pelo coletor)
+    radar.ts       interface FonteConcursos, filtros (área por radical), id estável, junção com o banco
+    pci.ts         parser das listagens do PCI Concursos (testado sobre HTML salvo) e leitor de robots.txt
+    texto.ts       pedido à IA para extrair oportunidades de um texto colado + validação
   dados/
     store.ts       interface Store; ArtifactStore (claude.use("db")) e MemoriaStore (localStorage)
     repositorio.ts espelho do banco via assinaturas + todas as gravações
   estado.tsx     contexto React: dados, concurso ativo, navegação, avisos
   telas/         Home, Concursos, Disciplinas, Edital, ImportarEdital, Planejamento, Disponibilidade,
                  Revisoes, Questoes, CadernoErros, Simulados, Historico, Estatisticas, Balanco, Biblioteca,
-                 Cronometro, Configuracoes
+                 Radar, Cronometro, Configuracoes
   componentes/   ui.tsx (botões, modal <dialog>, campos), campos/modais de sessão, botão flutuante,
                  Pomodoro, Materiais (biblioteca), PraticaIA
   plataforma.ts  recursos do claude.ai (IA, arquivos, downloads), wake lock, bipes, localStorage
@@ -70,6 +76,8 @@ src/
 scripts/
   montar-artifact.mjs  junta app.js + app.css numa página única (React via cdnjs, reserva no jsDelivr)
   servir-preview.mjs   servidor local do preview com React de node_modules
+  radar/coletar.ts     coletor do PCI (Node 22, robots.txt, User-Agent, 1 req/4 s, cache do dia em .cache/radar)
+  radar/mesclar.ts     junta a coleta com o banco e gera o lote de escritas para o ArtifactData
 ```
 
 - **Build**: Vite 8 (Rolldown) em modo biblioteca IIFE. React 18.3.1 **fica fora do bundle** e vem do
@@ -110,7 +118,9 @@ Limites: **5.000 documentos** no total e 256 KiB por documento. Por isso os regi
 | `questoes/<AAAA-MM-DD>` | `{ semana, itens: { <id>: RegistroQuestoes } }`, questões avulsas (lançamento rápido, CSV) |
 | `erros/<disciplinaId>` | `{ disciplinaId, itens: { <id>: ErroCaderno } }`, caderno de erros |
 | `simulados/<id>` | Simulado (notas por disciplina, total e máximo) |
-| `radar_filtros/<id>` | FiltroRadar (Fase 6; já vem no seed) |
+| `oportunidades/<UF>` | `{ uf, itens: { <id>: Oportunidade } }`, radar ("BR" = nacional); id = hash do link |
+| `radar_filtros/<id>` | FiltroRadar (áreas, UFs, bancas, salário mínimo; o `padrao` vem do seed) |
+| `estado/radar` | `{ vistoAte }`: oportunidades coletadas depois disso são "novas" (alerta na Home) |
 
 - O estado da revisão de cada tópico fica no próprio tópico (`topico.revisao`), junto com `concluidoEm`.
   `atualizarTopico` agenda D+1 ao concluir e limpa ao voltar para "em estudo".
@@ -182,8 +192,29 @@ seed sozinho.
   com o tópico achado por título/Jaccard e revisão antes de importar. Caderno de erros: D+3 e D+14 a partir
   da anotação; errar de novo recomeça em D+3; "Explicar com IA" guarda o texto no erro; da prática com IA dá
   para mandar as erradas para o caderno. Simulados: nota de corte do concurso na mesma escala da nota total.
-- **Rede do container**: o proxy bloqueia cdnjs e pciconcursos.com.br. A Fase 6 (coletor do PCI) precisa
-  liberar `www.pciconcursos.com.br` nas configurações de rede do ambiente.
+- **Radar** (Fase 6): o app não acessa sites de fora (CSP do Artifact); as oportunidades chegam por três
+  caminhos: a rotina diária (abaixo), "Colar página" (texto copiado do PCI ou de uma notícia → IA separa
+  os concursos, com revisão antes de salvar) e cadastro manual. Filtro por área compara radicais de 6
+  letras ("Engenharia Elétrica" acha "Engenheiro Eletricista"); UF "BR" passa em qualquer filtro de UF.
+  Já conhecida (mesmo id) mantém a data em que apareceu e o "ignorada"; encerradas há mais de 30 dias
+  saem do banco (`mesclarOportunidades`, a mesma regra no app e na rotina). Abrir a tela Radar marca tudo
+  como visto. "Transformar em concurso" cria o concurso com status edital aberto, torna-o o ativo e abre
+  Importar edital. QConcursos e sites com login: nunca raspar.
+- **Rede do container**: o proxy bloqueia cdnjs e pciconcursos.com.br. A rotina do radar só funciona
+  depois de liberar `www.pciconcursos.com.br` nas configurações de rede do ambiente.
+
+## Radar: rotina diária
+
+Uma rotina agendada do Claude Code (1 vez por dia, sessão nova a cada disparo, neste repositório):
+
+1. `npm install` (se preciso) e `npm run radar:coletar`. Se sair com erro (rede bloqueada, HTTP 403), parar e avisar.
+2. ArtifactData `list` da coleção `oportunidades` do app, com `out_dir` = `.cache/radar/banco`.
+3. `npm run radar:mesclar`.
+4. ArtifactData `batch` com `writes` = o conteúdo de `.cache/radar/escritas/lote.json` (até 50 por lote;
+   cada `set` aponta `file_path` para o JSON da UF).
+5. Responder com o resumo impresso pelo passo 3 (quantas novas).
+
+Para testar o parser com a página real: `npm run radar:amostra` (troca o fixture; confira com `npm test`).
 
 ## Estado das fases
 
@@ -194,6 +225,6 @@ seed sozinho.
 - [x] Fase 3: disponibilidade (grade + exceções), Planejamento dia/semana/mês, planejador, blocos na Home
 - [x] Fase 4: replanejamento automático, capacidade real, edital que não fecha com cortes, blocos fixos
 - [x] Fase 5: questões avulsas e CSV, caderno de erros, simulados, estatísticas
-- [ ] Fase 6: radar
+- [x] Fase 6: radar (parser do PCI + rotina diária, colar página com IA, filtros, alerta, transformar em concurso)
 - [ ] Fase 7: provas anteriores
 - [ ] Fase 8: polimento

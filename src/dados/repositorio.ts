@@ -16,11 +16,15 @@
 //   questoes/<AAAA-MM-DD>     { semana, itens: { <id>: RegistroQuestoes } }, questões avulsas
 //   erros/<disciplinaId>      { disciplinaId, itens: { <id>: ErroCaderno } }, caderno de erros
 //   simulados/<id>            Simulado
+//   oportunidades/<UF>        { uf, itens: { <id>: Oportunidade } }, radar de concursos
+//   estado/radar              { vistoAte }: até quando as oportunidades já foram vistas
 //   estado/vinculos           { ignorados: string[] }, sugestões de equivalência recusadas
 //   radar_filtros/<id>        FiltroRadar (Fase 6; já vem no seed)
 
 import * as crono from '../dominio/cronometro';
 import { diaSP, inicioDaSemana, instanteSP } from '../dominio/datas';
+import { mesclarOportunidades } from '../radar/radar';
+import type { ItensPorUf } from '../radar/radar';
 import { chavePar, topicosDaImportacao } from '../dominio/edital';
 import { capacidadeParaPlano, capacidadeReal } from '../dominio/adaptacao';
 import { revisarErro } from '../dominio/desempenho';
@@ -41,8 +45,10 @@ import type {
   Edital,
   ErroCaderno,
   EstadoRevisao,
+  FiltroRadar,
   Id,
   Material,
+  Oportunidade,
   RegistroQuestoes,
   RegistroRevisao,
   Sessao,
@@ -67,6 +73,7 @@ export const COLECOES = [
   'questoes',
   'erros',
   'simulados',
+  'oportunidades',
   'radar_filtros',
 ] as const;
 type Colecao = (typeof COLECOES)[number];
@@ -109,6 +116,10 @@ export interface Dados {
   registrosQuestoes: RegistroQuestoes[];
   erros: ErroCaderno[];
   simulados: Simulado[];
+  oportunidades: Oportunidade[];
+  filtrosRadar: FiltroRadar[];
+  /** Oportunidades coletadas depois deste instante são "novas". */
+  radarVistoAte: string | null;
   config: Configuracao;
   erro: ErroStore | null;
 }
@@ -240,6 +251,13 @@ export class Repositorio {
     }
     erros.sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
     const simulados = [...this.col('simulados').values()].map((x) => x as unknown as Simulado).sort((a, b) => b.dia.localeCompare(a.dia));
+    const oportunidades: Oportunidade[] = [];
+    for (const doc of this.col('oportunidades').values()) {
+      for (const [id, o] of Object.entries((doc.itens as Record<Id, Oportunidade | null>) ?? {})) if (o?.titulo) oportunidades.push({ ...o, id });
+    }
+    oportunidades.sort((a, b) => (a.inscricoesAte ?? '9999').localeCompare(b.inscricoesAte ?? '9999') || a.orgao.localeCompare(b.orgao, 'pt-BR'));
+    const filtrosRadar = [...this.col('radar_filtros').entries()].map(([id, f]) => ({ ...(f as unknown as FiltroRadar), id }));
+    const radarVistoAte = (this.col('estado').get('radar')?.vistoAte as string | undefined) ?? null;
     const ativa = ((this.col('estado').get('cronometro')?.sessao as Sessao | null) ?? null) || null;
     const cfg = this.col('config').get('geral') as Partial<Configuracao> | undefined;
     const config: Configuracao = {
@@ -263,6 +281,9 @@ export class Repositorio {
       registrosQuestoes,
       erros,
       simulados,
+      oportunidades,
+      filtrosRadar,
+      radarVistoAte,
       config,
       erro: this.erro,
     };
@@ -865,6 +886,56 @@ export class Repositorio {
 
   async excluirSimulado(id: Id): Promise<void> {
     await this.store.remover(`simulados/${id}`);
+  }
+
+  // ----------------------------------------------------------------- radar
+
+  /**
+   * Junta oportunidades novas às que já existem (por id). Uma oportunidade já
+   * conhecida mantém a data em que apareceu e se estava ignorada. Encerradas
+   * há mais de 30 dias saem do banco.
+   */
+  async salvarOportunidades(lista: Oportunidade[]): Promise<{ novas: number; atualizadas: number }> {
+    const banco: ItensPorUf = {};
+    for (const [uf, doc] of this.col('oportunidades')) banco[uf] = (doc.itens as unknown as ItensPorUf[string]) ?? {};
+    const r = mesclarOportunidades(banco, lista, diaSP(this.relogio()));
+    for (const [uf, itens] of Object.entries(r.docs)) await this.store.definir(`oportunidades/${uf}`, { uf, itens } as unknown as Json);
+    for (const uf of r.vazias) await this.store.remover(`oportunidades/${uf}`);
+    return { novas: r.novas, atualizadas: r.atualizadas };
+  }
+
+  async ignorarOportunidade(o: Oportunidade, ignorada = true): Promise<void> {
+    await this.store.mesclar(`oportunidades/${o.uf}`, { itens: { [o.id]: { ignorada } } });
+  }
+
+  async salvarFiltroRadar(f: Omit<FiltroRadar, 'id'> & { id?: Id }): Promise<Id> {
+    const id = f.id ?? novoId();
+    await this.store.definir(`radar_filtros/${id}`, { ...f, id } as unknown as Json);
+    return id;
+  }
+
+  async excluirFiltroRadar(id: Id): Promise<void> {
+    await this.store.remover(`radar_filtros/${id}`);
+  }
+
+  async marcarRadarVisto(): Promise<void> {
+    await this.store.definir('estado/radar', { vistoAte: this.relogio().toISOString() });
+  }
+
+  /** Cria o concurso a partir da oportunidade (para depois importar o edital). */
+  async transformarEmConcurso(o: Oportunidade, area: string): Promise<Id> {
+    return this.salvarConcurso({
+      nome: o.orgao || o.titulo,
+      orgao: o.orgao,
+      banca: o.banca,
+      cargo: o.cargos.find((c) => /eletric|el[eé]tric/i.test(c)) ?? o.cargos[0] ?? '',
+      area,
+      dataProva: null,
+      status: 'edital_aberto',
+      link: o.link,
+      notaCorte: null,
+      prioridade: 3,
+    });
   }
 
   // ----------------------------------------------------------- cronômetro

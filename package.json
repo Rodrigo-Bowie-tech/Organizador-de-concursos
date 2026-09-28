@@ -10,7 +10,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "preview": "node scripts/servir-preview.mjs"
+    "preview": "node scripts/servir-preview.mjs",
+    "radar:coletar": "node scripts/radar/coletar.ts --saida .cache/radar/oportunidades.json",
+    "radar:mesclar": "node scripts/radar/mesclar.ts",
+    "radar:amostra": "node scripts/radar/coletar.ts --amostra tests/unit/fixtures/pci-sudeste.html"
   },
   "dependencies": {
     "lucide-react": "1.48.0",

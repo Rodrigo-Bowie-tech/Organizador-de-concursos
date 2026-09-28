@@ -1,4 +1,4 @@
-import { CalendarClock, CalendarDays, Check, Flame, Play, RefreshCcw } from 'lucide-react';
+import { CalendarClock, CalendarDays, Check, Flame, Play, Radar, RefreshCcw } from 'lucide-react';
 import { useMemo } from 'react';
 import { AvisosPlano } from '../componentes/AvisosPlano';
 import { Botao, CabecalhoTela, Cartao, Etiqueta, Progresso, Vazio, cx } from '../componentes/ui';
@@ -11,6 +11,7 @@ import { revisoesAgendadas, separarRevisoes } from '../dominio/revisoes';
 import { errosParaRevisar } from '../dominio/desempenho';
 import { TIPO_SESSAO } from '../dominio/rotulos';
 import { useAgora, useApp } from '../estado';
+import { oportunidadesNovas } from '../radar/radar';
 
 const DIAS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 
@@ -25,6 +26,35 @@ function Meta({ rotulo, segundos, metaMin }: { rotulo: string; segundos: number;
         {Math.round(fracao * 100)}% da meta de {formatarDuracao(metaMin * 60)}
       </p>
     </Cartao>
+  );
+}
+
+/** Alerta de oportunidades novas do radar que batem com os filtros. */
+function AlertaRadar({ hoje }: { hoje: string }) {
+  const { dados, irPara } = useApp();
+  const novas = oportunidadesNovas(dados.oportunidades, dados.filtrosRadar, dados.radarVistoAte, hoje);
+  if (!novas.length) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => irPara('radar')}
+      className="flex flex-wrap items-center gap-3 rounded-xl border-2 border-roxo/40 bg-superficie px-5 py-4 text-left shadow-cartao transition hover:border-roxo"
+    >
+      <Radar size={22} className="text-roxo" />
+      <span className="min-w-0 flex-1">
+        <span className="block font-extrabold text-roxo">
+          {novas.length === 1 ? '1 concurso novo no radar' : `${novas.length} concursos novos no radar`}
+        </span>
+        <span className="block truncate text-sm text-suave">
+          {novas
+            .slice(0, 3)
+            .map((o) => `${o.orgao} (${o.uf})`)
+            .join(' · ')}
+          {novas.length > 3 && ` e mais ${novas.length - 3}`}
+        </span>
+      </span>
+      <span className="text-sm font-bold text-roxo">Ver radar</span>
+    </button>
   );
 }
 
@@ -136,6 +166,7 @@ export function Home() {
           </button>
         )}
 
+        <AlertaRadar hoje={hoje} />
         <BlocosDeHoje hoje={hoje} />
         <AvisosPlano compacto />
 

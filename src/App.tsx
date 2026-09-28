@@ -1,4 +1,4 @@
-import { BookMarked, BookOpenCheck, CalendarDays, ChartColumnBig, ChartLine, ClipboardCheck, ListChecks, FolderOpen, History, House, Layers, Library, Menu, RefreshCcw, Settings, Timer, X } from 'lucide-react';
+import { BookMarked, BookOpenCheck, CalendarDays, ChartColumnBig, ChartLine, ClipboardCheck, ListChecks, FolderOpen, History, House, Layers, Library, Menu, Radar as IconeRadar, RefreshCcw, Settings, Timer, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
@@ -27,6 +27,8 @@ import { Home } from './telas/Home';
 import { Planejamento } from './telas/Planejamento';
 import { ImportarEdital } from './telas/ImportarEdital';
 import { Revisoes } from './telas/Revisoes';
+import { Radar } from './telas/Radar';
+import { oportunidadesNovas } from './radar/radar';
 
 const ITENS: { tela: Tela; rotulo: string; icone: LucideIcon }[] = [
   { tela: 'home', rotulo: 'Home', icone: House },
@@ -42,6 +44,7 @@ const ITENS: { tela: Tela; rotulo: string; icone: LucideIcon }[] = [
   { tela: 'estatisticas', rotulo: 'Estatísticas', icone: ChartLine },
   { tela: 'balanco', rotulo: 'Balanço', icone: ChartColumnBig },
   { tela: 'biblioteca', rotulo: 'Biblioteca', icone: Library },
+  { tela: 'radar', rotulo: 'Radar', icone: IconeRadar },
   { tela: 'cronometro', rotulo: 'Cronômetro', icone: Timer },
   { tela: 'configuracoes', rotulo: 'Configurações', icone: Settings },
 ];
@@ -61,6 +64,7 @@ const TELAS: Record<Tela, ComponentType> = {
   estatisticas: Estatisticas,
   balanco: Balanco,
   biblioteca: Biblioteca,
+  radar: Radar,
   cronometro: Cronometro,
   historico: Historico,
   configuracoes: Configuracoes,
@@ -81,6 +85,7 @@ function Marca() {
 function MenuLateral({ aoNavegar }: { aoNavegar?: () => void }) {
   const { tela, irPara, dados } = useApp();
   const pendentes = revisoesAgendadas(dados.disciplinas, hojeSP()).filter((r) => r.atraso >= 0).length;
+  const novas = tela === 'radar' ? 0 : oportunidadesNovas(dados.oportunidades, dados.filtrosRadar, dados.radarVistoAte, hojeSP()).length;
   return (
     <nav aria-label="Menu principal" className="flex flex-col gap-0.5 px-3">
       {ITENS.map(({ tela: t, rotulo, icone: Icone }) => (
@@ -103,6 +108,11 @@ function MenuLateral({ aoNavegar }: { aoNavegar?: () => void }) {
           {t === 'revisoes' && pendentes > 0 && (
             <span className="ml-auto rounded-full bg-white px-2 text-xs font-extrabold text-verde-forte" aria-label={`${pendentes} para hoje`}>
               {pendentes}
+            </span>
+          )}
+          {t === 'radar' && novas > 0 && (
+            <span className="ml-auto rounded-full bg-white px-2 text-xs font-extrabold text-verde-forte" aria-label={`${novas} novas`}>
+              {novas}
             </span>
           )}
         </button>

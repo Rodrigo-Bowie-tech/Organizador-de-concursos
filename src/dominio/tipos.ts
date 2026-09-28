@@ -287,20 +287,26 @@ export interface Simulado {
   observacoes: string;
 }
 
-/** Fase 6: radar de concursos. */
+/** Fase 6: concurso aberto ou previsto, em `oportunidades/<UF>` (itens por id). */
 export interface Oportunidade {
+  /** Derivado do link (ou do órgão + cargos) para não duplicar entre coletas. */
   id: Id;
   titulo: string;
   orgao: string;
   banca: string;
   cargos: string[];
+  /** Maior salário anunciado, em reais. */
   salario: number | null;
   vagas: number | null;
+  /** Sigla da UF ou "BR" para nacional. */
   uf: string;
   inscricoesAte: DiaISO | null;
   link: string;
+  /** "PCI Concursos", "texto colado", "manual"... */
   fonte: string;
   coletadoEm: InstanteISO;
+  /** Escondida por você no radar. */
+  ignorada?: boolean;
 }
 
 /** Fase 6: filtro salvo do radar (já criado no seed). */

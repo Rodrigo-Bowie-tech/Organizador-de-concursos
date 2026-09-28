@@ -22,6 +22,7 @@ export type Tela =
   | 'historico'
   | 'balanco'
   | 'biblioteca'
+  | 'radar'
   | 'cronometro'
   | 'configuracoes';
 

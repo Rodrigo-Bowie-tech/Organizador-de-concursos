@@ -74,7 +74,10 @@ export const BANCO: Record<string, unknown> = {
   },
 };
 
-export async function preparar(page: Page, opcoes: { ia?: boolean; extras?: Record<string, unknown>; agora?: string } = {}) {
+export async function preparar(
+  page: Page,
+  opcoes: { ia?: boolean; extras?: Record<string, unknown>; agora?: string; respostasIA?: Record<string, unknown> } = {},
+) {
   // Padrão: domingo, 27/09/2026, 20:00 em São Paulo.
   await page.clock.install({ time: new Date(opcoes.agora ?? '2026-09-27T23:00:00Z') });
   await page.addInitScript(
@@ -83,6 +86,10 @@ export async function preparar(page: Page, opcoes: { ia?: boolean; extras?: Reco
     },
     [CHAVE, { ...BANCO, ...opcoes.extras }] as const,
   );
+  if (opcoes.respostasIA) {
+    // Respostas da IA por trecho do pedido (vencem as padrão abaixo).
+    await page.addInitScript((r) => ((window as unknown as { __respostasIA: unknown }).__respostasIA = r), opcoes.respostasIA);
+  }
   if (opcoes.ia) {
     // Simula o runtime do claude.ai só com a IA: o banco continua local.
     await page.addInitScript(() => {
