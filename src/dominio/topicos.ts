@@ -77,3 +77,14 @@ export function mover(
   });
   return novas;
 }
+
+/** Títulos do tópico mais geral ao próprio tópico: ["Máquinas elétricas", "Transformadores"]. */
+export function caminhoDoTopico(topicos: Record<Id, Topico>, id: Id): string[] {
+  const caminho: string[] = [];
+  let atual: Topico | undefined = topicos[id];
+  while (atual && caminho.length < 20) {
+    caminho.unshift(atual.titulo);
+    atual = atual.paiId ? topicos[atual.paiId] : undefined;
+  }
+  return caminho;
+}

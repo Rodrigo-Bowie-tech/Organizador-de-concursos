@@ -213,3 +213,95 @@ describe('backup', () => {
     await expect(repo.importar({ qualquer: 1 })).rejects.toMatchObject({ codigo: 'backup_invalido' });
   });
 });
+
+describe('revisões no repositório', () => {
+  it('concluir a teoria agenda D+1; revisar com "bom" marca como revisado e agenda D+7', async () => {
+    const store = new MemoriaStore();
+    const { repo } = await novoRepo(store);
+    const { disciplinaId } = await concursoComDisciplina(repo);
+    const ohm = () => Object.values(repo.atual.disciplinas[0].topicos).find((t) => t.titulo === 'Lei de Ohm')!;
+
+    await repo.atualizarTopico(disciplinaId, ohm().id, { status: 'teoria_concluida' });
+    expect(ohm().revisao?.proxima).toBe('2026-09-28'); // domingo 27/09 (SP) + 1
+    expect(ohm().concluidoEm).toBe(agora.toISOString());
+
+    agora = new Date('2026-09-28T12:00:00Z');
+    await repo.registrarRevisao(disciplinaId, ohm().id, 'bom');
+    expect(ohm().status).toBe('revisado');
+    expect(ohm().revisao?.proxima).toBe('2026-10-04'); // D+7 a partir da conclusão
+    expect(repo.atual.revisoesFeitas).toMatchObject([{ topicoId: ohm().id, avaliacao: 'bom', dia: '2026-09-28', intervalo: 6 }]);
+    expect(Object.keys(store.despejar())).toContain('revisoes/2026-09-27');
+  });
+
+  it('voltar o tópico para "em estudo" cancela as revisões', async () => {
+    const { repo } = await novoRepo();
+    const { disciplinaId } = await concursoComDisciplina(repo);
+    const t = Object.values(repo.atual.disciplinas[0].topicos)[0];
+    await repo.atualizarTopico(disciplinaId, t.id, { status: 'teoria_concluida' });
+    await repo.atualizarTopico(disciplinaId, t.id, { status: 'em_estudo' });
+    const depois = repo.atual.disciplinas[0].topicos[t.id];
+    expect(depois.revisao).toBeNull();
+    expect(depois.concluidoEm).toBeNull();
+  });
+
+  it('agenda revisões para tópicos concluídos antes de as revisões existirem', async () => {
+    const store = new MemoriaStore();
+    const { repo } = await novoRepo(store);
+    const { disciplinaId } = await concursoComDisciplina(repo);
+    const t = Object.values(repo.atual.disciplinas[0].topicos)[0];
+    // Simula dado antigo: concluído sem `revisao`.
+    await store.mesclar(`disciplinas/${disciplinaId}`, { topicos: { [t.id]: { status: 'teoria_concluida' } } });
+    expect(repo.concluidosSemRevisao()).toHaveLength(1);
+    expect(await repo.agendarRevisoesPendentes()).toBe(1);
+    expect(repo.atual.disciplinas[0].topicos[t.id].revisao?.proxima).toBe('2026-09-28');
+    expect(repo.concluidosSemRevisao()).toHaveLength(0);
+  });
+});
+
+describe('biblioteca', () => {
+  it('guarda materiais por disciplina e remove o PDF junto', async () => {
+    const removidos: string[] = [];
+    const store = new MemoriaStore();
+    const repo = new Repositorio(store, relogio, {
+      enviar: async () => ({ id: 'arq1', url: '/_blob/arq1' }),
+      remover: async (id) => void removidos.push(id),
+    });
+    repo.iniciar();
+    await repo.pronto();
+    const { disciplinaId } = await concursoComDisciplina(repo);
+    const base = { disciplinaId, topicoId: null, url: '', arquivoId: null, arquivoNome: null, trecho: '', observacao: '' };
+    await repo.salvarMaterial({ ...base, tipo: 'video', titulo: 'Aula 1 - Circuitos', url: 'https://exemplo.com/aula1' });
+    const pdfId = await repo.salvarMaterial({ ...base, tipo: 'pdf', titulo: 'Apostila', arquivoId: 'arq1', arquivoNome: 'apostila.pdf' });
+    expect(repo.atual.materiais.map((m) => m.titulo)).toEqual(['Apostila', 'Aula 1 - Circuitos']);
+
+    await repo.removerMaterial(repo.atual.materiais.find((m) => m.id === pdfId)!);
+    expect(removidos).toEqual(['arq1']);
+    expect(repo.atual.materiais).toHaveLength(1);
+
+    await repo.excluirDisciplina(disciplinaId);
+    expect(repo.atual.materiais).toHaveLength(0);
+    expect(Object.keys(store.despejar()).some((c) => c.startsWith('biblioteca/'))).toBe(false);
+  });
+});
+
+describe('prática com IA', () => {
+  it('sem sessão em andamento, vira uma sessão de questões com o tempo da prática', async () => {
+    const { repo } = await novoRepo();
+    const inicio = new Date(agora);
+    avancar(12);
+    expect(
+      await repo.registrarPratica({ concursoId: null, disciplinaId: null, topicoId: null, feitas: 10, acertos: 7, inicio, descricao: 'Prática com IA' }),
+    ).toBe('nova');
+    expect(repo.atual.sessoes[0]).toMatchObject({ tipo: 'questoes', origem: 'pratica_ia', questoesFeitas: 10, acertos: 7, segundosLiquidos: 720 });
+  });
+
+  it('com sessão em andamento, soma as questões nela', async () => {
+    const { repo } = await novoRepo();
+    await repo.iniciarSessao({ concursoId: null, disciplinaId: null, topicoId: null, tipo: 'teoria' });
+    expect(
+      await repo.registrarPratica({ concursoId: null, disciplinaId: null, topicoId: null, feitas: 5, acertos: 4, inicio: agora, descricao: '' }),
+    ).toBe('ativa');
+    expect(repo.atual.ativa).toMatchObject({ questoesFeitas: 5, acertos: 4 });
+    expect(repo.atual.sessoes).toHaveLength(0);
+  });
+});

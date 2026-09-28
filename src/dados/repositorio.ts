@@ -7,18 +7,26 @@
 //   sessoes/<AAAA-MM-DD>      { semana, itens: { <id>: Sessao } }, semana começando no domingo
 //   estado/cronometro         { sessao: Sessao | null }, a sessão em andamento
 //   config/geral              Configuracao
+//   revisoes/<AAAA-MM-DD>     { semana, itens: { <id>: RegistroRevisao } }, histórico de revisões
+//   biblioteca/<disciplinaId> { disciplinaId, itens: { <id>: Material } }
 //   radar_filtros/<id>        FiltroRadar (Fase 6; já vem no seed)
 
 import * as crono from '../dominio/cronometro';
 import { diaSP, inicioDaSemana } from '../dominio/datas';
 import { lerLote, topicosDoLote } from '../dominio/lote';
+import { topicoConcluido } from '../dominio/painel';
+import * as rev from '../dominio/revisoes';
 import { CORES_DISCIPLINA } from '../dominio/rotulos';
 import { comDescendentes, mover, proximaOrdem } from '../dominio/topicos';
 import type {
+  AvaliacaoRevisao,
   Concurso,
   Configuracao,
   Disciplina,
+  EstadoRevisao,
   Id,
+  Material,
+  RegistroRevisao,
   Sessao,
   StatusTopico,
   TipoSessao,
@@ -26,8 +34,24 @@ import type {
 } from '../dominio/tipos';
 import type { ErroStore, Json, Store } from './store';
 
-export const COLECOES = ['concursos', 'disciplinas', 'sessoes', 'estado', 'config', 'radar_filtros'] as const;
+export const COLECOES = [
+  'concursos',
+  'disciplinas',
+  'sessoes',
+  'estado',
+  'config',
+  'revisoes',
+  'biblioteca',
+  'radar_filtros',
+] as const;
 type Colecao = (typeof COLECOES)[number];
+type ColecaoSemanal = 'sessoes' | 'revisoes';
+
+/** Armazenamento de arquivos (PDFs da biblioteca). No claude.ai, o recurso `assets`. */
+export interface Arquivos {
+  enviar(arquivo: File): Promise<{ id: string; url: string }>;
+  remover(id: string): Promise<void>;
+}
 
 export const CONFIG_PADRAO: Configuracao = {
   metaDiariaMin: 180,
@@ -46,6 +70,9 @@ export interface Dados {
   sessoes: Sessao[];
   /** Sessão em andamento (rodando ou pausada). */
   ativa: Sessao | null;
+  /** Revisões feitas, da mais recente para a mais antiga. */
+  revisoesFeitas: RegistroRevisao[];
+  materiais: Material[];
   config: Configuracao;
   erro: ErroStore | null;
 }
@@ -95,6 +122,7 @@ export class Repositorio {
   constructor(
     private store: Store,
     private relogio: () => Date = () => new Date(),
+    readonly arquivos: Arquivos | null = null,
   ) {
     this.dados = this.montar();
   }
@@ -155,13 +183,13 @@ export class Repositorio {
     const disciplinas = [...this.col('disciplinas').entries()]
       .map(([id, d]) => ({ ...(d as unknown as Disciplina), id, topicos: (d.topicos as Record<Id, Topico>) ?? {} }))
       .sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, 'pt-BR'));
-    const sessoes: Sessao[] = [];
-    for (const semana of this.col('sessoes').values()) {
-      for (const s of Object.values((semana.itens as Record<Id, Sessao | null>) ?? {})) {
-        if (s) sessoes.push(s);
-      }
+    const sessoes = this.itensSemanais<Sessao>('sessoes').sort((a, b) => b.inicio.localeCompare(a.inicio));
+    const revisoesFeitas = this.itensSemanais<RegistroRevisao>('revisoes').sort((a, b) => b.dia.localeCompare(a.dia));
+    const materiais: Material[] = [];
+    for (const doc of this.col('biblioteca').values()) {
+      for (const m of Object.values((doc.itens as Record<Id, Material | null>) ?? {})) if (m) materiais.push(m);
     }
-    sessoes.sort((a, b) => b.inicio.localeCompare(a.inicio));
+    materiais.sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'));
     const ativa = ((this.col('estado').get('cronometro')?.sessao as Sessao | null) ?? null) || null;
     const cfg = this.col('config').get('geral') as Partial<Configuracao> | undefined;
     const config: Configuracao = {
@@ -176,9 +204,19 @@ export class Repositorio {
       disciplinas,
       sessoes,
       ativa,
+      revisoesFeitas,
+      materiais,
       config,
       erro: this.erro,
     };
+  }
+
+  private itensSemanais<T>(col: ColecaoSemanal): T[] {
+    const itens: T[] = [];
+    for (const semana of this.col(col).values()) {
+      for (const item of Object.values((semana.itens as Record<Id, T | null>) ?? {})) if (item) itens.push(item);
+    }
+    return itens;
   }
 
   private atualizar() {
@@ -211,10 +249,10 @@ export class Repositorio {
     return id;
   }
 
-  /** Apaga o concurso e as disciplinas dele. As sessões ficam no histórico. */
+  /** Apaga o concurso, as disciplinas e a biblioteca dele. As sessões ficam no histórico. */
   async excluirConcurso(id: Id): Promise<void> {
     for (const d of this.dados.disciplinas.filter((x) => x.concursoId === id)) {
-      await this.store.remover(`disciplinas/${d.id}`);
+      await this.excluirDisciplina(d.id);
     }
     await this.store.remover(`concursos/${id}`);
   }
@@ -253,8 +291,12 @@ export class Repositorio {
     return id;
   }
 
+  /** Apaga a disciplina, os tópicos e a biblioteca dela (inclusive os PDFs enviados). */
   async excluirDisciplina(id: Id): Promise<void> {
+    const pdfs = this.dados.materiais.filter((m) => m.disciplinaId === id && m.arquivoId);
+    if (this.col('biblioteca').has(id)) await this.store.remover(`biblioteca/${id}`);
     await this.store.remover(`disciplinas/${id}`);
+    for (const m of pdfs) await this.arquivos?.remover(m.arquivoId as string).catch(() => undefined);
   }
 
   // -------------------------------------------------------------- tópicos
@@ -292,12 +334,29 @@ export class Repositorio {
     return novos.length;
   }
 
+  /**
+   * Ao concluir a teoria, marca a data e agenda a primeira revisão (D+1). Ao
+   * voltar para "não iniciado" ou "em estudo", desfaz as duas coisas.
+   */
   async atualizarTopico(
     disciplinaId: Id,
     topicoId: Id,
     patch: Partial<Pick<Topico, 'titulo' | 'status' | 'autoavaliacao' | 'incidencia'>>,
   ): Promise<void> {
-    await this.store.mesclar(`disciplinas/${disciplinaId}`, { topicos: { [topicoId]: patch } });
+    const t = this.dados.disciplinas.find((x) => x.id === disciplinaId)?.topicos[topicoId];
+    const extra: Partial<Topico> = {};
+    if (t && patch.status) {
+      const antes = topicoConcluido(t);
+      const depois = topicoConcluido({ status: patch.status });
+      if (depois) {
+        if (!antes) extra.concluidoEm = this.relogio().toISOString();
+        if (!t.revisao) extra.revisao = rev.iniciarRevisao(diaSP(this.relogio()));
+      } else if (antes) {
+        extra.concluidoEm = null;
+        extra.revisao = null;
+      }
+    }
+    await this.store.mesclar(`disciplinas/${disciplinaId}`, { topicos: { [topicoId]: { ...patch, ...extra } } });
   }
 
   /** Remove o tópico e os subtópicos dele. */
@@ -321,6 +380,88 @@ export class Repositorio {
     const t = this.dados.disciplinas.find((x) => x.id === disciplinaId)?.topicos[topicoId];
     if (!t || ORDEM_STATUS.indexOf(t.status) >= ORDEM_STATUS.indexOf(status)) return;
     await this.atualizarTopico(disciplinaId, topicoId, { status });
+  }
+
+  // ------------------------------------------------------------- revisões
+
+  /** Registra uma revisão feita hoje e agenda a próxima conforme a avaliação. */
+  async registrarRevisao(disciplinaId: Id, topicoId: Id, avaliacao: AvaliacaoRevisao): Promise<EstadoRevisao> {
+    const d = this.disciplina(disciplinaId);
+    const t = d.topicos[topicoId];
+    if (!t) throw falha('nao_encontrado', 'Tópico não encontrado.');
+    const hoje = diaSP(this.relogio());
+    const estado = rev.registrarRevisao(t.revisao ?? rev.iniciarRevisao(hoje), avaliacao, hoje);
+    const patch: Partial<Topico> = { revisao: estado };
+    if ((avaliacao === 'bom' || avaliacao === 'facil') && t.status === 'teoria_concluida') patch.status = 'revisado';
+    await this.store.mesclar(`disciplinas/${disciplinaId}`, { topicos: { [topicoId]: patch } });
+    const registro: RegistroRevisao = {
+      id: novoId(),
+      concursoId: d.concursoId,
+      disciplinaId,
+      topicoId,
+      dia: hoje,
+      avaliacao,
+      intervalo: estado.intervalo,
+    };
+    await this.gravarItemSemanal('revisoes', inicioDaSemana(hoje), registro);
+    return estado;
+  }
+
+  /** Tópicos já concluídos que ainda não têm revisão agendada (ex.: marcados antes das revisões existirem). */
+  concluidosSemRevisao(): { disciplina: Disciplina; topico: Topico }[] {
+    return this.dados.disciplinas.flatMap((d) =>
+      Object.values(d.topicos)
+        .filter((t) => topicoConcluido(t) && !t.revisao)
+        .map((topico) => ({ disciplina: d, topico })),
+    );
+  }
+
+  /** Agenda para amanhã a primeira revisão dos tópicos concluídos sem revisão. */
+  async agendarRevisoesPendentes(): Promise<number> {
+    const hoje = diaSP(this.relogio());
+    const porDisciplina = new Map<Id, Record<Id, Json>>();
+    for (const { disciplina, topico } of this.concluidosSemRevisao()) {
+      const m = porDisciplina.get(disciplina.id) ?? {};
+      m[topico.id] = { revisao: rev.iniciarRevisao(hoje) as unknown as Json };
+      porDisciplina.set(disciplina.id, m);
+    }
+    let n = 0;
+    for (const [id, topicos] of porDisciplina) {
+      await this.store.mesclar(`disciplinas/${id}`, { topicos });
+      n += Object.keys(topicos).length;
+    }
+    return n;
+  }
+
+  // ----------------------------------------------------------- biblioteca
+
+  async salvarMaterial(m: Omit<Material, 'id' | 'criadoEm'> & { id?: Id; criadoEm?: string }): Promise<Id> {
+    const id = m.id ?? novoId();
+    const doc: Material = { ...m, id, criadoEm: m.criadoEm ?? this.relogio().toISOString() };
+    const antigo = this.dados.materiais.find((x) => x.id === id);
+    if (antigo && antigo.disciplinaId !== doc.disciplinaId) await this.tirarMaterial(antigo);
+    const caminho = `biblioteca/${doc.disciplinaId}`;
+    if (this.col('biblioteca').has(doc.disciplinaId)) {
+      await this.store.mesclar(caminho, { itens: { [id]: doc as unknown as Json } });
+    } else {
+      await this.store.definir(caminho, { disciplinaId: doc.disciplinaId, itens: { [id]: doc as unknown as Json } });
+    }
+    return id;
+  }
+
+  /** Remove o material e, se houver, o PDF enviado. */
+  async removerMaterial(m: Material): Promise<void> {
+    await this.tirarMaterial(m);
+    if (m.arquivoId) await this.arquivos?.remover(m.arquivoId);
+  }
+
+  private async tirarMaterial(m: Material): Promise<void> {
+    const doc = this.col('biblioteca').get(m.disciplinaId);
+    if (!doc) return;
+    const itens = { ...(doc.itens as Record<Id, Json>) };
+    delete itens[m.id];
+    if (Object.keys(itens).length) await this.store.definir(`biblioteca/${m.disciplinaId}`, { disciplinaId: m.disciplinaId, itens });
+    else await this.store.remover(`biblioteca/${m.disciplinaId}`);
   }
 
   // ----------------------------------------------------------- cronômetro
@@ -410,21 +551,12 @@ export class Repositorio {
 
   /** Grava (cria ou edita) uma sessão finalizada no documento da semana dela. */
   async gravarSessao(s: Sessao): Promise<void> {
-    const semana = chaveSemana(s.inicio);
-    const antiga = this.semanaDaSessao(s.id);
-    if (antiga && antiga !== semana) await this.tirarDaSemana(antiga, s.id);
-
-    const caminho = `sessoes/${semana}`;
-    if (this.col('sessoes').has(semana)) {
-      await this.store.mesclar(caminho, { itens: { [s.id]: s as unknown as Json } });
-    } else {
-      await this.store.definir(caminho, { semana, itens: { [s.id]: s as unknown as Json } });
-    }
+    await this.gravarItemSemanal('sessoes', chaveSemana(s.inicio), s);
   }
 
   /** Registro manual retroativo ("esqueci de ligar o cronômetro"). */
   async registrarManual(
-    d: DetalhesSessao & { inicio: Date; segundosLiquidos: number },
+    d: DetalhesSessao & { inicio: Date; segundosLiquidos: number; origem?: Sessao['origem'] },
   ): Promise<Sessao> {
     const inicio = d.inicio;
     const fim = new Date(inicio.getTime() + d.segundosLiquidos * 1000);
@@ -442,7 +574,7 @@ export class Repositorio {
       acertos: Math.min(d.acertos ?? 0, d.questoesFeitas ?? 0),
       paginas: d.paginas ?? 0,
       anotacoes: d.anotacoes ?? '',
-      origem: 'manual',
+      origem: d.origem ?? 'manual',
       concluiuTeoria: d.concluiuTeoria ?? false,
     };
     await this.gravarSessao(s);
@@ -450,25 +582,77 @@ export class Repositorio {
     return s;
   }
 
-  async excluirSessao(id: Id): Promise<void> {
-    const semana = this.semanaDaSessao(id);
-    if (semana) await this.tirarDaSemana(semana, id);
+  /**
+   * Resultado da prática com IA. Com uma sessão em andamento, as questões
+   * somam nela; sem sessão, vira uma sessão de questões com o tempo da prática.
+   */
+  async registrarPratica(d: {
+    concursoId: Id | null;
+    disciplinaId: Id | null;
+    topicoId: Id | null;
+    feitas: number;
+    acertos: number;
+    inicio: Date;
+    descricao: string;
+  }): Promise<'ativa' | 'nova'> {
+    const ativa = this.dados.ativa;
+    if (ativa) {
+      const s = {
+        ...ativa,
+        questoesFeitas: ativa.questoesFeitas + d.feitas,
+        acertos: ativa.acertos + Math.min(d.acertos, d.feitas),
+      };
+      await this.store.definir('estado/cronometro', { sessao: s as unknown as Json });
+      return 'ativa';
+    }
+    const segundos = Math.max(60, Math.round((this.relogio().getTime() - d.inicio.getTime()) / 1000));
+    await this.registrarManual({
+      concursoId: d.concursoId,
+      disciplinaId: d.disciplinaId,
+      topicoId: d.topicoId,
+      tipo: 'questoes',
+      inicio: d.inicio,
+      segundosLiquidos: segundos,
+      questoesFeitas: d.feitas,
+      acertos: d.acertos,
+      anotacoes: d.descricao,
+      origem: 'pratica_ia',
+    });
+    return 'nova';
   }
 
-  private semanaDaSessao(id: Id): string | null {
-    for (const [semana, doc] of this.col('sessoes')) {
+  async excluirSessao(id: Id): Promise<void> {
+    const semana = this.semanaDoItem('sessoes', id);
+    if (semana) await this.tirarItemSemanal('sessoes', semana, id);
+  }
+
+  // ------------------------------------------- documentos agrupados por semana
+
+  private semanaDoItem(col: ColecaoSemanal, id: Id): string | null {
+    for (const [semana, doc] of this.col(col)) {
       if ((doc.itens as Record<Id, unknown> | undefined)?.[id]) return semana;
     }
     return null;
   }
 
-  private async tirarDaSemana(semana: string, id: Id): Promise<void> {
-    const doc = this.col('sessoes').get(semana);
+  private async gravarItemSemanal(col: ColecaoSemanal, semana: string, item: { id: Id }): Promise<void> {
+    const antiga = this.semanaDoItem(col, item.id);
+    if (antiga && antiga !== semana) await this.tirarItemSemanal(col, antiga, item.id);
+    const caminho = `${col}/${semana}`;
+    if (this.col(col).has(semana)) {
+      await this.store.mesclar(caminho, { itens: { [item.id]: item as unknown as Json } });
+    } else {
+      await this.store.definir(caminho, { semana, itens: { [item.id]: item as unknown as Json } });
+    }
+  }
+
+  private async tirarItemSemanal(col: ColecaoSemanal, semana: string, id: Id): Promise<void> {
+    const doc = this.col(col).get(semana);
     if (!doc) return;
     const itens = { ...(doc.itens as Record<Id, Json>) };
     delete itens[id];
-    if (Object.keys(itens).length) await this.store.definir(`sessoes/${semana}`, { semana, itens });
-    else await this.store.remover(`sessoes/${semana}`);
+    if (Object.keys(itens).length) await this.store.definir(`${col}/${semana}`, { semana, itens });
+    else await this.store.remover(`${col}/${semana}`);
   }
 
   // --------------------------------------------------------- configuração

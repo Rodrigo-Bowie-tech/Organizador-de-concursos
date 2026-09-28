@@ -19,6 +19,17 @@ desktop e no celular. Os dados ficam no banco do próprio app, na nuvem.
   cobertura do edital e sequência de dias estudados.
 - **Configurações**: metas, Pomodoro, tema claro/escuro e backup em JSON.
 
+## Melhorias
+- **Revisões**: ao concluir a teoria de um tópico, a primeira revisão fica para o dia seguinte. Depois,
+  D+7, D+30 e D+90, ajustados pela sua avaliação (errei, difícil, bom, fácil).
+- **Biblioteca**: PDFs, videoaulas, links, livros e resumos ligados a cada tópico. Aparecem no
+  cronômetro e na revisão do tópico.
+- **Praticar com IA**: questões no estilo da banca (FCC, Cebraspe…) sobre o tópico, com gabarito e
+  explicação. Usa o seu plano do Claude.
+- **Balanço**: horas da semana, tempo × peso de cada disciplina na prova, disciplinas esquecidas,
+  tópicos parados e projeção de cobertura do edital até a prova.
+- **Testes automáticos** no GitHub a cada envio.
+
 A especificação completa e as próximas fases estão em [`SPEC_plataforma_estudos.md`](SPEC_plataforma_estudos.md).
 Detalhes técnicos estão em [`CLAUDE.md`](CLAUDE.md).
 

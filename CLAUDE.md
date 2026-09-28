@@ -13,9 +13,11 @@ App pessoal de estudos para concursos (usuário único). A especificação compl
 O app é um **Artifact privado do claude.ai**, aberto com o login do Claude no notebook, no desktop e no celular.
 
 - Link: https://claude.ai/artifact/WaU6p8RVuBizYJRdFQ44LC
-- Capacidades declaradas: `db` (banco de documentos do Artifact) e `downloads` (exportar backup).
-  As próximas fases vão acrescentar `sample` (IA dos editais, Fase 2) e `assets` (PDFs).
-  Ao republicar, **omitir `capabilities`** mantém as atuais; um objeto novo substitui o conjunto inteiro.
+- Capacidades declaradas: `db` (banco de documentos), `downloads` (exportar backup), `sample` (IA do
+  Claude, paga pelo plano de quem usa: prática com IA e, na Fase 2, editais) e `assets` (PDFs da biblioteca).
+  Ao republicar, **omitir `capabilities`** mantém as atuais; um objeto novo substitui o conjunto inteiro:
+  `{"db": {}, "downloads": true, "sample": {}, "assets": {}}`.
+- Já foi confirmado em produção (27/09/2026): a página carrega o React do CDN e grava no banco.
 - Para atualizar de outra conversa: `npm run build` e publicar `dist/organizador-de-concursos.html`
   com a ferramenta Artifact passando `url` = o link acima (senão cria outro artifact).
 
@@ -31,6 +33,8 @@ O app é um **Artifact privado do claude.ai**, aberto com o login do Claude no n
 | `npm run preview` | serve `dist/preview.html` em http://localhost:4173 |
 | `npm run test:e2e` | Playwright (celular e desktop) sobre o build; rode `npm run build` antes. No container remoto: `PLAYWRIGHT_CHROMIUM=/opt/pw-browsers/chromium npm run test:e2e` |
 
+O GitHub Actions (`.github/workflows/testes.yml`) roda tipos, unitários, build e Playwright a cada push.
+
 Não há `migrate`: o banco é de documentos JSON, sem esquema. O seed é aplicado pela ferramenta
 ArtifactData (ver "Seed").
 
@@ -44,14 +48,19 @@ src/
     cronometro.ts  tempo líquido, tempo por dia (corta na meia-noite de SP), Pomodoro
     painel.ts      totais por período, sequência de dias, cobertura, contagem regressiva
     lote.ts        cadastro de tópicos em lote (numeração 1.1.1 ou recuo)
-    topicos.ts     árvore de tópicos (achatar, descendentes, mover)
+    topicos.ts     árvore de tópicos (achatar, descendentes, mover, caminho)
+    revisoes.ts    repetição espaçada adaptativa (escada D+1/7/30/90 + facilidade estilo SM-2)
+    pratica.ts     pedido de questões no estilo da banca e validação da resposta da IA
+    balanco.ts     tempo × peso, disciplinas esquecidas, tópicos parados, projeção de cobertura
   dados/
     store.ts       interface Store; ArtifactStore (claude.use("db")) e MemoriaStore (localStorage)
     repositorio.ts espelho do banco via assinaturas + todas as gravações
   estado.tsx     contexto React: dados, concurso ativo, navegação, avisos
-  telas/         Home, Concursos, Disciplinas, Edital, Cronometro, Historico, Configuracoes
-  componentes/   ui.tsx (botões, modal <dialog>, campos), campos/modais de sessão, botão flutuante, Pomodoro
-  plataforma.ts  downloads do claude.ai, wake lock, bipes, localStorage
+  telas/         Home, Concursos, Disciplinas, Edital, Revisoes, Historico, Balanco, Biblioteca,
+                 Cronometro, Configuracoes
+  componentes/   ui.tsx (botões, modal <dialog>, campos), campos/modais de sessão, botão flutuante,
+                 Pomodoro, Materiais (biblioteca), PraticaIA
+  plataforma.ts  recursos do claude.ai (IA, arquivos, downloads), wake lock, bipes, localStorage
 scripts/
   montar-artifact.mjs  junta app.js + app.css numa página única (React via cdnjs, reserva no jsDelivr)
   servir-preview.mjs   servidor local do preview com React de node_modules
@@ -67,6 +76,12 @@ scripts/
   app (Configurações > Tema) usa `data-tema` e vence.
 - **Sem `alert/confirm/prompt`** (o claude.ai bloqueia): confirmações são modais (`Confirmar`).
 - **Downloads**: dentro do claude.ai só pelo recurso `downloads` (`plataforma.ts#salvarArquivo`).
+- **Recursos do claude.ai** (`ia`, `arquivos`) são resolvidos em `main.tsx` e ficam em `useApp().recursos`;
+  `null` fora do claude.ai. Telas escondem o que depende deles (ex.: `BotaoPraticar`).
+- **IA (`sample`)**: chamar só em clique, nunca em laço; `cache: false` para gerar questões novas; erros
+  viram mensagem por `mensagemErroIA`. O e2e simula `window.claude` só com `sample` (ver `melhorias.spec.ts`).
+- **Gráficos**: tokens `--grafico-tempo`/`--grafico-peso` validados com o script do skill dataviz nos dois
+  temas (contraste, daltonismo). Barras ≤ 24 px, ponta arredondada, legenda sempre presente.
 
 ## Banco de dados (Artifact `db`)
 
@@ -79,7 +94,12 @@ Limites: **5.000 documentos** no total e 256 KiB por documento. Por isso os regi
 | `sessoes/<AAAA-MM-DD>` | `{ semana, itens: { <id>: Sessao } }`, semana de domingo a sábado (dia de SP do início) |
 | `estado/cronometro` | `{ sessao: Sessao \| null }`, a sessão em andamento (rodando ou pausada) |
 | `config/geral` | Configuracao (metas, Pomodoro, tema). Ausente = `CONFIG_PADRAO` |
+| `revisoes/<AAAA-MM-DD>` | `{ semana, itens: { <id>: RegistroRevisao } }`, histórico de revisões feitas |
+| `biblioteca/<disciplinaId>` | `{ disciplinaId, itens: { <id>: Material } }`; PDFs no `assets`, id em `arquivoId` |
 | `radar_filtros/<id>` | FiltroRadar (Fase 6; já vem no seed) |
+
+- O estado da revisão de cada tópico fica no próprio tópico (`topico.revisao`), junto com `concluidoEm`.
+  `atualizarTopico` agenda D+1 ao concluir e limpa ao voltar para "em estudo".
 
 - Pausas ficam dentro da sessão. Questões feitas/acertos do fechamento ficam na própria sessão; registros
   avulsos de questões (Fase 5) terão documento próprio agrupado.
@@ -112,10 +132,22 @@ seed sozinho.
 - Cobertura do edital = tópicos-folha com status teoria concluída, revisado ou dominado.
 - Sequência de dias: dia conta com ≥ 1 min líquido; se hoje ainda não teve estudo, vale a sequência de ontem.
 - Concurso ativo (seletor no topo) é preferência do navegador (localStorage), não vai para o banco.
+- **Revisões adaptativas** (aprovadas como melhoria): com "bom" segue a escada da SPEC (D+1, D+7, D+30,
+  D+90); "fácil" ×1,5 e aumenta a facilidade; "difícil" metade do intervalo e repete o degrau; "errei"
+  volta para D+1 e recomeça. Facilidade entre 1,3 e 3,0. Revisar com "bom"/"fácil" muda o status para
+  "revisado".
+- **Prática com IA**: o resultado soma na sessão do cronômetro em andamento ou vira uma sessão de
+  questões (`origem: 'pratica_ia'`) com o tempo da prática.
+- **Projeção de cobertura**: ritmo = tópicos-folha concluídos nas últimas 4 semanas; data de conclusão
+  vem de `concluidoEm` ou da sessão com "concluí a teoria".
+- **Rede do container**: o proxy bloqueia cdnjs e pciconcursos.com.br. A Fase 6 (coletor do PCI) precisa
+  liberar `www.pciconcursos.com.br` nas configurações de rede do ambiente.
 
 ## Estado das fases
 
 - [x] Fase 1: fundação (modelo, CRUD manual, cronômetro persistido, painel, backup JSON)
+- [x] Melhorias: revisões adaptativas, biblioteca, prática com IA, balanço semanal, CI no GitHub
+  (offline/PWA e editais compartilhados dependem da hospedagem própria; ver IDEIAS.md)
 - [ ] Fase 2: editais com IA (`sample` + `assets`)
 - [ ] Fase 3: calendário e planejador
 - [ ] Fase 4: adaptação e revisões

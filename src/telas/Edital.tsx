@@ -1,7 +1,9 @@
-import { ArrowDown, ArrowUp, ClipboardList, CornerDownRight, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ClipboardList, CornerDownRight, Library, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { PainelMateriais } from '../componentes/Materiais';
+import { ModalPratica } from '../componentes/PraticaIA';
 import { AreaTexto, Botao, BotaoIcone, CabecalhoTela, Campo, Confirmar, Entrada, Modal, Progresso, Selecao, Vazio, cx } from '../componentes/ui';
-import { formatarDuracao } from '../dominio/datas';
+import { formatarData, formatarDuracao } from '../dominio/datas';
 import { lerLote } from '../dominio/lote';
 import { cobertura, segundosPorTopico, topicoConcluido } from '../dominio/painel';
 import { STATUS_TOPICO } from '../dominio/rotulos';
@@ -167,6 +169,9 @@ function LinhaTopico({
   nivel,
   numero,
   segundos,
+  nMateriais,
+  aoMateriais,
+  aoPraticar,
   aoAdicionarSub,
   aoEditar,
   aoExcluir,
@@ -176,6 +181,9 @@ function LinhaTopico({
   nivel: number;
   numero: string;
   segundos: number;
+  nMateriais: number;
+  aoMateriais: () => void;
+  aoPraticar: (() => void) | null;
   aoAdicionarSub: () => void;
   aoEditar: () => void;
   aoExcluir: () => void;
@@ -233,7 +241,20 @@ function LinhaTopico({
         <span className="numeros w-16 text-right text-xs text-suave" title="Tempo líquido estudado">
           {segundos ? formatarDuracao(segundos) : '–'}
         </span>
+        {topico.revisao && (
+          <span className="numeros text-xs font-bold text-roxo" title="Próxima revisão">
+            rev. {formatarData(topico.revisao.proxima).slice(0, 5)}
+          </span>
+        )}
         <span className="flex">
+          <BotaoIcone rotulo={`Materiais (${nMateriais})`} onClick={aoMateriais} className={nMateriais ? 'text-verde-forte' : undefined}>
+            <Library size={15} />
+          </BotaoIcone>
+          {aoPraticar && (
+            <BotaoIcone rotulo="Praticar com IA" onClick={aoPraticar}>
+              <Sparkles size={15} />
+            </BotaoIcone>
+          )}
           <BotaoIcone rotulo="Subir" onClick={() => void executar(() => repo.moverTopico(disciplina.id, topico.id, -1))}>
             <ArrowUp size={15} />
           </BotaoIcone>
@@ -256,11 +277,13 @@ function LinhaTopico({
 }
 
 export function Edital() {
-  const { dados, disciplinas, concursoAtivo, repo, executar, irPara } = useApp();
+  const { dados, disciplinas, concursoAtivo, repo, executar, irPara, recursos } = useApp();
   const [novo, setNovo] = useState<Alvo | null>(null);
   const [editar, setEditar] = useState<{ disciplina: Disciplina; topico: Topico } | null>(null);
   const [excluir, setExcluir] = useState<{ disciplina: Disciplina; topico: Topico } | null>(null);
   const [lote, setLote] = useState(false);
+  const [materiais, setMateriais] = useState<{ disciplina: Disciplina; topico: Topico } | null>(null);
+  const [praticar, setPraticar] = useState<{ disciplina: Disciplina; topico: Topico } | null>(null);
   const porTopico = useMemo(() => segundosPorTopico(dados.sessoes, Date.now()), [dados.sessoes]);
 
   if (!concursoAtivo) {
@@ -334,6 +357,9 @@ export function Edital() {
                           nivel={l.nivel}
                           numero={l.numero}
                           segundos={porTopico.get(l.topico.id) ?? 0}
+                          nMateriais={dados.materiais.filter((m) => m.topicoId === l.topico.id).length}
+                          aoMateriais={() => setMateriais({ disciplina: d, topico: l.topico })}
+                          aoPraticar={recursos.ia ? () => setPraticar({ disciplina: d, topico: l.topico }) : null}
                           aoAdicionarSub={() => setNovo({ disciplina: d, paiId: l.topico.id })}
                           aoEditar={() => setEditar({ disciplina: d, topico: l.topico })}
                           aoExcluir={() => setExcluir({ disciplina: d, topico: l.topico })}
@@ -354,6 +380,10 @@ export function Edital() {
 
       <ModalTopico alvo={novo} editar={editar} aoFechar={() => { setNovo(null); setEditar(null); }} />
       <ModalLote aberto={lote} aoFechar={() => setLote(false)} />
+      <Modal aberto={Boolean(materiais)} aoFechar={() => setMateriais(null)} titulo={`Materiais: ${materiais?.topico.titulo ?? ''}`} largo>
+        {materiais && <PainelMateriais disciplinaId={materiais.disciplina.id} topicoId={materiais.topico.id} />}
+      </Modal>
+      {praticar && <ModalPratica disciplinaId={praticar.disciplina.id} topicoId={praticar.topico.id} aoFechar={() => setPraticar(null)} />}
       <Confirmar
         aberto={Boolean(excluir)}
         aoFechar={() => setExcluir(null)}

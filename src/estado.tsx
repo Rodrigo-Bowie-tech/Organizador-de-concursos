@@ -4,8 +4,19 @@ import type { Dados, Repositorio } from './dados/repositorio';
 import type { ErroStore } from './dados/store';
 import type { Concurso, Disciplina } from './dominio/tipos';
 import { gravarLocal, lerLocal } from './plataforma';
+import type { Recursos } from './plataforma';
 
-export type Tela = 'home' | 'concursos' | 'disciplinas' | 'edital' | 'cronometro' | 'historico' | 'configuracoes';
+export type Tela =
+  | 'home'
+  | 'concursos'
+  | 'disciplinas'
+  | 'edital'
+  | 'revisoes'
+  | 'historico'
+  | 'balanco'
+  | 'biblioteca'
+  | 'cronometro'
+  | 'configuracoes';
 
 export interface Aviso {
   id: number;
@@ -16,6 +27,8 @@ export interface Aviso {
 interface Contexto {
   repo: Repositorio;
   dados: Dados;
+  /** Recursos do claude.ai disponíveis nesta visita (IA e arquivos). */
+  recursos: Recursos;
   concursoAtivo: Concurso | null;
   escolherConcurso(id: string | null): void;
   /** Disciplinas do concurso ativo. */
@@ -32,7 +45,7 @@ const Ctx = createContext<Contexto | null>(null);
 
 const CHAVE_CONCURSO = 'organizador-concursos:concurso-ativo';
 
-export function ProvedorDados({ repo, children }: { repo: Repositorio; children: ReactNode }) {
+export function ProvedorDados({ repo, recursos, children }: { repo: Repositorio; recursos: Recursos; children: ReactNode }) {
   const [dados, setDados] = useState<Dados>(repo.atual);
   const [ativoId, setAtivoId] = useState<string | null>(() => lerLocal(CHAVE_CONCURSO));
   const [tela, setTela] = useState<Tela>('home');
@@ -85,6 +98,7 @@ export function ProvedorDados({ repo, children }: { repo: Repositorio; children:
   const valor: Contexto = {
     repo,
     dados,
+    recursos,
     concursoAtivo,
     escolherConcurso,
     disciplinas,

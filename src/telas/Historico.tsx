@@ -110,6 +110,7 @@ export function Historico() {
                       </div>
                       <div className="flex items-center gap-1">
                         {s.origem === 'manual' && <Etiqueta>manual</Etiqueta>}
+                        {s.origem === 'pratica_ia' && <Etiqueta tom="roxo">prática IA</Etiqueta>}
                         {s.concluiuTeoria && <Etiqueta tom="verde">teoria concluída</Etiqueta>}
                         <span className="numeros ml-1 font-extrabold">{formatarDuracao(segundosLiquidos(s, Date.now()))}</span>
                         <BotaoIcone rotulo="Editar sessão" onClick={() => setModal({ sessao: s })}>

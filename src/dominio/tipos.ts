@@ -53,6 +53,58 @@ export interface Topico {
   incidencia: number | null;
   /** Tópicos equivalentes em editais diferentes compartilham o grupo (Fases 2 e 3). */
   grupoEquivalenciaId: Id | null;
+  /** Quando a teoria foi concluída (alimenta a projeção de cobertura). */
+  concluidoEm?: InstanteISO | null;
+  /** Agenda de revisões espaçadas; existe a partir da teoria concluída. */
+  revisao?: EstadoRevisao | null;
+}
+
+/** Estado da repetição espaçada de um tópico (ver dominio/revisoes.ts). */
+export interface EstadoRevisao {
+  proxima: DiaISO;
+  ultima: DiaISO | null;
+  /** Dias entre a última revisão (ou a conclusão) e a próxima. */
+  intervalo: number;
+  /** 1,3 a 3,0: quanto maior, mais rápido os intervalos crescem. */
+  facilidade: number;
+  /** Revisões seguidas sem errar. */
+  repeticoes: number;
+  /** Quantas vezes errou e recomeçou a escada. */
+  lapsos: number;
+}
+
+export type AvaliacaoRevisao = 'errei' | 'dificil' | 'bom' | 'facil';
+
+/** Histórico de revisões feitas, agrupado por semana em `revisoes/<domingo>`. */
+export interface RegistroRevisao {
+  id: Id;
+  concursoId: Id | null;
+  disciplinaId: Id;
+  topicoId: Id;
+  dia: DiaISO;
+  avaliacao: AvaliacaoRevisao;
+  /** Intervalo agendado a partir desta revisão, em dias. */
+  intervalo: number;
+}
+
+export type TipoMaterial = 'pdf' | 'video' | 'link' | 'livro' | 'resumo';
+
+/** Material da biblioteca, em `biblioteca/<disciplinaId>`. */
+export interface Material {
+  id: Id;
+  disciplinaId: Id;
+  /** `null` = material da disciplina inteira. */
+  topicoId: Id | null;
+  tipo: TipoMaterial;
+  titulo: string;
+  url: string;
+  /** PDF enviado para o armazenamento do app (id do recurso `assets`). */
+  arquivoId: string | null;
+  arquivoNome: string | null;
+  /** Ex.: "p. 45–80", "aula 3, 12:30". */
+  trecho: string;
+  observacao: string;
+  criadoEm: InstanteISO;
 }
 
 export interface Disciplina {
@@ -95,7 +147,7 @@ export interface Sessao {
   acertos: number;
   paginas: number;
   anotacoes: string;
-  origem: 'cronometro' | 'manual';
+  origem: 'cronometro' | 'manual' | 'pratica_ia';
   /** Marcado no fechamento: "concluí a teoria deste tópico". */
   concluiuTeoria: boolean;
 }
@@ -157,15 +209,6 @@ export interface ErroCaderno {
   motivo: MotivoErro;
   respostaCerta: string;
   proximaRevisao: DiaISO | null;
-}
-
-/** Fase 4: revisões espaçadas. */
-export interface Revisao {
-  id: Id;
-  topicoId: Id;
-  prevista: DiaISO;
-  feita: DiaISO | null;
-  origemSessaoId: Id | null;
 }
 
 export interface BlocoHorario {

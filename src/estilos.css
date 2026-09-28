@@ -27,6 +27,8 @@
   --perigo: #cc3d3d;
   --perigo-suave: #fbe6e6;
   --sombra: 0 1px 2px rgba(20, 50, 40, 0.06), 0 4px 16px rgba(20, 50, 40, 0.06);
+  --grafico-tempo: #1a9a7f;
+  --grafico-peso: #7a4cc4;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -52,6 +54,8 @@
     --perigo: #f07474;
     --perigo-suave: #3a1c1c;
     --sombra: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  --grafico-tempo: #23a888;
+  --grafico-peso: #9573e0;
   }
 }
 
@@ -77,6 +81,8 @@
   --perigo: #f07474;
   --perigo-suave: #3a1c1c;
   --sombra: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  --grafico-tempo: #23a888;
+  --grafico-peso: #9573e0;
 }
 
 /* Escolha feita dentro do app (Configurações > Tema) vence o tema do claude.ai. */
@@ -102,6 +108,8 @@
   --perigo: #cc3d3d;
   --perigo-suave: #fbe6e6;
   --sombra: 0 1px 2px rgba(20, 50, 40, 0.06), 0 4px 16px rgba(20, 50, 40, 0.06);
+  --grafico-tempo: #1a9a7f;
+  --grafico-peso: #7a4cc4;
 }
 
 :root[data-tema="escuro"] {
@@ -126,6 +134,8 @@
   --perigo: #f07474;
   --perigo-suave: #3a1c1c;
   --sombra: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  --grafico-tempo: #23a888;
+  --grafico-peso: #9573e0;
 }
 
 @theme inline {
@@ -149,6 +159,8 @@
   --color-menu-texto: var(--menu-texto);
   --color-menu-ativo: var(--menu-ativo);
   --shadow-cartao: var(--sombra);
+  --color-grafico-tempo: var(--grafico-tempo);
+  --color-grafico-peso: var(--grafico-peso);
 }
 
 html,

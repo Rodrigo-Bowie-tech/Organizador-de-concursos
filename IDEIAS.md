@@ -19,3 +19,12 @@ Coisas que ficaram de fora para manter a fase simples. Não são compromisso.
 
 ## Banco
 - Arquivar semanas antigas num documento por ano, se o limite de 5.000 documentos começar a pesar.
+
+## Dependem da hospedagem própria (Supabase + Vercel)
+- Cronômetro offline no celular (PWA com fila de sincronização): o claude.ai não permite service worker.
+- Notificação do Pomodoro e das revisões com o app fechado.
+- Vários usuários por convite, cada um com seus dados; editais compartilhados entre usuários.
+
+## IA
+- Explicar os erros do caderno de erros (Fase 5) com a mesma infraestrutura da prática com IA.
+- Guardar as questões geradas para refazer depois (hoje só o resultado vai para o histórico).

@@ -1,6 +1,8 @@
 import { Pause, Play, Square, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { CamposEstudo } from '../componentes/CamposSessao';
+import { ListaMateriais, materiaisDe } from '../componentes/Materiais';
+import { BotaoPraticar } from '../componentes/PraticaIA';
 import { ModalFinalizar, ModalSessao } from '../componentes/ModaisSessao';
 import { Botao, Cartao, Confirmar, Etiqueta, Progresso, cx } from '../componentes/ui';
 import type { DetalhesSessao } from '../dados/repositorio';
@@ -125,6 +127,15 @@ export function Cronometro() {
           ) : (
             <CamposEstudo valor={inicio} aoMudar={setInicio} />
           )}
+        </Cartao>
+      )}
+
+      {ativa?.disciplinaId && (
+        <Cartao titulo="Materiais" acao={<BotaoPraticar disciplinaId={ativa.disciplinaId} topicoId={ativa.topicoId} />}>
+          <ListaMateriais
+            materiais={materiaisDe(dados.materiais, ativa.disciplinaId, ativa.topicoId)}
+            vazio="Nenhum material para este tópico. Cadastre em Biblioteca ou no Edital."
+          />
         </Cartao>
       )}
 

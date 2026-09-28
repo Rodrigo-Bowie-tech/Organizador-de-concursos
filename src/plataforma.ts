@@ -2,6 +2,57 @@
 
 import { recursoClaude } from './dados/store';
 
+/** `claude.use("sample")`: perguntar ao Claude usando o plano de quem está usando o app. */
+export interface Amostra {
+  (entrada: string, opcoes?: OpcoesAmostra): Promise<{ text: string; truncated: boolean }>;
+  json<T = unknown>(entrada: string, opcoes?: OpcoesAmostra): Promise<T>;
+}
+
+export interface OpcoesAmostra {
+  signal?: AbortSignal;
+  modelTier?: 'quick' | 'default' | 'complex';
+  cache?: boolean;
+  onText?: (u: { text: string; delta: string }) => void;
+}
+
+/** `claude.use("assets")`: armazenamento de arquivos do app (só para quem pode editar). */
+export interface ArmazemArquivos {
+  upload(blob: Blob, opcoes?: { type?: string }): Promise<{ id: string; url: string; sizeBytes: number }>;
+  delete(ref: string): Promise<{ deleted: boolean }>;
+}
+
+export interface Recursos {
+  ia: Amostra | null;
+  arquivos: ArmazemArquivos | null;
+}
+
+/** Mensagem para o usuário a partir do código de erro da IA do claude.ai. */
+export function mensagemErroIA(codigo: string | undefined): string {
+  switch (codigo) {
+    case 'not_granted':
+    case 'sampling_disabled':
+    case 'not_declared':
+    case 'capability_disabled':
+    case 'capability_removed':
+      return 'A IA não está liberada para este app. Permita o uso do Claude quando o claude.ai perguntar.';
+    case 'rate_limited':
+      return 'Muitas chamadas à IA ou limite do seu plano atingido. Tente de novo em alguns minutos.';
+    case 'session_expired':
+      return 'Sua sessão no claude.ai expirou. Entre de novo e tente outra vez.';
+    case 'prompt_too_large':
+      return 'O texto é grande demais para uma chamada. Envie um trecho menor.';
+    case 'invalid_json':
+    case 'empty_completion':
+      return 'A resposta da IA veio incompleta. Tente de novo.';
+    case 'refused':
+      return 'A IA recusou este pedido. Tente reformular o tópico.';
+    case 'cancelled':
+      return 'Geração cancelada.';
+    default:
+      return 'A IA não respondeu. Confira a conexão e tente de novo.';
+  }
+}
+
 interface Downloads {
   save(req: { filename: string; data: string | Blob }): Promise<unknown>;
 }

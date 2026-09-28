@@ -108,6 +108,7 @@ export function Modal({
   largo?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const idTitulo = useId();
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
@@ -117,6 +118,7 @@ export function Modal({
   return (
     <dialog
       ref={ref}
+      aria-labelledby={idTitulo}
       onCancel={(e) => {
         e.preventDefault();
         aoFechar();
@@ -129,7 +131,9 @@ export function Modal({
       {aberto && (
         <div className="flex max-h-[85vh] flex-col">
           <header className="flex items-center justify-between gap-3 border-b border-borda px-5 py-4">
-            <h2 className="text-lg font-extrabold">{titulo}</h2>
+            <h2 id={idTitulo} className="text-lg font-extrabold">
+              {titulo}
+            </h2>
             <BotaoIcone rotulo="Fechar" onClick={aoFechar}>
               ✕
             </BotaoIcone>

@@ -1,9 +1,11 @@
-import { CalendarClock, Flame, Play } from 'lucide-react';
+import { CalendarClock, Flame, Play, RefreshCcw } from 'lucide-react';
 import { useMemo } from 'react';
 import { Botao, CabecalhoTela, Cartao, Etiqueta, Progresso, Vazio, cx } from '../componentes/ui';
 import { estadoDaSessao, segundosLiquidos, segundosPorDia } from '../dominio/cronometro';
 import { diaDaSemana, formatarData, formatarDuracao, formatarRelogio } from '../dominio/datas';
+import { projecaoCobertura } from '../dominio/balanco';
 import { cobertura, hojeSP, provasFuturas, sequenciaDeDias, totaisPorPeriodo, ultimosDias } from '../dominio/painel';
+import { revisoesAgendadas, separarRevisoes } from '../dominio/revisoes';
 import { useAgora, useApp } from '../estado';
 
 const DIAS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -37,6 +39,8 @@ export function Home() {
   const provas = provasFuturas(dados.concursos, hoje);
   const faixa = ultimosDias(porDia, hoje, 28);
   const metaDiaSeg = Math.max(1, dados.config.metaDiariaMin * 60);
+  const revisoes = separarRevisoes(revisoesAgendadas(dados.disciplinas, hoje));
+  const feitasHoje = dados.revisoesFeitas.filter((r) => r.dia === hoje).length;
 
   if (!dados.concursos.length) {
     return (
@@ -81,6 +85,29 @@ export function Home() {
           <Meta rotulo="Mês" segundos={totais.mes} metaMin={dados.config.metaMensalMin} />
         </div>
 
+        {(revisoes.atrasadas.length > 0 || revisoes.hoje.length > 0 || feitasHoje > 0) && (
+          <Cartao
+            titulo={<span className="flex items-center gap-2"><RefreshCcw size={18} /> Revisões</span>}
+            acao={
+              revisoes.atrasadas.length + revisoes.hoje.length > 0 && (
+                <Botao tamanho="pequeno" onClick={() => irPara('revisoes')}>
+                  Revisar agora
+                </Botao>
+              )
+            }
+          >
+            <div className="flex flex-wrap gap-x-6 gap-y-1">
+              {revisoes.atrasadas.length > 0 && (
+                <p className="font-bold text-alerta">
+                  {revisoes.atrasadas.length} {revisoes.atrasadas.length === 1 ? 'atrasada' : 'atrasadas'}
+                </p>
+              )}
+              <p className="font-bold">{revisoes.hoje.length} para hoje</p>
+              <p className="text-suave">{feitasHoje} {feitasHoje === 1 ? 'feita' : 'feitas'} hoje</p>
+            </div>
+          </Cartao>
+        )}
+
         <div className="grid gap-4 lg:grid-cols-2">
           <Cartao titulo={<span className="flex items-center gap-2"><CalendarClock size={18} /> Provas</span>}>
             {provas.length ? (
@@ -114,7 +141,9 @@ export function Home() {
           <Cartao titulo="Cobertura do edital">
             <ul className="grid gap-4">
               {dados.concursos.map((c) => {
-                const cob = cobertura(dados.disciplinas.filter((d) => d.concursoId === c.id));
+                const discs = dados.disciplinas.filter((d) => d.concursoId === c.id);
+                const cob = cobertura(discs);
+                const proj = c.dataProva ? projecaoCobertura(discs, dados.sessoes, c.dataProva, hoje) : null;
                 return (
                   <li key={c.id} className="grid gap-1.5">
                     <div className="flex items-baseline justify-between gap-3">
@@ -133,6 +162,11 @@ export function Home() {
                       </span>
                     </div>
                     <Progresso rotulo={`Cobertura de ${c.nome}`} fracao={cob.fracao} />
+                    {proj && (
+                      <p className="text-xs text-suave">
+                        No ritmo real, você cobre <strong className={proj.fracaoProjetada < 0.95 ? 'text-alerta' : 'text-verde-forte'}>{Math.round(proj.fracaoProjetada * 100)}%</strong> do edital até a prova.
+                      </p>
+                    )}
                   </li>
                 );
               })}

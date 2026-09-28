@@ -1,13 +1,17 @@
-import { BookOpenCheck, FolderOpen, History, House, Layers, Menu, Settings, Timer, X } from 'lucide-react';
+import { BookOpenCheck, ChartColumnBig, FolderOpen, History, House, Layers, Library, Menu, RefreshCcw, Settings, Timer, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
 import { BotaoCronometro } from './componentes/BotaoCronometro';
 import { VigiaPomodoro } from './componentes/VigiaPomodoro';
 import { cx } from './componentes/ui';
+import { hojeSP } from './dominio/painel';
+import { revisoesAgendadas } from './dominio/revisoes';
 import { useApp } from './estado';
 import type { Tela } from './estado';
 import { dentroDoClaude } from './plataforma';
+import { Balanco } from './telas/Balanco';
+import { Biblioteca } from './telas/Biblioteca';
 import { Concursos } from './telas/Concursos';
 import { Configuracoes } from './telas/Configuracoes';
 import { Cronometro } from './telas/Cronometro';
@@ -15,14 +19,18 @@ import { Disciplinas } from './telas/Disciplinas';
 import { Edital } from './telas/Edital';
 import { Historico } from './telas/Historico';
 import { Home } from './telas/Home';
+import { Revisoes } from './telas/Revisoes';
 
 const ITENS: { tela: Tela; rotulo: string; icone: LucideIcon }[] = [
   { tela: 'home', rotulo: 'Home', icone: House },
   { tela: 'concursos', rotulo: 'Concursos', icone: FolderOpen },
   { tela: 'disciplinas', rotulo: 'Disciplinas', icone: Layers },
   { tela: 'edital', rotulo: 'Edital', icone: BookOpenCheck },
-  { tela: 'cronometro', rotulo: 'Cronômetro', icone: Timer },
+  { tela: 'revisoes', rotulo: 'Revisões', icone: RefreshCcw },
   { tela: 'historico', rotulo: 'Histórico', icone: History },
+  { tela: 'balanco', rotulo: 'Balanço', icone: ChartColumnBig },
+  { tela: 'biblioteca', rotulo: 'Biblioteca', icone: Library },
+  { tela: 'cronometro', rotulo: 'Cronômetro', icone: Timer },
   { tela: 'configuracoes', rotulo: 'Configurações', icone: Settings },
 ];
 
@@ -31,6 +39,9 @@ const TELAS: Record<Tela, ComponentType> = {
   concursos: Concursos,
   disciplinas: Disciplinas,
   edital: Edital,
+  revisoes: Revisoes,
+  balanco: Balanco,
+  biblioteca: Biblioteca,
   cronometro: Cronometro,
   historico: Historico,
   configuracoes: Configuracoes,
@@ -49,7 +60,8 @@ function Marca() {
 }
 
 function MenuLateral({ aoNavegar }: { aoNavegar?: () => void }) {
-  const { tela, irPara } = useApp();
+  const { tela, irPara, dados } = useApp();
+  const pendentes = revisoesAgendadas(dados.disciplinas, hojeSP()).filter((r) => r.atraso >= 0).length;
   return (
     <nav aria-label="Menu principal" className="flex flex-col gap-1 px-3">
       {ITENS.map(({ tela: t, rotulo, icone: Icone }) => (
@@ -69,6 +81,11 @@ function MenuLateral({ aoNavegar }: { aoNavegar?: () => void }) {
           {tela === t && <span className="absolute -left-3 top-1.5 bottom-1.5 w-1.5 rounded-r bg-white" aria-hidden />}
           <Icone size={20} strokeWidth={2.2} />
           {rotulo}
+          {t === 'revisoes' && pendentes > 0 && (
+            <span className="ml-auto rounded-full bg-white px-2 text-xs font-extrabold text-verde-forte" aria-label={`${pendentes} para hoje`}>
+              {pendentes}
+            </span>
+          )}
         </button>
       ))}
     </nav>
