@@ -523,3 +523,41 @@ describe('radar no repositório (Fase 6)', () => {
     expect(repo.atual.radarVistoAte).toBe(agora.toISOString());
   });
 });
+
+describe('provas anteriores (Fase 7)', () => {
+  it('importa, refaz (um registro por tópico, anuladas e sem gabarito fora) e exclui', async () => {
+    const { repo, store } = await novoRepo();
+    const { concursoId, disciplinaId } = await concursoComDisciplina(repo);
+    const d = repo.atual.disciplinas.find((x) => x.id === disciplinaId)!;
+    const ohm = Object.values(d.topicos).find((t) => t.titulo === 'Lei de Ohm')!.id;
+    const maq = Object.values(d.topicos).find((t) => t.titulo === 'Máquinas elétricas')!.id;
+    const base = { enunciado: 'x', alternativas: ['a', 'b', 'c'], disciplinaId, anulada: false };
+    const id = await repo.importarProva({
+      concursoId,
+      titulo: 'FCC 2023 · Sabesp',
+      banca: 'FCC',
+      orgao: 'Sabesp',
+      ano: 2023,
+      cargo: 'Engenheiro Eletricista',
+      arquivo: null,
+      questoes: [
+        { ...base, numero: 1, correta: 0, topicoId: ohm },
+        { ...base, numero: 2, correta: 1, topicoId: ohm },
+        { ...base, numero: 3, correta: 2, topicoId: maq },
+        { ...base, numero: 4, correta: null, topicoId: maq },
+        { ...base, numero: 5, correta: 0, topicoId: maq, anulada: true },
+      ],
+    });
+    const prova = repo.atual.provas.find((p) => p.id === id)!;
+    expect(Object.keys(prova.questoes)).toHaveLength(5);
+    const porNumero = Object.fromEntries(Object.values(prova.questoes).map((q) => [q.numero, q.id]));
+    const r = await repo.registrarProvaRefeita(prova, { [porNumero[1]]: 0, [porNumero[2]]: 0, [porNumero[3]]: 2, [porNumero[4]]: 1, [porNumero[5]]: 0 });
+    expect(r).toEqual({ feitas: 3, acertos: 2 });
+    const regs = repo.atual.registrosQuestoes.map((x) => [x.topicoId === ohm ? 'ohm' : 'maq', x.feitas, x.acertos, x.fonte]).sort();
+    expect(regs).toEqual([['maq', 1, 1, 'FCC 2023 · Sabesp'], ['ohm', 2, 1, 'FCC 2023 · Sabesp']]);
+
+    await repo.excluirProva(prova);
+    expect(repo.atual.provas).toHaveLength(0);
+    expect(Object.keys(store.despejar()).some((c) => c.startsWith('provas/'))).toBe(false);
+  });
+});

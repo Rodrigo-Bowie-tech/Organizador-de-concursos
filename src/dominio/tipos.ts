@@ -318,3 +318,33 @@ export interface FiltroRadar {
   bancas: string[];
   salarioMinimo: number | null;
 }
+
+/** Fase 7: questão de uma prova anterior, já ligada a um tópico do edital. */
+export interface QuestaoProva {
+  id: Id;
+  numero: number;
+  enunciado: string;
+  /** Texto das alternativas, sem a letra ("Certo"/"Errado" nas provas de certo ou errado). */
+  alternativas: string[];
+  /** Índice da alternativa do gabarito, a partir de 0; `null` se o gabarito não foi informado. */
+  correta: number | null;
+  disciplinaId: Id | null;
+  topicoId: Id | null;
+  anulada: boolean;
+}
+
+/** Fase 7: prova anterior importada, em `provas/<id>` (questões dentro). */
+export interface ProvaAnterior {
+  id: Id;
+  /** Concurso cujo edital foi usado para ligar as questões aos tópicos. */
+  concursoId: Id;
+  titulo: string;
+  banca: string;
+  orgao: string;
+  ano: number | null;
+  cargo: string;
+  arquivoId: string | null;
+  arquivoNome: string | null;
+  importadaEm: InstanteISO;
+  questoes: Record<Id, QuestaoProva>;
+}

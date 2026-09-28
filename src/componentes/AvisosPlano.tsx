@@ -4,6 +4,7 @@ import { avisoCapacidade, capacidadeReal, viabilidade } from '../dominio/adaptac
 import type { Viabilidade } from '../dominio/adaptacao';
 import { diaSP, formatarData } from '../dominio/datas';
 import { acertoRecente } from '../dominio/planejador';
+import { comIncidenciaDasProvas } from '../dominio/provas';
 import { useApp } from '../estado';
 import { Botao, Modal, cx } from './ui';
 
@@ -24,9 +25,10 @@ export function AvisosPlano({ compacto }: { compacto?: boolean }) {
       diaSP(agora),
     );
     const cap = repo.capacidadeDoPlano();
+    const disciplinas = comIncidenciaDasProvas(dados.disciplinas, dados.concursos, dados.provas);
     const inviaveis = dados.concursos
       .filter((c) => c.status !== 'prova_feita')
-      .map((c) => viabilidade(c, dados.disciplinas, dados.disponibilidade, agora, acertos, cap))
+      .map((c) => viabilidade(c, disciplinas, dados.disponibilidade, agora, acertos, cap))
       .filter((v): v is Viabilidade => Boolean(v && !v.fecha));
     return { capacidade, inviaveis };
   }, [dados, repo]);

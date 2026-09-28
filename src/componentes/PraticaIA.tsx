@@ -1,4 +1,4 @@
-import { Check, Sparkles, X } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { estiloDaBanca, LETRAS, montarPedido, validarQuestoes } from '../dominio/pratica';
 import type { Dificuldade, EstiloQuestao, QuestaoGerada } from '../dominio/pratica';
@@ -8,6 +8,7 @@ import { proximaRevisaoErro } from '../dominio/desempenho';
 import type { Id } from '../dominio/tipos';
 import { useApp } from '../estado';
 import { mensagemErroIA } from '../plataforma';
+import { Alternativas } from './Alternativas';
 import { Botao, Campo, Entrada, Etiqueta, Modal, Selecao, cx } from './ui';
 
 type Etapa = 'configurar' | 'gerando' | 'respondendo' | 'resultado';
@@ -265,32 +266,13 @@ export function ModalPratica({ disciplinaId, topicoId, aoFechar }: { disciplinaI
             <Etiqueta>Gerada por IA</Etiqueta>
           </div>
           <p className="font-bold whitespace-pre-line">{q.enunciado}</p>
-          <div className="grid gap-2" role="group" aria-label="Alternativas">
-            {q.alternativas.map((alt, i) => {
-              const revelada = escolhida !== null;
-              const certa = i === q.correta;
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  disabled={revelada}
-                  onClick={() => setRespostas((r) => r.map((x, k) => (k === atual ? i : x)))}
-                  className={cx(
-                    'flex items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition',
-                    !revelada && 'border-borda hover:border-verde hover:bg-verde-suave',
-                    revelada && certa && 'border-ok bg-ok/10',
-                    revelada && !certa && i === escolhida && 'border-perigo bg-perigo-suave',
-                    revelada && !certa && i !== escolhida && 'border-borda opacity-60',
-                  )}
-                >
-                  <span className="font-extrabold">{estilo === 'certo_errado' ? '' : `${LETRAS[i]})`}</span>
-                  <span className="flex-1">{alt}</span>
-                  {revelada && certa && <Check size={18} className="text-ok" aria-label="Correta" />}
-                  {revelada && !certa && i === escolhida && <X size={18} className="text-perigo" aria-label="Sua resposta" />}
-                </button>
-              );
-            })}
-          </div>
+          <Alternativas
+            alternativas={q.alternativas}
+            correta={q.correta}
+            escolhida={escolhida}
+            comLetras={estilo !== 'certo_errado'}
+            aoEscolher={(i) => setRespostas((r) => r.map((x, k) => (k === atual ? i : x)))}
+          />
           {escolhida !== null && (
             <div className="rounded-lg bg-superficie-2 px-3 py-2.5">
               <p className={cx('font-extrabold', escolhida === q.correta ? 'text-ok' : 'text-perigo')}>

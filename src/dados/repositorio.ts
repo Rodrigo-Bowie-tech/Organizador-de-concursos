@@ -20,6 +20,7 @@
 //   estado/radar              { vistoAte }: até quando as oportunidades já foram vistas
 //   estado/vinculos           { ignorados: string[] }, sugestões de equivalência recusadas
 //   radar_filtros/<id>        FiltroRadar (Fase 6; já vem no seed)
+//   provas/<id>               ProvaAnterior (questões dentro, PDF no armazenamento de arquivos)
 
 import * as crono from '../dominio/cronometro';
 import { diaSP, inicioDaSemana, instanteSP } from '../dominio/datas';
@@ -31,6 +32,8 @@ import { revisarErro } from '../dominio/desempenho';
 import { acertoRecente, DISPONIBILIDADE_VAZIA, gerarPlano, minutos } from '../dominio/planejador';
 import type { DisciplinaImportada } from '../dominio/edital';
 import { lerLote, topicosDoLote } from '../dominio/lote';
+import { comIncidenciaDasProvas } from '../dominio/provas';
+import type { QuestaoImportada } from '../dominio/provas';
 import { topicoConcluido } from '../dominio/painel';
 import * as rev from '../dominio/revisoes';
 import { CORES_DISCIPLINA } from '../dominio/rotulos';
@@ -49,6 +52,7 @@ import type {
   Id,
   Material,
   Oportunidade,
+  ProvaAnterior,
   RegistroQuestoes,
   RegistroRevisao,
   Sessao,
@@ -75,6 +79,7 @@ export const COLECOES = [
   'simulados',
   'oportunidades',
   'radar_filtros',
+  'provas',
 ] as const;
 type Colecao = (typeof COLECOES)[number];
 type ColecaoSemanal = 'sessoes' | 'revisoes' | 'plano' | 'questoes';
@@ -120,6 +125,8 @@ export interface Dados {
   filtrosRadar: FiltroRadar[];
   /** Oportunidades coletadas depois deste instante são "novas". */
   radarVistoAte: string | null;
+  /** Fase 7: provas anteriores importadas, mais novas primeiro. */
+  provas: ProvaAnterior[];
   config: Configuracao;
   erro: ErroStore | null;
 }
@@ -258,6 +265,9 @@ export class Repositorio {
     oportunidades.sort((a, b) => (a.inscricoesAte ?? '9999').localeCompare(b.inscricoesAte ?? '9999') || a.orgao.localeCompare(b.orgao, 'pt-BR'));
     const filtrosRadar = [...this.col('radar_filtros').entries()].map(([id, f]) => ({ ...(f as unknown as FiltroRadar), id }));
     const radarVistoAte = (this.col('estado').get('radar')?.vistoAte as string | undefined) ?? null;
+    const provas = [...this.col('provas').entries()]
+      .map(([id, p]) => ({ ...(p as unknown as ProvaAnterior), id, questoes: (p.questoes as unknown as ProvaAnterior['questoes']) ?? {} }))
+      .sort((a, b) => (b.ano ?? 0) - (a.ano ?? 0) || b.importadaEm.localeCompare(a.importadaEm));
     const ativa = ((this.col('estado').get('cronometro')?.sessao as Sessao | null) ?? null) || null;
     const cfg = this.col('config').get('geral') as Partial<Configuracao> | undefined;
     const config: Configuracao = {
@@ -284,6 +294,7 @@ export class Repositorio {
       oportunidades,
       filtrosRadar,
       radarVistoAte,
+      provas,
       config,
       erro: this.erro,
     };
@@ -723,7 +734,7 @@ export class Repositorio {
     const novos = gerarPlano({
       agora,
       concursos: this.dados.concursos,
-      disciplinas: this.dados.disciplinas,
+      disciplinas: comIncidenciaDasProvas(this.dados.disciplinas, this.dados.concursos, this.dados.provas),
       disponibilidade: this.dados.disponibilidade,
       existentes: this.dados.blocos,
       acertos: acertoRecente(this.registrosDeQuestoes(), diaSP(agora)),
@@ -936,6 +947,72 @@ export class Repositorio {
       notaCorte: null,
       prioridade: 3,
     });
+  }
+
+  // --------------------------------------------------- provas anteriores
+
+  /** Salva a prova revisada (com o PDF, se houver) e replaneja com a nova incidência. */
+  async importarProva(d: Omit<ProvaAnterior, 'id' | 'arquivoId' | 'arquivoNome' | 'importadaEm' | 'questoes'> & { arquivo: File | null; questoes: QuestaoImportada[] }): Promise<Id> {
+    const id = novoId();
+    const questoes = Object.fromEntries(d.questoes.map((q) => ({ ...q, id: novoId() })).map((q) => [q.id, q]));
+    const base = { concursoId: d.concursoId, titulo: d.titulo, banca: d.banca, orgao: d.orgao, ano: d.ano, cargo: d.cargo };
+    if (JSON.stringify(questoes).length > 240_000) {
+      throw falha('grande_demais', 'A prova ficou grande demais para um documento. Importe em duas partes (por exemplo, conhecimentos básicos e específicos).');
+    }
+    let arquivoId: string | null = null;
+    if (d.arquivo && this.arquivos) {
+      try {
+        arquivoId = (await this.arquivos.enviar(d.arquivo)).id;
+      } catch {
+        arquivoId = null; // o PDF é um extra
+      }
+    }
+    const prova: ProvaAnterior = {
+      ...base,
+      id,
+      arquivoId,
+      arquivoNome: arquivoId && d.arquivo ? d.arquivo.name : null,
+      importadaEm: this.relogio().toISOString(),
+      questoes,
+    };
+    await this.store.definir(`provas/${id}`, prova as unknown as Json);
+    await this.replanejarSePuder();
+    return id;
+  }
+
+  /** Grava as questões revisadas (tópico, gabarito, anulada) e os dados da prova. */
+  async atualizarProva(p: ProvaAnterior): Promise<void> {
+    await this.store.definir(`provas/${p.id}`, p as unknown as Json);
+    await this.replanejarSePuder();
+  }
+
+  async excluirProva(p: ProvaAnterior): Promise<void> {
+    await this.store.remover(`provas/${p.id}`);
+    if (p.arquivoId) await this.arquivos?.remover(p.arquivoId).catch(() => undefined);
+    await this.replanejarSePuder();
+  }
+
+  /** Resultado de refazer a prova: um registro de questões por tópico, com a prova como fonte. */
+  async registrarProvaRefeita(p: ProvaAnterior, respostas: Record<Id, number>): Promise<{ feitas: number; acertos: number }> {
+    const dia = diaSP(this.relogio());
+    const grupos = new Map<string, Omit<RegistroQuestoes, 'id'>>();
+    let feitas = 0;
+    let acertos = 0;
+    for (const [qid, r] of Object.entries(respostas)) {
+      const q = p.questoes[qid];
+      if (!q || q.anulada || q.correta === null) continue;
+      const chave = `${q.disciplinaId}|${q.topicoId}`;
+      const g = grupos.get(chave) ?? { concursoId: p.concursoId, disciplinaId: q.disciplinaId, topicoId: q.topicoId, dia, feitas: 0, acertos: 0, fonte: p.titulo };
+      g.feitas++;
+      feitas++;
+      if (r === q.correta) {
+        g.acertos++;
+        acertos++;
+      }
+      grupos.set(chave, g);
+    }
+    if (grupos.size) await this.importarQuestoes([...grupos.values()]);
+    return { feitas, acertos };
   }
 
   // ----------------------------------------------------------- cronômetro

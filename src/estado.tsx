@@ -18,6 +18,8 @@ export type Tela =
   | 'questoes'
   | 'erros'
   | 'simulados'
+  | 'provas'
+  | 'importarProva'
   | 'estatisticas'
   | 'historico'
   | 'balanco'

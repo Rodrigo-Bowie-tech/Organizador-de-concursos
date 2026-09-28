@@ -6,6 +6,7 @@ import { AreaTexto, Botao, BotaoIcone, CabecalhoTela, Campo, Confirmar, Entrada,
 import { formatarData, formatarDuracao } from '../dominio/datas';
 import { lerLote } from '../dominio/lote';
 import { cobertura, questoesPorTopico, segundosPorTopico, topicoConcluido } from '../dominio/painel';
+import { incidenciaPorTopico } from '../dominio/provas';
 import type { Acerto } from '../dominio/painel';
 import { PainelEquivalencias } from '../componentes/Equivalencias';
 import { todasAsQuestoes } from '../dominio/desempenho';
@@ -75,7 +76,7 @@ function ModalTopico({ alvo, editar, aoFechar }: { alvo: Alvo | null; editar: { 
           {(id) => <Entrada id={id} autoFocus value={titulo} onChange={(e) => setTitulo(e.target.value)} />}
         </Campo>
         {editar && (
-          <Campo rotulo="Incidência na banca" dica="Quantas vezes o assunto caiu em provas dessa banca, se souber.">
+          <Campo rotulo="Incidência na banca" dica="Quantas vezes o assunto caiu em provas dessa banca, se souber. Em branco, vale a contagem das provas anteriores importadas.">
             {(id) => <Entrada id={id} type="number" min={0} value={incidencia} onChange={(e) => setIncidencia(e.target.value)} />}
           </Campo>
         )}
@@ -173,6 +174,7 @@ function LinhaTopico({
   numero,
   segundos,
   acerto,
+  incidencia,
   vinculos,
   nMateriais,
   aoMateriais,
@@ -187,6 +189,8 @@ function LinhaTopico({
   numero: string;
   segundos: number;
   acerto: Acerto | undefined;
+  /** Vezes que caiu na banca: informada à mão ou contada nas provas anteriores. */
+  incidencia: { n: number; manual: boolean } | null;
   /** Onde este tópico aparece em outros editais (tópicos vinculados). */
   vinculos: string[];
   nMateriais: number;
@@ -257,6 +261,14 @@ function LinhaTopico({
         <span className="numeros w-12 text-right text-xs text-suave" title={acerto ? `${acerto.acertos} acertos em ${acerto.feitas} questões` : 'Sem questões'}>
           {acerto ? `${Math.round((acerto.acertos / acerto.feitas) * 100)}%` : '–'}
         </span>
+        {incidencia && incidencia.n > 0 && (
+          <span
+            className="numeros rounded-full bg-roxo/12 px-2 py-0.5 text-xs font-bold text-roxo"
+            title={incidencia.manual ? 'Incidência informada por você' : `Caiu ${incidencia.n} ${incidencia.n === 1 ? 'vez' : 'vezes'} nas provas anteriores da banca`}
+          >
+            caiu {incidencia.n}×
+          </span>
+        )}
         {topico.revisao && (
           <span
             className="numeros text-xs font-bold text-roxo"
@@ -343,6 +355,12 @@ export function Edital() {
     }, { feitas: 0, acertos: 0 });
     return total.feitas ? total : undefined;
   };
+  const incProvas = useMemo(
+    () => (concursoAtivo ? incidenciaPorTopico(dados.provas, concursoAtivo, dados.disciplinas) : new Map<string, number>()),
+    [dados.provas, dados.disciplinas, concursoAtivo],
+  );
+  const incidenciaDe = (t: Topico) =>
+    t.incidencia !== null ? { n: t.incidencia, manual: true } : incProvas.has(t.id) ? { n: incProvas.get(t.id) as number, manual: false } : null;
   const editalImportado = concursoAtivo ? dados.editais.find((e) => e.concursoId === concursoAtivo.id) : undefined;
 
   if (!concursoAtivo) {
@@ -437,6 +455,7 @@ export function Edital() {
                           numero={l.numero}
                           segundos={somaSegundos(l.topico)}
                           acerto={somaAcerto(l.topico)}
+                          incidencia={incidenciaDe(l.topico)}
                           vinculos={doGrupo(l.topico).filter((x) => x.topicoId !== l.topico.id).map((x) => `${x.concurso} › ${x.titulo}`)}
                           nMateriais={dados.materiais.filter((m) => m.topicoId === l.topico.id).length}
                           aoMateriais={() => setMateriais({ disciplina: d, topico: l.topico })}

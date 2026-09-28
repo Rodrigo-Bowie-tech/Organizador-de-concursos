@@ -58,6 +58,7 @@ src/
     planejador.ts  núcleo (5.1/5.2/5.4): slots da disponibilidade, domínio, fila por prioridade, gerarPlano
     adaptacao.ts   capacidade real (média de 14 dias por dia da semana) e viabilidade do edital com cortes
     desempenho.ts  questões (sessões + avulsas), CSV, caderno de erros (D+3/D+14), simulados, séries das estatísticas
+    provas.ts      provas anteriores: dividir para a IA, pedido/validação, gabarito colado, incidência por tópico e banca
   radar/         radar de concursos, sem React (roda também no Node pelo coletor)
     radar.ts       interface FonteConcursos, filtros (área por radical), id estável, junção com o banco
     pci.ts         parser das listagens do PCI Concursos (testado sobre HTML salvo) e leitor de robots.txt
@@ -68,9 +69,10 @@ src/
   estado.tsx     contexto React: dados, concurso ativo, navegação, avisos
   telas/         Home, Concursos, Disciplinas, Edital, ImportarEdital, Planejamento, Disponibilidade,
                  Revisoes, Questoes, CadernoErros, Simulados, Historico, Estatisticas, Balanco, Biblioteca,
-                 Radar, Cronometro, Configuracoes
+                 Provas, ImportarProva, Radar, Cronometro, Configuracoes
   componentes/   ui.tsx (botões, modal <dialog>, campos), campos/modais de sessão, botão flutuante,
-                 Pomodoro, Materiais (biblioteca), PraticaIA
+                 Pomodoro, Materiais (biblioteca), PraticaIA, Alternativas (questão respondida com um clique),
+                 QuestoesProva (revisão de assunto/gabarito/anulada das questões de uma prova)
   plataforma.ts  recursos do claude.ai (IA, arquivos, downloads), wake lock, bipes, localStorage
   pdf.ts         texto de PDFs com pdf.js 3.11 (cdnjs, carregado sob demanda; worker na própria página)
 scripts/
@@ -121,6 +123,7 @@ Limites: **5.000 documentos** no total e 256 KiB por documento. Por isso os regi
 | `oportunidades/<UF>` | `{ uf, itens: { <id>: Oportunidade } }`, radar ("BR" = nacional); id = hash do link |
 | `radar_filtros/<id>` | FiltroRadar (áreas, UFs, bancas, salário mínimo; o `padrao` vem do seed) |
 | `estado/radar` | `{ vistoAte }`: oportunidades coletadas depois disso são "novas" (alerta na Home) |
+| `provas/<id>` | ProvaAnterior com as questões dentro (`questoes: { <id>: QuestaoProva }`); PDF em `arquivoId` |
 
 - O estado da revisão de cada tópico fica no próprio tópico (`topico.revisao`), junto com `concluidoEm`.
   `atualizarTopico` agenda D+1 ao concluir e limpa ao voltar para "em estudo".
@@ -200,6 +203,16 @@ seed sozinho.
   saem do banco (`mesclarOportunidades`, a mesma regra no app e na rotina). Abrir a tela Radar marca tudo
   como visto. "Transformar em concurso" cria o concurso com status edital aberto, torna-o o ativo e abre
   Importar edital. QConcursos e sites com login: nunca raspar.
+- **Provas anteriores** (Fase 7): o texto (PDF via pdf.js ou colado) vai para a IA em partes de até
+  24 KB cortadas antes de uma linha que abre questão; o pedido leva o edital como códigos curtos (D1 =
+  disciplina, T1 = tópico-folha com o caminho) e a resposta volta com o código, validado contra a lista.
+  Gabarito colado ("1-A 2-C", X/* = anulada, ou a tabela oficial) é lido sem IA. Revisão obrigatória
+  antes de salvar (assunto, gabarito, anulada). Incidência = questões não anuladas por tópico nas provas
+  da **mesma banca** do concurso (sem banca: as importadas para ele); tópico vinculado de outro concurso
+  conta pelo grupo. Ela é calculada na hora (`comIncidenciaDasProvas`) e entra no planejador e na
+  viabilidade só onde `topico.incidencia` está vazio: o valor digitado no Edital vence. Refazer a prova
+  grava um RegistroQuestoes por tópico (fonte = título da prova) e as erradas podem ir para o caderno.
+  Prova com mais de ~240 KB de questões: importar em duas partes.
 - **Rede do container**: o proxy bloqueia cdnjs e pciconcursos.com.br. A rotina do radar só funciona
   depois de liberar `www.pciconcursos.com.br` nas configurações de rede do ambiente.
 
@@ -226,5 +239,5 @@ Para testar o parser com a página real: `npm run radar:amostra` (troca o fixtur
 - [x] Fase 4: replanejamento automático, capacidade real, edital que não fecha com cortes, blocos fixos
 - [x] Fase 5: questões avulsas e CSV, caderno de erros, simulados, estatísticas
 - [x] Fase 6: radar (parser do PCI + rotina diária, colar página com IA, filtros, alerta, transformar em concurso)
-- [ ] Fase 7: provas anteriores
+- [x] Fase 7: provas anteriores (PDF/texto → questões por tópico com IA, gabarito, incidência no planejador, refazer)
 - [ ] Fase 8: polimento

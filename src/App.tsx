@@ -1,4 +1,4 @@
-import { BookMarked, BookOpenCheck, CalendarDays, ChartColumnBig, ChartLine, ClipboardCheck, ListChecks, FolderOpen, History, House, Layers, Library, Menu, Radar as IconeRadar, RefreshCcw, Settings, Timer, X } from 'lucide-react';
+import { BookMarked, BookOpenCheck, CalendarDays, ChartColumnBig, ChartLine, ClipboardCheck, FileClock, ListChecks, FolderOpen, History, House, Layers, Library, Menu, Radar as IconeRadar, RefreshCcw, Settings, Timer, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
@@ -15,6 +15,8 @@ import { CadernoErros } from './telas/CadernoErros';
 import { Estatisticas } from './telas/Estatisticas';
 import { Questoes } from './telas/Questoes';
 import { Simulados } from './telas/Simulados';
+import { Provas } from './telas/Provas';
+import { ImportarProva } from './telas/ImportarProva';
 import { Biblioteca } from './telas/Biblioteca';
 import { Concursos } from './telas/Concursos';
 import { Configuracoes } from './telas/Configuracoes';
@@ -40,6 +42,7 @@ const ITENS: { tela: Tela; rotulo: string; icone: LucideIcon }[] = [
   { tela: 'questoes', rotulo: 'Questões', icone: ListChecks },
   { tela: 'erros', rotulo: 'Caderno de erros', icone: BookMarked },
   { tela: 'simulados', rotulo: 'Simulados', icone: ClipboardCheck },
+  { tela: 'provas', rotulo: 'Provas anteriores', icone: FileClock },
   { tela: 'historico', rotulo: 'Histórico', icone: History },
   { tela: 'estatisticas', rotulo: 'Estatísticas', icone: ChartLine },
   { tela: 'balanco', rotulo: 'Balanço', icone: ChartColumnBig },
@@ -61,6 +64,8 @@ const TELAS: Record<Tela, ComponentType> = {
   questoes: Questoes,
   erros: CadernoErros,
   simulados: Simulados,
+  provas: Provas,
+  importarProva: ImportarProva,
   estatisticas: Estatisticas,
   balanco: Balanco,
   biblioteca: Biblioteca,
