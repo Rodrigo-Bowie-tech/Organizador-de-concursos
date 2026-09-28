@@ -197,26 +197,39 @@ export interface GrupoEquivalencia {
   rotulo: string;
 }
 
-/** Fase 5: questões lançadas fora de uma sessão (QConcursos, prova antiga...). */
+/** Fase 5: questões lançadas fora de uma sessão (QConcursos, CSV...), em `questoes/<domingo>`. */
 export interface RegistroQuestoes {
   id: Id;
-  topicoId: Id;
+  concursoId: Id | null;
+  disciplinaId: Id | null;
+  topicoId: Id | null;
   dia: DiaISO;
   feitas: number;
   acertos: number;
+  /** Livre: "QConcursos", "prova FCC 2023"... */
   fonte: string;
 }
 
 export type MotivoErro = 'falta_conteudo' | 'pegadinha' | 'desatencao' | 'interpretacao';
 
-/** Fase 5: caderno de erros. */
+/** Fase 5: caderno de erros, em `erros/<disciplinaId>`. Revisões em D+3 e D+14. */
 export interface ErroCaderno {
   id: Id;
-  topicoId: Id;
-  resumo: string;
-  motivo: MotivoErro;
+  disciplinaId: Id;
+  topicoId: Id | null;
+  /** Enunciado ou resumo da questão. */
+  enunciado: string;
+  minhaResposta: string;
   respostaCerta: string;
+  motivo: MotivoErro;
+  comentario: string;
+  fonte: string;
+  criadoEm: DiaISO;
+  /** `null` quando as duas revisões foram feitas sem errar de novo. */
   proximaRevisao: DiaISO | null;
+  revisoesFeitas: DiaISO[];
+  /** Explicação gerada pela IA, se pedida. */
+  explicacaoIA: string;
 }
 
 export interface BlocoHorario {
@@ -261,14 +274,16 @@ export interface BlocoPlanejado {
   fixo?: boolean;
 }
 
-/** Fase 5. */
+/** Fase 5: simulado, em `simulados/<id>`. */
 export interface Simulado {
   id: Id;
   concursoId: Id;
+  titulo: string;
   dia: DiaISO;
   duracaoMin: number;
-  notas: { disciplinaId: Id; nota: number; maximo: number }[];
+  notas: { disciplinaId: Id | null; nome: string; nota: number; maximo: number }[];
   notaTotal: number;
+  notaMaxima: number;
   observacoes: string;
 }
 

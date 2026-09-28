@@ -55,12 +55,14 @@ src/
     edital.ts      importação: achar o conteúdo programático, dividir para a IA, validar/juntar, equivalências
     planejador.ts  núcleo (5.1/5.2/5.4): slots da disponibilidade, domínio, fila por prioridade, gerarPlano
     adaptacao.ts   capacidade real (média de 14 dias por dia da semana) e viabilidade do edital com cortes
+    desempenho.ts  questões (sessões + avulsas), CSV, caderno de erros (D+3/D+14), simulados, séries das estatísticas
   dados/
     store.ts       interface Store; ArtifactStore (claude.use("db")) e MemoriaStore (localStorage)
     repositorio.ts espelho do banco via assinaturas + todas as gravações
   estado.tsx     contexto React: dados, concurso ativo, navegação, avisos
   telas/         Home, Concursos, Disciplinas, Edital, ImportarEdital, Planejamento, Disponibilidade,
-                 Revisoes, Historico, Balanco, Biblioteca, Cronometro, Configuracoes
+                 Revisoes, Questoes, CadernoErros, Simulados, Historico, Estatisticas, Balanco, Biblioteca,
+                 Cronometro, Configuracoes
   componentes/   ui.tsx (botões, modal <dialog>, campos), campos/modais de sessão, botão flutuante,
                  Pomodoro, Materiais (biblioteca), PraticaIA
   plataforma.ts  recursos do claude.ai (IA, arquivos, downloads), wake lock, bipes, localStorage
@@ -105,6 +107,9 @@ Limites: **5.000 documentos** no total e 256 KiB por documento. Por isso os regi
 | `disponibilidade/geral` | Disponibilidade: `dias` ("0"–"6" → janelas), `excecoes` (dia → janelas + motivo), `blocoMin` |
 | `plano/<AAAA-MM-DD>` | `{ semana, itens: { <id>: BlocoPlanejado } }`, blocos do calendário por semana |
 | `estado/planejamento` | `{ ultimoReplanejamento }`: dia do último replanejamento (o "de madrugada") |
+| `questoes/<AAAA-MM-DD>` | `{ semana, itens: { <id>: RegistroQuestoes } }`, questões avulsas (lançamento rápido, CSV) |
+| `erros/<disciplinaId>` | `{ disciplinaId, itens: { <id>: ErroCaderno } }`, caderno de erros |
+| `simulados/<id>` | Simulado (notas por disciplina, total e máximo) |
 | `radar_filtros/<id>` | FiltroRadar (Fase 6; já vem no seed) |
 
 - O estado da revisão de cada tópico fica no próprio tópico (`topico.revisao`), junto com `concluidoEm`.
@@ -172,6 +177,11 @@ seed sozinho.
   por dia da semana; com ≥ 14 dias de uso e real < 80% do declarado, o plano usa a média (mínimo 1 bloco) e
   avisa. Viabilidade: blocos de teoria necessários × os que cabem até a prova (descontada a cota de
   revisão); se não fecha, sugere cortar os de menor prioridade (`topico.cortado`, reversível no Edital).
+- **Desempenho** (Fase 5): acerto = sessões + questões avulsas (`todasAsQuestoes`), usado no Edital, nas
+  estatísticas e no domínio do planejador. CSV genérico (tópico, feitas, acertos, data, fonte; `;`, `,` ou tab)
+  com o tópico achado por título/Jaccard e revisão antes de importar. Caderno de erros: D+3 e D+14 a partir
+  da anotação; errar de novo recomeça em D+3; "Explicar com IA" guarda o texto no erro; da prática com IA dá
+  para mandar as erradas para o caderno. Simulados: nota de corte do concurso na mesma escala da nota total.
 - **Rede do container**: o proxy bloqueia cdnjs e pciconcursos.com.br. A Fase 6 (coletor do PCI) precisa
   liberar `www.pciconcursos.com.br` nas configurações de rede do ambiente.
 
@@ -183,7 +193,7 @@ seed sozinho.
 - [x] Fase 2: editais com IA (PDF ou texto, revisão editável, tópicos equivalentes entre editais)
 - [x] Fase 3: disponibilidade (grade + exceções), Planejamento dia/semana/mês, planejador, blocos na Home
 - [x] Fase 4: replanejamento automático, capacidade real, edital que não fecha com cortes, blocos fixos
-- [ ] Fase 5: desempenho
+- [x] Fase 5: questões avulsas e CSV, caderno de erros, simulados, estatísticas
 - [ ] Fase 6: radar
 - [ ] Fase 7: provas anteriores
 - [ ] Fase 8: polimento

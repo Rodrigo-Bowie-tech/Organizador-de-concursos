@@ -8,6 +8,7 @@ import { lerLote } from '../dominio/lote';
 import { cobertura, questoesPorTopico, segundosPorTopico, topicoConcluido } from '../dominio/painel';
 import type { Acerto } from '../dominio/painel';
 import { PainelEquivalencias } from '../componentes/Equivalencias';
+import { todasAsQuestoes } from '../dominio/desempenho';
 import { STATUS_TOPICO } from '../dominio/rotulos';
 import { achatar, comDescendentes } from '../dominio/topicos';
 import type { Disciplina, StatusTopico, Topico } from '../dominio/tipos';
@@ -313,7 +314,10 @@ export function Edital() {
   const [materiais, setMateriais] = useState<{ disciplina: Disciplina; topico: Topico } | null>(null);
   const [praticar, setPraticar] = useState<{ disciplina: Disciplina; topico: Topico } | null>(null);
   const porTopico = useMemo(() => segundosPorTopico(dados.sessoes, Date.now()), [dados.sessoes]);
-  const acertos = useMemo(() => questoesPorTopico(dados.sessoes), [dados.sessoes]);
+  const acertos = useMemo(
+    () => questoesPorTopico(todasAsQuestoes(dados.sessoes, dados.registrosQuestoes).map((q) => ({ topicoId: q.topicoId, feitas: q.feitas, acertos: q.acertos }))),
+    [dados.sessoes, dados.registrosQuestoes],
+  );
   // Tópicos vinculados somam horas e questões entre si e mostram onde mais aparecem.
   const grupos = useMemo(() => {
     const membros = new Map<string, { concurso: string; topicoId: string; titulo: string }[]>();

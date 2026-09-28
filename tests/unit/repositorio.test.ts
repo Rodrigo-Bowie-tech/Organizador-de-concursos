@@ -456,3 +456,42 @@ describe('adaptação no repositório (Fase 4)', () => {
     expect(repo.atual.blocos.some((b) => b.topicoId === ohm.id)).toBe(true);
   });
 });
+
+describe('desempenho no repositório (Fase 5)', () => {
+  it('questões avulsas por semana, importação em lote e exclusão', async () => {
+    const store = new MemoriaStore();
+    const { repo } = await novoRepo(store);
+    await repo.salvarRegistroQuestoes({ concursoId: null, disciplinaId: null, topicoId: null, dia: '2026-09-28', feitas: 10, acertos: 12, fonte: 'QConcursos' });
+    expect(repo.atual.registrosQuestoes[0]).toMatchObject({ feitas: 10, acertos: 10 });
+    const n = await repo.importarQuestoes([
+      { concursoId: null, disciplinaId: null, topicoId: null, dia: '2026-09-29', feitas: 5, acertos: 3, fonte: 'CSV' },
+      { concursoId: null, disciplinaId: null, topicoId: null, dia: '2026-10-05', feitas: 8, acertos: 8, fonte: 'CSV' },
+    ]);
+    expect(n).toBe(2);
+    expect(Object.keys(store.despejar()).filter((c) => c.startsWith('questoes/')).sort()).toEqual(['questoes/2026-09-27', 'questoes/2026-10-04']);
+    await repo.excluirRegistroQuestoes(repo.atual.registrosQuestoes[0].id);
+    expect(repo.atual.registrosQuestoes).toHaveLength(2);
+  });
+
+  it('caderno de erros: salva por disciplina, revisa e exclui com a disciplina', async () => {
+    const { repo } = await novoRepo();
+    const { disciplinaId } = await concursoComDisciplina(repo);
+    await repo.salvarErro({
+      disciplinaId, topicoId: null, enunciado: 'Relação de espiras', minhaResposta: 'A', respostaCerta: 'B', motivo: 'desatencao', comentario: '', fonte: '',
+      criadoEm: '2026-09-27', proximaRevisao: '2026-09-30', revisoesFeitas: [], explicacaoIA: '',
+    });
+    agora = new Date('2026-09-30T12:00:00Z');
+    const e = await repo.revisarErroCaderno(repo.atual.erros[0], true);
+    expect(e).toMatchObject({ revisoesFeitas: ['2026-09-30'], proximaRevisao: '2026-10-11' });
+    await repo.excluirDisciplina(disciplinaId);
+    expect(repo.atual.erros).toHaveLength(0);
+  });
+
+  it('simulados', async () => {
+    const { repo } = await novoRepo();
+    const id = await repo.salvarSimulado({ concursoId: 'c', titulo: 'Simulado 1', dia: '2026-09-27', duracaoMin: 240, notas: [], notaTotal: 60, notaMaxima: 100, observacoes: '' });
+    expect(repo.atual.simulados[0]).toMatchObject({ id, notaTotal: 60 });
+    await repo.excluirSimulado(id);
+    expect(repo.atual.simulados).toHaveLength(0);
+  });
+});

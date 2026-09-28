@@ -8,6 +8,7 @@ import { projecaoCobertura } from '../dominio/balanco';
 import { cobertura, hojeSP, provasFuturas, sequenciaDeDias, totaisPorPeriodo, ultimosDias } from '../dominio/painel';
 import { minutos } from '../dominio/planejador';
 import { revisoesAgendadas, separarRevisoes } from '../dominio/revisoes';
+import { errosParaRevisar } from '../dominio/desempenho';
 import { TIPO_SESSAO } from '../dominio/rotulos';
 import { useAgora, useApp } from '../estado';
 
@@ -95,6 +96,7 @@ export function Home() {
   const faixa = ultimosDias(porDia, hoje, 28);
   const metaDiaSeg = Math.max(1, dados.config.metaDiariaMin * 60);
   const revisoes = separarRevisoes(revisoesAgendadas(dados.disciplinas, hoje));
+  const errosHoje = errosParaRevisar(dados.erros, hoje).length;
   const feitasHoje = dados.revisoesFeitas.filter((r) => r.dia === hoje).length;
 
   if (!dados.concursos.length) {
@@ -143,7 +145,7 @@ export function Home() {
           <Meta rotulo="Mês" segundos={totais.mes} metaMin={dados.config.metaMensalMin} />
         </div>
 
-        {(revisoes.atrasadas.length > 0 || revisoes.hoje.length > 0 || feitasHoje > 0) && (
+        {(revisoes.atrasadas.length > 0 || revisoes.hoje.length > 0 || feitasHoje > 0 || errosHoje > 0) && (
           <Cartao
             titulo={<span className="flex items-center gap-2"><RefreshCcw size={18} /> Revisões</span>}
             acao={
@@ -162,6 +164,11 @@ export function Home() {
               )}
               <p className="font-bold">{revisoes.hoje.length} para hoje</p>
               <p className="text-suave">{feitasHoje} {feitasHoje === 1 ? 'feita' : 'feitas'} hoje</p>
+              {errosHoje > 0 && (
+                <button type="button" className="font-bold text-roxo underline" onClick={() => irPara('erros')}>
+                  {errosHoje} {errosHoje === 1 ? 'erro' : 'erros'} do caderno para revisar
+                </button>
+              )}
             </div>
           </Cartao>
         )}

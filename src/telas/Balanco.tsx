@@ -20,7 +20,7 @@ function Numero({ rotulo, valor, detalhe }: { rotulo: string; valor: string; det
 }
 
 /** Barras pareadas: parte do tempo estudado × parte da prova, por disciplina. */
-function GraficoTempoPeso({ linhas }: { linhas: EsforcoDisciplina[] }) {
+export function GraficoTempoPeso({ linhas, periodo = 'últimas 4 semanas' }: { linhas: EsforcoDisciplina[]; periodo?: string }) {
   const maximo = Math.max(0.1, ...linhas.flatMap((l) => [l.fracaoTempo, l.fracaoPeso]));
   const escala = Math.min(1, Math.ceil(maximo * 10) / 10);
   const largura = (f: number) => `${(f / escala) * 100}%`;
@@ -28,7 +28,7 @@ function GraficoTempoPeso({ linhas }: { linhas: EsforcoDisciplina[] }) {
     <div className="grid gap-4">
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-suave" aria-hidden>
         <span className="flex items-center gap-2">
-          <span className="h-2.5 w-4 rounded-sm bg-grafico-tempo" /> Tempo estudado (últimas 4 semanas)
+          <span className="h-2.5 w-4 rounded-sm bg-grafico-tempo" /> Tempo estudado ({periodo})
         </span>
         <span className="flex items-center gap-2">
           <span className="h-2.5 w-4 rounded-sm bg-grafico-peso" /> Peso na prova

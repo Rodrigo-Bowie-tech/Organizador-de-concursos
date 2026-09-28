@@ -2,7 +2,9 @@ import { Check, Sparkles, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { estiloDaBanca, LETRAS, montarPedido, validarQuestoes } from '../dominio/pratica';
 import type { Dificuldade, EstiloQuestao, QuestaoGerada } from '../dominio/pratica';
+import { hojeSP } from '../dominio/painel';
 import { caminhoDoTopico } from '../dominio/topicos';
+import { proximaRevisaoErro } from '../dominio/desempenho';
 import type { Id } from '../dominio/tipos';
 import { useApp } from '../estado';
 import { mensagemErroIA } from '../plataforma';
@@ -52,6 +54,7 @@ export function ModalPratica({ disciplinaId, topicoId, aoFechar }: { disciplinaI
   const [respostas, setRespostas] = useState<(number | null)[]>([]);
   const [atual, setAtual] = useState(0);
   const [salvo, setSalvo] = useState(false);
+  const [noCaderno, setNoCaderno] = useState<Set<number>>(new Set());
   const inicio = useRef(new Date());
   const controle = useRef<AbortController | null>(null);
 
@@ -88,6 +91,7 @@ export function ModalPratica({ disciplinaId, topicoId, aoFechar }: { disciplinaI
       setRespostas(validas.map(() => null));
       setAtual(0);
       setSalvo(false);
+      setNoCaderno(new Set());
       inicio.current = new Date();
       setEtapa('respondendo');
     } catch (e) {
@@ -117,6 +121,33 @@ export function ModalPratica({ disciplinaId, topicoId, aoFechar }: { disciplinaI
       setSalvo(true);
       avisar(onde === 'ativa' ? 'Questões somadas à sessão em andamento.' : 'Prática salva no histórico.');
     }
+  }
+
+  async function mandarParaCaderno(i: number) {
+    if (!disciplina) return;
+    const x = questoes[i];
+    const letra = (k: number) => (estilo === 'certo_errado' ? x.alternativas[k] : `${LETRAS[k]}) ${x.alternativas[k]}`);
+    const hoje = hojeSP();
+    const enunciado = estilo === 'certo_errado' ? x.enunciado : `${x.enunciado}\n${x.alternativas.map((a, k) => `${LETRAS[k]}) ${a}`).join('\n')}`;
+    const id = await executar(
+      () =>
+        repo.salvarErro({
+          disciplinaId: disciplina.id,
+          topicoId: topico?.id ?? null,
+          enunciado,
+          minhaResposta: respostas[i] === null ? '' : letra(respostas[i] as number),
+          respostaCerta: letra(x.correta),
+          motivo: 'falta_conteudo',
+          comentario: '',
+          fonte: `Prática com IA (${banca || 'sem banca'})`,
+          criadoEm: hoje,
+          revisoesFeitas: [],
+          proximaRevisao: proximaRevisaoErro(hoje, []),
+          explicacaoIA: x.explicacao,
+        }),
+      'Questão anotada no caderno de erros.',
+    );
+    if (id) setNoCaderno(new Set(noCaderno).add(i));
   }
 
   const q = questoes[atual];
@@ -289,6 +320,9 @@ export function ModalPratica({ disciplinaId, topicoId, aoFechar }: { disciplinaI
                       <p className="font-bold">{x.enunciado}</p>
                       <p className="mt-1 text-ok">Resposta: {x.alternativas[x.correta]}</p>
                       {x.explicacao && <p className="mt-1 text-suave">{x.explicacao}</p>}
+                      <Botao tamanho="pequeno" variante="fantasma" className="mt-1" disabled={noCaderno.has(i)} onClick={() => void mandarParaCaderno(i)}>
+                        {noCaderno.has(i) ? 'No caderno de erros' : 'Mandar para o caderno de erros'}
+                      </Botao>
                     </li>
                   ) : null,
                 )}

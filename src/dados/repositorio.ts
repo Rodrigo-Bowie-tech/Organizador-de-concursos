@@ -13,6 +13,9 @@
 //   disponibilidade/geral     Disponibilidade (grade semanal, exceções, duração do bloco)
 //   plano/<AAAA-MM-DD>        { semana, itens: { <id>: BlocoPlanejado } }, blocos do calendário
 //   estado/planejamento       { ultimoReplanejamento: AAAA-MM-DD }, replanejamento do dia
+//   questoes/<AAAA-MM-DD>     { semana, itens: { <id>: RegistroQuestoes } }, questões avulsas
+//   erros/<disciplinaId>      { disciplinaId, itens: { <id>: ErroCaderno } }, caderno de erros
+//   simulados/<id>            Simulado
 //   estado/vinculos           { ignorados: string[] }, sugestões de equivalência recusadas
 //   radar_filtros/<id>        FiltroRadar (Fase 6; já vem no seed)
 
@@ -20,6 +23,7 @@ import * as crono from '../dominio/cronometro';
 import { diaSP, inicioDaSemana, instanteSP } from '../dominio/datas';
 import { chavePar, topicosDaImportacao } from '../dominio/edital';
 import { capacidadeParaPlano, capacidadeReal } from '../dominio/adaptacao';
+import { revisarErro } from '../dominio/desempenho';
 import { acertoRecente, DISPONIBILIDADE_VAZIA, gerarPlano, minutos } from '../dominio/planejador';
 import type { DisciplinaImportada } from '../dominio/edital';
 import { lerLote, topicosDoLote } from '../dominio/lote';
@@ -35,11 +39,14 @@ import type {
   Disciplina,
   Disponibilidade,
   Edital,
+  ErroCaderno,
   EstadoRevisao,
   Id,
   Material,
+  RegistroQuestoes,
   RegistroRevisao,
   Sessao,
+  Simulado,
   StatusTopico,
   TipoSessao,
   Topico,
@@ -57,10 +64,13 @@ export const COLECOES = [
   'editais',
   'disponibilidade',
   'plano',
+  'questoes',
+  'erros',
+  'simulados',
   'radar_filtros',
 ] as const;
 type Colecao = (typeof COLECOES)[number];
-type ColecaoSemanal = 'sessoes' | 'revisoes' | 'plano';
+type ColecaoSemanal = 'sessoes' | 'revisoes' | 'plano' | 'questoes';
 
 /** Armazenamento de arquivos (PDFs da biblioteca). No claude.ai, o recurso `assets`. */
 export interface Arquivos {
@@ -95,6 +105,10 @@ export interface Dados {
   disponibilidade: Disponibilidade;
   /** Blocos do calendário, em ordem de dia e horário. */
   blocos: BlocoPlanejado[];
+  /** Questões lançadas fora das sessões, da mais recente para a mais antiga. */
+  registrosQuestoes: RegistroQuestoes[];
+  erros: ErroCaderno[];
+  simulados: Simulado[];
   config: Configuracao;
   erro: ErroStore | null;
 }
@@ -219,6 +233,13 @@ export class Repositorio {
     const disp = this.col('disponibilidade').get('geral') as Partial<Disponibilidade> | undefined;
     const disponibilidade: Disponibilidade = { ...DISPONIBILIDADE_VAZIA, ...disp, dias: disp?.dias ?? {}, excecoes: disp?.excecoes ?? {} };
     const blocos = this.itensSemanais<BlocoPlanejado>('plano').sort((a, b) => a.dia.localeCompare(b.dia) || a.inicio.localeCompare(b.inicio));
+    const registrosQuestoes = this.itensSemanais<RegistroQuestoes>('questoes').sort((a, b) => b.dia.localeCompare(a.dia));
+    const erros: ErroCaderno[] = [];
+    for (const doc of this.col('erros').values()) {
+      for (const e of Object.values((doc.itens as Record<Id, ErroCaderno | null>) ?? {})) if (e) erros.push(e);
+    }
+    erros.sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
+    const simulados = [...this.col('simulados').values()].map((x) => x as unknown as Simulado).sort((a, b) => b.dia.localeCompare(a.dia));
     const ativa = ((this.col('estado').get('cronometro')?.sessao as Sessao | null) ?? null) || null;
     const cfg = this.col('config').get('geral') as Partial<Configuracao> | undefined;
     const config: Configuracao = {
@@ -239,6 +260,9 @@ export class Repositorio {
       vinculosIgnorados,
       disponibilidade,
       blocos,
+      registrosQuestoes,
+      erros,
+      simulados,
       config,
       erro: this.erro,
     };
@@ -329,6 +353,7 @@ export class Repositorio {
   async excluirDisciplina(id: Id): Promise<void> {
     const pdfs = this.dados.materiais.filter((m) => m.disciplinaId === id && m.arquivoId);
     if (this.col('biblioteca').has(id)) await this.store.remover(`biblioteca/${id}`);
+    if (this.col('erros').has(id)) await this.store.remover(`erros/${id}`);
     await this.store.remover(`disciplinas/${id}`);
     for (const m of pdfs) await this.arquivos?.remover(m.arquivoId as string).catch(() => undefined);
   }
@@ -647,9 +672,12 @@ export class Repositorio {
     await this.store.definir('disponibilidade/geral', d as unknown as Json);
   }
 
-  /** Registros de questões (sessões) no formato do cálculo de acerto recente. */
+  /** Questões (sessões e avulsas) no formato do cálculo de acerto recente. */
   private registrosDeQuestoes() {
-    return this.dados.sessoes.map((s) => ({ topicoId: s.topicoId, feitas: s.questoesFeitas, acertos: s.acertos, dia: diaSP(s.inicio) }));
+    return [
+      ...this.dados.sessoes.map((s) => ({ topicoId: s.topicoId, feitas: s.questoesFeitas, acertos: s.acertos, dia: diaSP(s.inicio) })),
+      ...this.dados.registrosQuestoes.map((r) => ({ topicoId: r.topicoId, feitas: r.feitas, acertos: r.acertos, dia: r.dia })),
+    ];
   }
 
   /** Minutos por dia da semana que o plano deve usar (capacidade real), se o ajuste estiver ligado. */
@@ -769,6 +797,74 @@ export class Repositorio {
     if (fimMin > 24 * 60) throw falha('horario_invalido', 'O bloco passaria da meia-noite. Escolha um horário mais cedo.');
     const fim = `${String(Math.floor(fimMin / 60)).padStart(2, '0')}:${String(fimMin % 60).padStart(2, '0')}`;
     await this.gravarItemSemanal('plano', inicioDaSemana(dia), { ...b, dia, inicio, fim, fixo: true } as BlocoPlanejado);
+  }
+
+  // ------------------------------------------------------------ desempenho
+
+  async salvarRegistroQuestoes(r: Omit<RegistroQuestoes, 'id'> & { id?: Id }): Promise<Id> {
+    const reg: RegistroQuestoes = { ...r, id: r.id ?? novoId(), acertos: Math.min(r.acertos, r.feitas) };
+    await this.gravarItemSemanal('questoes', inicioDaSemana(reg.dia), reg);
+    return reg.id;
+  }
+
+  async excluirRegistroQuestoes(id: Id): Promise<void> {
+    const semana = this.semanaDoItem('questoes', id);
+    if (semana) await this.tirarItemSemanal('questoes', semana, id);
+  }
+
+  /** Vários registros de uma vez (importação de CSV): uma gravação por semana. */
+  async importarQuestoes(registros: Omit<RegistroQuestoes, 'id'>[]): Promise<number> {
+    const porSemana = new Map<string, Record<Id, Json>>();
+    for (const r of registros) {
+      const reg: RegistroQuestoes = { ...r, id: novoId(), acertos: Math.min(r.acertos, r.feitas) };
+      const semana = inicioDaSemana(reg.dia);
+      porSemana.set(semana, { ...(porSemana.get(semana) ?? {}), [reg.id]: reg as unknown as Json });
+    }
+    for (const [semana, itens] of porSemana) {
+      if (this.col('questoes').has(semana)) await this.store.mesclar(`questoes/${semana}`, { itens });
+      else await this.store.definir(`questoes/${semana}`, { semana, itens });
+    }
+    return registros.length;
+  }
+
+  async salvarErro(e: Omit<ErroCaderno, 'id'> & { id?: Id }): Promise<Id> {
+    const erro: ErroCaderno = { ...e, id: e.id ?? novoId() };
+    const antigo = this.dados.erros.find((x) => x.id === erro.id);
+    if (antigo && antigo.disciplinaId !== erro.disciplinaId) await this.tirarErro(antigo);
+    const caminho = `erros/${erro.disciplinaId}`;
+    if (this.col('erros').has(erro.disciplinaId)) await this.store.mesclar(caminho, { itens: { [erro.id]: erro as unknown as Json } });
+    else await this.store.definir(caminho, { disciplinaId: erro.disciplinaId, itens: { [erro.id]: erro as unknown as Json } });
+    return erro.id;
+  }
+
+  async excluirErro(e: ErroCaderno): Promise<void> {
+    await this.tirarErro(e);
+  }
+
+  private async tirarErro(e: ErroCaderno): Promise<void> {
+    const doc = this.col('erros').get(e.disciplinaId);
+    if (!doc) return;
+    const itens = { ...(doc.itens as Record<Id, Json>) };
+    delete itens[e.id];
+    if (Object.keys(itens).length) await this.store.definir(`erros/${e.disciplinaId}`, { disciplinaId: e.disciplinaId, itens });
+    else await this.store.remover(`erros/${e.disciplinaId}`);
+  }
+
+  /** Revisão do caderno de erros: acertou segue D+3/D+14; errou de novo recomeça. */
+  async revisarErroCaderno(e: ErroCaderno, acertou: boolean): Promise<ErroCaderno> {
+    const novo = { ...e, ...revisarErro(e, acertou, diaSP(this.relogio())) };
+    await this.salvarErro(novo);
+    return novo;
+  }
+
+  async salvarSimulado(s: Omit<Simulado, 'id'> & { id?: Id }): Promise<Id> {
+    const id = s.id ?? novoId();
+    await this.store.definir(`simulados/${id}`, { ...s, id } as unknown as Json);
+    return id;
+  }
+
+  async excluirSimulado(id: Id): Promise<void> {
+    await this.store.remover(`simulados/${id}`);
   }
 
   // ----------------------------------------------------------- cronômetro

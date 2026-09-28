@@ -1,4 +1,4 @@
-import { BookOpenCheck, CalendarDays, ChartColumnBig, FolderOpen, History, House, Layers, Library, Menu, RefreshCcw, Settings, Timer, X } from 'lucide-react';
+import { BookMarked, BookOpenCheck, CalendarDays, ChartColumnBig, ChartLine, ClipboardCheck, ListChecks, FolderOpen, History, House, Layers, Library, Menu, RefreshCcw, Settings, Timer, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
@@ -11,6 +11,10 @@ import { useApp } from './estado';
 import type { Tela } from './estado';
 import { dentroDoClaude } from './plataforma';
 import { Balanco } from './telas/Balanco';
+import { CadernoErros } from './telas/CadernoErros';
+import { Estatisticas } from './telas/Estatisticas';
+import { Questoes } from './telas/Questoes';
+import { Simulados } from './telas/Simulados';
 import { Biblioteca } from './telas/Biblioteca';
 import { Concursos } from './telas/Concursos';
 import { Configuracoes } from './telas/Configuracoes';
@@ -31,7 +35,11 @@ const ITENS: { tela: Tela; rotulo: string; icone: LucideIcon }[] = [
   { tela: 'edital', rotulo: 'Edital', icone: BookOpenCheck },
   { tela: 'planejamento', rotulo: 'Planejamento', icone: CalendarDays },
   { tela: 'revisoes', rotulo: 'Revisões', icone: RefreshCcw },
+  { tela: 'questoes', rotulo: 'Questões', icone: ListChecks },
+  { tela: 'erros', rotulo: 'Caderno de erros', icone: BookMarked },
+  { tela: 'simulados', rotulo: 'Simulados', icone: ClipboardCheck },
   { tela: 'historico', rotulo: 'Histórico', icone: History },
+  { tela: 'estatisticas', rotulo: 'Estatísticas', icone: ChartLine },
   { tela: 'balanco', rotulo: 'Balanço', icone: ChartColumnBig },
   { tela: 'biblioteca', rotulo: 'Biblioteca', icone: Library },
   { tela: 'cronometro', rotulo: 'Cronômetro', icone: Timer },
@@ -47,6 +55,10 @@ const TELAS: Record<Tela, ComponentType> = {
   planejamento: Planejamento,
   disponibilidade: Disponibilidade,
   revisoes: Revisoes,
+  questoes: Questoes,
+  erros: CadernoErros,
+  simulados: Simulados,
+  estatisticas: Estatisticas,
   balanco: Balanco,
   biblioteca: Biblioteca,
   cronometro: Cronometro,
@@ -70,7 +82,7 @@ function MenuLateral({ aoNavegar }: { aoNavegar?: () => void }) {
   const { tela, irPara, dados } = useApp();
   const pendentes = revisoesAgendadas(dados.disciplinas, hojeSP()).filter((r) => r.atraso >= 0).length;
   return (
-    <nav aria-label="Menu principal" className="flex flex-col gap-1 px-3">
+    <nav aria-label="Menu principal" className="flex flex-col gap-0.5 px-3">
       {ITENS.map(({ tela: t, rotulo, icone: Icone }) => (
         <button
           key={t}
@@ -81,7 +93,7 @@ function MenuLateral({ aoNavegar }: { aoNavegar?: () => void }) {
             aoNavegar?.();
           }}
           className={cx(
-            'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-left font-bold text-menu-texto transition hover:bg-menu-ativo',
+            'relative flex items-center gap-3 rounded-lg px-3 py-2 text-left font-bold text-menu-texto transition hover:bg-menu-ativo',
             tela === t && 'bg-menu-ativo',
           )}
         >
@@ -155,7 +167,7 @@ export function App() {
 
   return (
     <div className="min-h-full lg:pl-64">
-      <aside className="menu-lateral fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-6 py-5 lg:flex">
+      <aside className="menu-lateral fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-5 overflow-y-auto py-5 lg:flex">
         <div className="px-5">
           <Marca />
         </div>
@@ -165,7 +177,7 @@ export function App() {
       {gaveta && (
         <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
           <button type="button" aria-label="Fechar menu" className="absolute inset-0 bg-black/40" onClick={() => setGaveta(false)} />
-          <aside className="menu-lateral relative flex h-full w-72 max-w-[85vw] flex-col gap-6 pb-5"
+          <aside className="menu-lateral relative flex h-full w-72 max-w-[85vw] flex-col gap-5 overflow-y-auto pb-5"
             style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}>
             <div className="flex items-center justify-between px-5">
               <Marca />
