@@ -1,7 +1,7 @@
 import { ExternalLink, Pencil, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Botao, BotaoIcone, CabecalhoTela, Campo, Cartao, Confirmar, Entrada, Etiqueta, Modal, Progresso, Selecao, Vazio } from '../componentes/ui';
+import { Botao, BotaoIcone, CabecalhoTela, Campo, Cartao, Confirmar, Entrada, Etiqueta, Modal, Progresso, Selecao, Vazio, useAoAbrir } from '../componentes/ui';
 import { diasEntre, formatarData } from '../dominio/datas';
 import { cobertura, hojeSP } from '../dominio/painel';
 import { STATUS_CONCURSO } from '../dominio/rotulos';
@@ -26,9 +26,7 @@ const VAZIO: Form = {
 function FormConcurso({ aberto, aoFechar, inicial }: { aberto: boolean; aoFechar: () => void; inicial: Concurso | null }) {
   const { repo, executar, escolherConcurso } = useApp();
   const [f, setF] = useState<Form>(VAZIO);
-  useEffect(() => {
-    if (aberto) setF(inicial ? { ...inicial } : VAZIO);
-  }, [aberto, inicial]);
+  useAoAbrir(aberto, () => setF(inicial ? { ...inicial } : VAZIO), inicial);
   const mudar = (patch: Partial<Form>) => setF((x) => ({ ...x, ...patch }));
 
   async function salvar(e?: FormEvent) {

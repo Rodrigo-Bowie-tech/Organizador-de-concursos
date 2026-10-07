@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { DetalhesSessao } from '../dados/repositorio';
 import { segundosLiquidos } from '../dominio/cronometro';
 import { diaSP, formatarDuracao, formatarHora, instanteSP } from '../dominio/datas';
 import type { Sessao } from '../dominio/tipos';
 import { useApp } from '../estado';
 import { CamposEstudo, CamposResultado } from './CamposSessao';
-import { Botao, Campo, Entrada, Modal } from './ui';
+import { Botao, Campo, Entrada, Modal, useAoAbrir } from './ui';
 
 function detalhesDe(s: Sessao): DetalhesSessao {
   return {
@@ -27,10 +27,8 @@ export function ModalFinalizar({ aberto, aoFechar }: { aberto: boolean; aoFechar
   const ativa = dados.ativa;
   const [valor, setValor] = useState<DetalhesSessao | null>(null);
 
-  useEffect(() => {
-    if (aberto && ativa) setValor(detalhesDe(ativa));
-    // Só ao abrir: edições no formulário não devem ser sobrescritas.
-  }, [aberto]);
+  // Só ao abrir: edições no formulário não devem ser sobrescritas.
+  useAoAbrir(aberto, () => ativa && setValor(detalhesDe(ativa)));
 
   if (!ativa || !valor) return null;
   const liquido = segundosLiquidos(ativa, new Date());
@@ -94,23 +92,26 @@ export function ModalSessao({
   const [horas, setHoras] = useState('1');
   const [minutos, setMinutos] = useState('0');
 
-  useEffect(() => {
-    if (!aberto) return;
-    if (sessao) {
-      setValor(detalhesDe(sessao));
-      setDia(diaSP(sessao.inicio));
-      setHora(formatarHora(sessao.inicio));
-      const seg = segundosLiquidos(sessao, Date.now());
-      setHoras(String(Math.floor(seg / 3600)));
-      setMinutos(String(Math.floor((seg % 3600) / 60)));
-    } else {
-      setValor({ concursoId: concursoAtivo?.id ?? null, disciplinaId: null, topicoId: null, tipo: 'teoria' });
-      setDia(diaSP(Date.now()));
-      setHora('');
-      setHoras('1');
-      setMinutos('0');
-    }
-  }, [aberto, sessao?.id]);
+  useAoAbrir(
+    aberto,
+    () => {
+      if (sessao) {
+        setValor(detalhesDe(sessao));
+        setDia(diaSP(sessao.inicio));
+        setHora(formatarHora(sessao.inicio));
+        const seg = segundosLiquidos(sessao, Date.now());
+        setHoras(String(Math.floor(seg / 3600)));
+        setMinutos(String(Math.floor((seg % 3600) / 60)));
+      } else {
+        setValor({ concursoId: concursoAtivo?.id ?? null, disciplinaId: null, topicoId: null, tipo: 'teoria' });
+        setDia(diaSP(Date.now()));
+        setHora('');
+        setHoras('1');
+        setMinutos('0');
+      }
+    },
+    sessao?.id,
+  );
 
   const segundos = (Math.max(0, Number(horas) || 0) * 60 + Math.max(0, Number(minutos) || 0)) * 60;
   const valido = Boolean(dia && hora && segundos > 0 && (valor.acertos ?? 0) <= (valor.questoesFeitas ?? 0));

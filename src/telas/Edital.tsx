@@ -1,8 +1,8 @@
 import { ArrowDown, ArrowUp, ClipboardList, CornerDownRight, FileUp, Library, Link2, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { PainelMateriais } from '../componentes/Materiais';
 import { ModalPratica } from '../componentes/PraticaIA';
-import { AreaTexto, Botao, BotaoIcone, CabecalhoTela, Campo, Confirmar, Entrada, Modal, Progresso, Selecao, Vazio, cx } from '../componentes/ui';
+import { AreaTexto, Botao, BotaoIcone, CabecalhoTela, Campo, Confirmar, Entrada, Modal, Progresso, Selecao, Vazio, cx, useAoAbrir } from '../componentes/ui';
 import { formatarData, formatarDuracao } from '../dominio/datas';
 import { lerLote } from '../dominio/lote';
 import { cobertura, questoesPorTopico, segundosPorTopico, topicoConcluido } from '../dominio/painel';
@@ -24,12 +24,15 @@ function ModalTopico({ alvo, editar, aoFechar }: { alvo: Alvo | null; editar: { 
   const [blocos, setBlocos] = useState('');
   const aberto = Boolean(alvo || editar);
 
-  useEffect(() => {
-    if (!aberto) return;
-    setTitulo(editar?.topico.titulo ?? '');
-    setIncidencia(editar?.topico.incidencia?.toString() ?? '');
-    setBlocos(editar?.topico.blocosTeoria?.toString() ?? '');
-  }, [aberto, editar]);
+  useAoAbrir(
+    aberto,
+    () => {
+      setTitulo(editar?.topico.titulo ?? '');
+      setIncidencia(editar?.topico.incidencia?.toString() ?? '');
+      setBlocos(editar?.topico.blocosTeoria?.toString() ?? '');
+    },
+    editar,
+  );
 
   const pai = alvo?.paiId ? alvo.disciplina.topicos[alvo.paiId] : null;
 
@@ -105,12 +108,10 @@ function ModalLote({ aberto, aoFechar }: { aberto: boolean; aoFechar: () => void
   const [disciplinaId, setDisciplinaId] = useState('');
   const [texto, setTexto] = useState('');
 
-  useEffect(() => {
-    if (aberto) {
-      setTexto('');
-      setDisciplinaId((atual) => (disciplinas.some((d) => d.id === atual) ? atual : disciplinas[0]?.id ?? ''));
-    }
-  }, [aberto, disciplinas]);
+  useAoAbrir(aberto, () => {
+    setTexto('');
+    setDisciplinaId((atual) => (disciplinas.some((d) => d.id === atual) ? atual : disciplinas[0]?.id ?? ''));
+  });
 
   const itens = useMemo(() => lerLote(texto), [texto]);
 

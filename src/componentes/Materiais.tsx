@@ -1,10 +1,10 @@
 import { BookOpen, FileText, Link2, Pencil, PlayCircle, StickyNote, Trash2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { achatar } from '../dominio/topicos';
 import type { Id, Material, TipoMaterial } from '../dominio/tipos';
 import { useApp } from '../estado';
-import { AreaTexto, Botao, BotaoIcone, Campo, Confirmar, Entrada, Modal, Selecao } from './ui';
+import { AreaTexto, Botao, BotaoIcone, Campo, Confirmar, Entrada, Modal, Selecao, useAoAbrir } from './ui';
 
 export const TIPOS_MATERIAL: Record<TipoMaterial, { rotulo: string; icone: LucideIcon }> = {
   pdf: { rotulo: 'PDF / apostila', icone: FileText },
@@ -111,15 +111,19 @@ export function ModalMaterial({
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  useEffect(() => {
-    if (!aberto) return;
-    setArquivo(null);
-    setF(
-      inicial
-        ? { disciplinaId: inicial.disciplinaId, topicoId: inicial.topicoId, tipo: inicial.tipo, titulo: inicial.titulo, url: inicial.url, trecho: inicial.trecho, observacao: inicial.observacao }
-        : { disciplinaId: disciplinaId ?? disciplinas[0]?.id ?? '', topicoId: topicoId ?? null, tipo: 'link', titulo: '', url: '', trecho: '', observacao: '' },
-    );
-  }, [aberto, inicial, disciplinaId, topicoId, disciplinas]);
+  useAoAbrir(
+    aberto,
+    () => {
+      setArquivo(null);
+      setF(
+        inicial
+          ? { disciplinaId: inicial.disciplinaId, topicoId: inicial.topicoId, tipo: inicial.tipo, titulo: inicial.titulo, url: inicial.url, trecho: inicial.trecho, observacao: inicial.observacao }
+          : { disciplinaId: disciplinaId ?? disciplinas[0]?.id ?? '', topicoId: topicoId ?? null, tipo: 'link', titulo: '', url: '', trecho: '', observacao: '' },
+      );
+    },
+    inicial,
+  );
+  const mudar = (patch: Partial<Form>) => setF((x) => ({ ...x, ...patch }));
 
   // Na edição, a disciplina pode ser de outro concurso: procura em todas.
   const opcoesDisciplina = inicial ? dados.disciplinas.filter((d) => d.concursoId === dados.disciplinas.find((x) => x.id === inicial.disciplinaId)?.concursoId) : disciplinas;
@@ -190,7 +194,7 @@ export function ModalMaterial({
       >
         <Campo rotulo="Disciplina">
           {(id) => (
-            <Selecao id={id} value={f.disciplinaId} onChange={(e) => setF({ ...f, disciplinaId: e.target.value, topicoId: null })}>
+            <Selecao id={id} value={f.disciplinaId} onChange={(e) => mudar({ disciplinaId: e.target.value, topicoId: null })}>
               {opcoesDisciplina.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.nome}
@@ -201,7 +205,7 @@ export function ModalMaterial({
         </Campo>
         <Campo rotulo="Tópico">
           {(id) => (
-            <Selecao id={id} value={f.topicoId ?? ''} onChange={(e) => setF({ ...f, topicoId: e.target.value || null })}>
+            <Selecao id={id} value={f.topicoId ?? ''} onChange={(e) => mudar({ topicoId: e.target.value || null })}>
               <option value="">Disciplina inteira</option>
               {linhas.map((l) => (
                 <option key={l.topico.id} value={l.topico.id}>
@@ -214,7 +218,7 @@ export function ModalMaterial({
         </Campo>
         <Campo rotulo="Tipo">
           {(id) => (
-            <Selecao id={id} value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value as TipoMaterial })}>
+            <Selecao id={id} value={f.tipo} onChange={(e) => mudar({ tipo: e.target.value as TipoMaterial })}>
               {Object.entries(TIPOS_MATERIAL).map(([v, { rotulo }]) => (
                 <option key={v} value={v}>
                   {rotulo}
@@ -224,10 +228,10 @@ export function ModalMaterial({
           )}
         </Campo>
         <Campo rotulo="Título">
-          {(id) => <Entrada id={id} required value={f.titulo} placeholder="Ex.: Aula 01 - Circuitos" onChange={(e) => setF({ ...f, titulo: e.target.value })} />}
+          {(id) => <Entrada id={id} required value={f.titulo} placeholder="Ex.: Aula 01 - Circuitos" onChange={(e) => mudar({ titulo: e.target.value })} />}
         </Campo>
         <Campo rotulo="Link" className="sm:col-span-2" dica={f.tipo === 'pdf' && podeEnviar ? 'Ou envie o arquivo abaixo.' : undefined}>
-          {(id) => <Entrada id={id} type="url" inputMode="url" value={f.url} placeholder="https://" onChange={(e) => setF({ ...f, url: e.target.value })} />}
+          {(id) => <Entrada id={id} type="url" inputMode="url" value={f.url} placeholder="https://" onChange={(e) => mudar({ url: e.target.value })} />}
         </Campo>
         {f.tipo === 'pdf' &&
           (podeEnviar ? (
@@ -242,10 +246,10 @@ export function ModalMaterial({
             <p className="text-sm text-suave sm:col-span-2">Enviar PDF só funciona no app do claude.ai. Aqui, use um link (Drive, site do curso…).</p>
           ))}
         <Campo rotulo="Trecho" dica="Páginas, aula, minuto…">
-          {(id) => <Entrada id={id} value={f.trecho} placeholder="p. 45–80" onChange={(e) => setF({ ...f, trecho: e.target.value })} />}
+          {(id) => <Entrada id={id} value={f.trecho} placeholder="p. 45–80" onChange={(e) => mudar({ trecho: e.target.value })} />}
         </Campo>
         <Campo rotulo="Observação">
-          {(id) => <AreaTexto id={id} className="min-h-10" maxLength={500} value={f.observacao} onChange={(e) => setF({ ...f, observacao: e.target.value })} />}
+          {(id) => <AreaTexto id={id} className="min-h-10" maxLength={500} value={f.observacao} onChange={(e) => mudar({ observacao: e.target.value })} />}
         </Campo>
         <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
       </form>

@@ -1,6 +1,6 @@
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { Botao, BotaoIcone, CabecalhoTela, Campo, Cartao, Confirmar, Entrada, Modal, Progresso, Selecao, Vazio } from '../componentes/ui';
+import { useMemo, useState } from 'react';
+import { Botao, BotaoIcone, CabecalhoTela, Campo, Cartao, Confirmar, Entrada, Modal, Progresso, Selecao, Vazio, useAoAbrir } from '../componentes/ui';
 import { formatarDuracao } from '../dominio/datas';
 import { cobertura, segundosPorDisciplina } from '../dominio/painel';
 import { CORES_DISCIPLINA, TIPO_DISCIPLINA } from '../dominio/rotulos';
@@ -20,14 +20,16 @@ function FormDisciplina({ aberto, aoFechar, inicial }: { aberto: boolean; aoFech
   const { repo, executar, concursoAtivo, disciplinas } = useApp();
   const [f, setF] = useState<Form>({ nome: '', peso: '1', numQuestoes: '', tipo: 'especifica', cor: CORES_DISCIPLINA[0] });
 
-  useEffect(() => {
-    if (!aberto) return;
-    setF(
-      inicial
-        ? { id: inicial.id, nome: inicial.nome, peso: String(inicial.peso), numQuestoes: inicial.numQuestoes?.toString() ?? '', tipo: inicial.tipo, cor: inicial.cor }
-        : { nome: '', peso: '1', numQuestoes: '', tipo: 'especifica', cor: CORES_DISCIPLINA[disciplinas.length % CORES_DISCIPLINA.length] },
-    );
-  }, [aberto, inicial, disciplinas.length]);
+  useAoAbrir(
+    aberto,
+    () =>
+      setF(
+        inicial
+          ? { id: inicial.id, nome: inicial.nome, peso: String(inicial.peso), numQuestoes: inicial.numQuestoes?.toString() ?? '', tipo: inicial.tipo, cor: inicial.cor }
+          : { nome: '', peso: '1', numQuestoes: '', tipo: 'especifica', cor: CORES_DISCIPLINA[disciplinas.length % CORES_DISCIPLINA.length] },
+      ),
+    inicial,
+  );
 
   if (!concursoAtivo) return null;
   const valido = f.nome.trim() && Number(f.peso) > 0;

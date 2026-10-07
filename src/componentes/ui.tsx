@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
@@ -90,6 +90,19 @@ export function Selecao({ className, ...props }: SelectHTMLAttributes<HTMLSelect
 
 export function AreaTexto({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea {...props} className={cx(estiloCampo, 'min-h-24', className)} />;
+}
+
+/**
+ * Prepara o formulário de um modal na renderização em que ele abre (ou em que `chave` muda).
+ * Num useEffect, o preparo chegava depois de o <dialog> aparecer (dava para escolher um campo
+ * antes dele) e, dependendo dos dados, apagava o que já foi digitado quando o banco mudava.
+ */
+export function useAoAbrir(aberto: boolean, preparar: () => void, chave?: unknown): void {
+  const [visto, setVisto] = useState<{ aberto: boolean; chave: unknown }>({ aberto: false, chave: undefined });
+  if (visto.aberto !== aberto || (aberto && visto.chave !== chave)) {
+    setVisto({ aberto, chave });
+    if (aberto) preparar();
+  }
 }
 
 export function Modal({
