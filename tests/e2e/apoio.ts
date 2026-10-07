@@ -138,7 +138,8 @@ export async function preparar(
       (window as unknown as { claude: unknown }).claude = { use: async (nome: string) => (nome === 'sample' ? amostra : null) };
     });
   }
-  await page.goto('/');
+  // Relativo ao baseURL: '/' no Artifact, '/Organizador-de-concursos/' no app instalável.
+  await page.goto('./');
 }
 
 export async function menu(page: Page, item: string) {

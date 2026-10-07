@@ -1,9 +1,10 @@
-// Servidor estático mínimo para testar o build do Artifact localmente
-// (dist/preview.html) sem depender do cdnjs. Uso: npm run preview [porta]
+// Servidor estático mínimo para testar os builds localmente. Uso: npm run preview [porta]
+//   /                            build do Artifact (dist/preview.html), sem depender do cdnjs
+//   /Organizador-de-concursos/   app instalável (dist/web), no mesmo caminho do GitHub Pages
 
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const raiz = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -17,8 +18,37 @@ const ROTAS = {
   '/vendor/pdfjs/pdf.worker.min.js': ['node_modules/pdfjs-dist/build/pdf.worker.min.js', 'text/javascript'],
 };
 
+const WEB = '/Organizador-de-concursos/';
+const TIPOS = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.webmanifest': 'application/manifest+json',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+};
+
 createServer(async (req, res) => {
-  const rota = ROTAS[new URL(req.url ?? '/', 'http://x').pathname];
+  const caminho = new URL(req.url ?? '/', 'http://x').pathname;
+  if (caminho === WEB.slice(0, -1)) {
+    res.writeHead(301, { location: WEB }).end();
+    return;
+  }
+  if (caminho.startsWith(WEB)) {
+    const relativo = normalize(caminho.slice(WEB.length) || 'index.html');
+    if (relativo.startsWith('..')) {
+      res.writeHead(400).end();
+      return;
+    }
+    try {
+      const corpo = await readFile(join(raiz, 'dist/web', relativo));
+      res.writeHead(200, { 'content-type': TIPOS[extname(relativo)] ?? 'application/octet-stream' }).end(corpo);
+    } catch {
+      res.writeHead(404).end('não encontrado');
+    }
+    return;
+  }
+  const rota = ROTAS[caminho];
   if (!rota) {
     res.writeHead(404).end('não encontrado');
     return;

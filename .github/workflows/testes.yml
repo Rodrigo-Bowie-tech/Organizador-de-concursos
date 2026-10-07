@@ -1,8 +1,14 @@
 name: Testes
 
+# Tipos, unitários, build e Playwright a cada push. No branch padrão, se tudo passar,
+# o app instalável (dist/web) vai para o GitHub Pages:
+# https://rodrigo-bowie-tech.github.io/Organizador-de-concursos/
+# (Settings > Pages > Source: GitHub Actions.)
+
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   testes:
@@ -25,13 +31,13 @@ jobs:
       - name: Testes unitários (Vitest)
         run: npm test
 
-      - name: Build da página do Artifact
+      - name: Build (página do Artifact e app instalável)
         run: npm run build
 
       - name: Instalar o Chromium do Playwright
         run: npx playwright install --with-deps chromium
 
-      - name: Testes de ponta a ponta (Playwright, celular e desktop)
+      - name: Testes de ponta a ponta (Playwright, celular, desktop e app instalável)
         run: npm run test:e2e
 
       - name: Guardar capturas e relatórios se falhar
@@ -41,3 +47,27 @@ jobs:
           name: resultados-playwright
           path: test-results/
           retention-days: 7
+
+      - name: Guardar o app instalável para o GitHub Pages
+        if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist/web
+
+  publicar:
+    needs: testes
+    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.publicacao.outputs.page_url }}
+    steps:
+      - name: Publicar no GitHub Pages
+        id: publicacao
+        uses: actions/deploy-pages@v4

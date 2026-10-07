@@ -1,4 +1,4 @@
-import { Download, FileSpreadsheet, Upload } from 'lucide-react';
+import { Download, FileSpreadsheet, MonitorSmartphone, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Botao, CabecalhoTela, Campo, Cartao, Confirmar, Entrada, Progresso, Selecao, cx } from '../componentes/ui';
 import type { Backup } from '../dados/repositorio';
@@ -6,7 +6,7 @@ import { diaSP, formatarData } from '../dominio/datas';
 import { csvQuestoes, csvSessoes } from '../dominio/exportacao';
 import type { Configuracao, Tema } from '../dominio/tipos';
 import { useApp } from '../estado';
-import { dentroDoClaude, salvarArquivo } from '../plataforma';
+import { APP_INSTALAVEL, abertoComoApp, aoMudarInstalacao, dentroDoClaude, instalarApp, podeInstalar, salvarArquivo } from '../plataforma';
 
 const LIMITE_DOCUMENTOS = 5000;
 
@@ -205,6 +205,8 @@ export function Configuracoes() {
           </div>
         </Cartao>
 
+        {APP_INSTALAVEL && <CartaoInstalar />}
+
         <Cartao titulo="Backup">
           <p className="text-suave">
             Exporte tudo (concursos, edital, sessões e configurações) num arquivo JSON. Importar um backup substitui todo o
@@ -240,7 +242,9 @@ export function Configuracoes() {
           <p className="text-suave">
             {dados.modo === 'claude'
               ? 'Os dados ficam no banco deste app no claude.ai e sincronizam entre notebook, desktop e celular.'
-              : dentroDoClaude()
+              : dados.modo === 'aparelho'
+                ? 'Os dados ficam neste aparelho e funcionam sem internet. Eles não vão sozinhos para o claude.ai nem para outro aparelho: para levar, exporte o backup aqui e importe no outro.'
+                : dentroDoClaude()
                 ? 'O banco do claude.ai não respondeu nesta visita; os dados estão só neste navegador.'
                 : 'Modo local de desenvolvimento: os dados ficam só neste navegador.'}
           </p>
@@ -273,5 +277,34 @@ export function Configuracoes() {
         aoConfirmar={() => backupPendente && void executar(() => repo.importar(backupPendente), 'Backup importado.')}
       />
     </>
+  );
+}
+
+/** App instalável (GitHub Pages): botão de instalar quando o navegador oferece, ou o passo a passo. */
+function CartaoInstalar() {
+  const [, atualizar] = useState(0);
+  useEffect(() => aoMudarInstalacao(() => atualizar((n) => n + 1)), []);
+  if (abertoComoApp()) {
+    return (
+      <Cartao titulo="App instalado">
+        <p className="text-suave">Você está usando o app instalado. Ele abre sem internet e guarda os dados neste aparelho.</p>
+      </Cartao>
+    );
+  }
+  return (
+    <Cartao titulo="Instalar o app">
+      <p className="text-suave">Instalado, ele ganha ícone próprio, abre em janela própria e funciona sem internet.</p>
+      {podeInstalar() ? (
+        <Botao className="mt-3" onClick={() => void instalarApp()}>
+          <MonitorSmartphone size={18} /> Instalar o app
+        </Botao>
+      ) : (
+        <ul className="mt-2 grid grid-cols-1 gap-1 text-sm text-suave">
+          <li><strong>iPhone e iPad (Safari):</strong> Compartilhar › Adicionar à Tela de Início.</li>
+          <li><strong>Android (Chrome):</strong> menu ⋮ › Instalar app.</li>
+          <li><strong>Computador (Chrome ou Edge):</strong> ícone de instalar na barra de endereço.</li>
+        </ul>
+      )}
+    </Cartao>
   );
 }

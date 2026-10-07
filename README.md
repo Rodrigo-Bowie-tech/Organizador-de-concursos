@@ -9,6 +9,22 @@ dados ficam no banco do próprio app, na nuvem.
 
 No celular, abra o link no navegador e use "Adicionar à tela inicial" para ter um ícone como o de um app.
 
+### App instalável (sem precisar do Claude)
+
+**Abrir:** https://rodrigo-bowie-tech.github.io/Organizador-de-concursos/
+
+A mesma interface publicada no GitHub Pages como app instalável (PWA): ganha ícone, abre em janela
+própria e funciona sem internet. Para instalar:
+
+- **iPhone e iPad (Safari):** Compartilhar › Adicionar à Tela de Início.
+- **Android (Chrome):** menu ⋮ › Instalar app.
+- **Computador (Chrome ou Edge):** ícone de instalar na barra de endereço, ou Configurações › Instalar o app.
+
+Os dados ficam **no aparelho** (não sincronizam com o claude.ai nem entre aparelhos). Para levar seus dados
+do claude.ai para o app instalável: Configurações › Exportar backup no claude.ai e Importar backup no app.
+Por enquanto ele não tem as funções com IA, os PDFs da biblioteca nem o radar automático; a
+sincronização e a IA fora do Claude são as próximas etapas (ver `IDEIAS.md`).
+
 ## O que o app faz
 
 **Base (Fase 1)**
@@ -58,6 +74,6 @@ As funções com IA usam o seu plano do Claude. A especificação completa está
 npm install
 npm run dev        # app local, dados só no navegador
 npm test           # testes unitários
-npm run build      # gera dist/organizador-de-concursos.html (página publicada no claude.ai)
+npm run build      # gera dist/organizador-de-concursos.html (claude.ai) e dist/web (app instalável)
 npm run test:e2e   # testes de ponta a ponta, incluindo acessibilidade (depois do build)
 ```

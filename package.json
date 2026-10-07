@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && node scripts/montar-artifact.mjs",
+    "build": "tsc --noEmit && vite build && node scripts/montar-artifact.mjs && vite build --mode web && node scripts/montar-web.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

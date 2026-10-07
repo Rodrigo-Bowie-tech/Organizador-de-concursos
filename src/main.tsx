@@ -5,6 +5,7 @@ import type { Arquivos } from './dados/repositorio';
 import { abrirStore, recursoClaude } from './dados/store';
 import { ProvedorDados } from './estado';
 import './estilos.css';
+import { APP_INSTALAVEL, prepararAppInstalavel } from './plataforma';
 import type { Amostra, ArmazemArquivos, Recursos } from './plataforma';
 
 function Carregando() {
@@ -21,10 +22,11 @@ function Carregando() {
 async function iniciar() {
   // A página do Artifact não tem <html> próprio: o idioma vai por aqui (leitores de tela, hifenização).
   document.documentElement.lang = 'pt-BR';
+  if (APP_INSTALAVEL) prepararAppInstalavel();
   const raiz = createRoot(document.getElementById('raiz') as HTMLElement);
   raiz.render(<Carregando />);
   const [store, ia, armazem] = await Promise.all([
-    abrirStore(),
+    abrirStore(APP_INSTALAVEL),
     recursoClaude<Amostra>('sample'),
     recursoClaude<ArmazemArquivos>('assets'),
   ]);

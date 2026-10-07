@@ -149,3 +149,60 @@ export function gravarLocal(chave: string, valor: string | null): void {
     // preferência só desta visita
   }
 }
+
+// ------------------------------------------------------ app instalado (PWA)
+
+/** Build do GitHub Pages: instalável e com banco no aparelho. */
+export const APP_INSTALAVEL = __WEB__;
+
+interface PedidoInstalacao extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+let pedidoInstalacao: PedidoInstalacao | null = null;
+const ouvintesInstalacao = new Set<() => void>();
+const avisarInstalacao = () => ouvintesInstalacao.forEach((f) => f());
+
+/** Registra o service worker (funcionar sem internet) e guarda o convite de instalação do navegador. */
+export function prepararAppInstalavel(): void {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    pedidoInstalacao = e as PedidoInstalacao;
+    avisarInstalacao();
+  });
+  window.addEventListener('appinstalled', () => {
+    pedidoInstalacao = null;
+    avisarInstalacao();
+  });
+  const registrar = () => void navigator.serviceWorker?.register('sw.js').catch(() => undefined);
+  if (document.readyState === 'complete') registrar();
+  else window.addEventListener('load', registrar, { once: true });
+  // Pede ao navegador para não apagar o banco do aparelho quando faltar espaço.
+  void navigator.storage?.persist?.().catch(() => undefined);
+}
+
+/** O app já está aberto como app instalado (janela própria)? */
+export function abertoComoApp(): boolean {
+  return matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true;
+}
+
+/** O navegador ofereceu instalar (Chrome, Edge, Android)? */
+export function podeInstalar(): boolean {
+  return pedidoInstalacao !== null;
+}
+
+export function aoMudarInstalacao(f: () => void): () => void {
+  ouvintesInstalacao.add(f);
+  return () => ouvintesInstalacao.delete(f);
+}
+
+/** Abre o pedido de instalação do navegador. Devolve `true` se a pessoa aceitou. */
+export async function instalarApp(): Promise<boolean> {
+  const pedido = pedidoInstalacao;
+  if (!pedido) return false;
+  await pedido.prompt();
+  const { outcome } = await pedido.userChoice;
+  pedidoInstalacao = null;
+  avisarInstalacao();
+  return outcome === 'accepted';
+}

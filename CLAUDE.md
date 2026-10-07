@@ -21,6 +21,13 @@ O app é um **Artifact privado do claude.ai**, aberto com o login do Claude no n
 - Para atualizar de outra conversa: `npm run build` e publicar `dist/organizador-de-concursos.html`
   com a ferramenta Artifact passando `url` = o link acima (senão cria outro artifact).
 
+Também existe o **app instalável** (PWA, Fase 9) no GitHub Pages, com os dados no aparelho:
+
+- Link: https://rodrigo-bowie-tech.github.io/Organizador-de-concursos/
+- Publicado pelo CI a cada push no branch padrão, se os testes passarem (Settings > Pages > Source:
+  GitHub Actions). Os dados **não** sincronizam com o Artifact: levar com backup (exportar/importar).
+- Sem IA, PDFs da biblioteca e radar automático (dependem do claude.ai ou de um servidor; IDEIAS.md).
+
 ## Comandos
 
 | Comando | O que faz |
@@ -29,13 +36,15 @@ O app é um **Artifact privado do claude.ai**, aberto com o login do Claude no n
 | `npm run dev` | Vite em modo desenvolvimento (banco local no navegador) |
 | `npm test` | testes unitários (Vitest) |
 | `npm run typecheck` | checagem de tipos (TypeScript) |
-| `npm run build` | tipos + build + monta `dist/organizador-de-concursos.html` (página publicada) e `dist/preview.html` |
-| `npm run preview` | serve `dist/preview.html` em http://localhost:4173 |
+| `npm run build` | tipos + build + monta `dist/organizador-de-concursos.html` (página publicada), `dist/preview.html` e o app instalável em `dist/web/` |
+| `npm run preview` | serve `dist/preview.html` em http://localhost:4173 e `dist/web` em http://localhost:4173/Organizador-de-concursos/ |
+| `node scripts/gerar-icones.mjs` | refaz os PNGs de `web/icones` a partir dos SVGs (só quando o desenho mudar) |
 | `npm run radar:coletar` | coleta o PCI para `.cache/radar/oportunidades.json` (precisa da rede liberada) |
 | `npm run radar:mesclar` | junta a coleta com o banco baixado e gera `.cache/radar/escritas/lote.json` |
-| `npm run test:e2e` | Playwright (celular e desktop) sobre o build, com a varredura de acessibilidade do axe; rode `npm run build` antes. No container remoto: `PLAYWRIGHT_CHROMIUM=/opt/pw-browsers/chromium npm run test:e2e` |
+| `npm run test:e2e` | Playwright (celular, desktop e `pwa`) sobre o build, com a varredura de acessibilidade do axe; rode `npm run build` antes. No container remoto: `PLAYWRIGHT_CHROMIUM=/opt/pw-browsers/chromium npm run test:e2e` |
 
-O GitHub Actions (`.github/workflows/testes.yml`) roda tipos, unitários, build e Playwright a cada push.
+O GitHub Actions (`.github/workflows/testes.yml`) roda tipos, unitários, build e Playwright a cada push
+e, no branch padrão, publica `dist/web` no GitHub Pages (job `publicar`).
 
 Não há `migrate`: o banco é de documentos JSON, sem esquema. O seed é aplicado pela ferramenta
 ArtifactData (ver "Seed").
@@ -65,7 +74,8 @@ src/
     pci.ts         parser das listagens do PCI Concursos (testado sobre HTML salvo) e leitor de robots.txt
     texto.ts       pedido à IA para extrair oportunidades de um texto colado + validação
   dados/
-    store.ts       interface Store; ArtifactStore (claude.use("db")) e MemoriaStore (localStorage)
+    store.ts       interface Store; ArtifactStore (claude.use("db")), IndexedDBStore (app instalável,
+                   abas sincronizadas por BroadcastChannel) e MemoriaStore (localStorage)
     repositorio.ts espelho do banco via assinaturas + todas as gravações
   estado.tsx     contexto React: dados, concurso ativo, navegação, avisos
   telas/         Home, Concursos, Disciplinas, Edital, ImportarEdital, Planejamento, Disponibilidade,
@@ -74,11 +84,16 @@ src/
   componentes/   ui.tsx (botões, modal <dialog>, campos), campos/modais de sessão, botão flutuante,
                  Pomodoro, Materiais (biblioteca), PraticaIA, Alternativas (questão respondida com um clique),
                  QuestoesProva (revisão de assunto/gabarito/anulada das questões de uma prova)
-  plataforma.ts  recursos do claude.ai (IA, arquivos, downloads), wake lock, bipes, localStorage
+  plataforma.ts  recursos do claude.ai (IA, arquivos, downloads), wake lock, bipes, localStorage,
+                 app instalável (service worker, convite de instalação)
+  globais.d.ts   __WEB__ (true só no build do app instalável)
   pdf.ts         texto de PDFs com pdf.js 3.11 (cdnjs, carregado sob demanda; worker na própria página)
 scripts/
   montar-artifact.mjs  junta app.js + app.css numa página única (React via cdnjs, reserva no jsDelivr)
-  servir-preview.mjs   servidor local do preview com React de node_modules
+  montar-web.mjs       app instalável em dist/web: index.html, JS/CSS com hash, manifest, sw.js, ícones
+  gerar-icones.mjs     PNGs dos ícones (Playwright) a partir de web/icones/*.svg
+  servir-preview.mjs   servidor local do preview (React de node_modules) e de dist/web
+web/icones/      ícones do app instalável (SVG + PNGs gerados, versionados)
   radar/coletar.ts     coletor do PCI (Node 22, robots.txt, User-Agent, 1 req/4 s, cache do dia em .cache/radar)
   radar/mesclar.ts     junta a coleta com o banco e gera o lote de escritas para o ArtifactData
 ```
@@ -87,11 +102,19 @@ scripts/
   cdnjs como UMD (`React`/`ReactDOM` globais), como pedem as regras dos Artifacts. Por isso o JSX usa o
   runtime clássico (`oxc.jsx` + `jsxInject` no `vite.config.ts`): nunca importar `React` por padrão
   nos arquivos, só hooks nomeados. React 19 não tem UMD; não atualizar sem trocar essa estratégia.
+- **App instalável** (`vite build --mode web`, `dist/web-build` → `scripts/montar-web.mjs` → `dist/web`):
+  o React vai dentro do bundle e `__WEB__` liga o IndexedDB e o service worker. Caminhos relativos (roda
+  em `/Organizador-de-concursos/`). O `sw.js` guarda o app na instalação (`cache: 'reload'`), serve a
+  página da rede com prazo de 4 s e, sem internet, a guardada; JS/CSS do cache; fontes do Google
+  guardadas na primeira vez. A versão do cache é o hash do build: publicar troca tudo de uma vez.
 - **Página do Artifact**: sem `<!doctype>/<html>/<head>/<body>`; o claude.ai envolve a página nesse esqueleto.
   O `<title>` precisa estar nos primeiros 8 KB (fica no topo).
 - **Tema**: tokens CSS em `src/estilos.css`. O claude.ai marca `data-theme` no `:root`; a escolha feita no
   app (Configurações > Tema) usa `data-tema` e vence.
 - **Sem `alert/confirm/prompt`** (o claude.ai bloqueia): confirmações são modais (`Confirmar`).
+- **Formulário de modal**: preparar com `useAoAbrir(aberto, preparar, chave)` (`ui.tsx`), nunca num
+  `useEffect` que dependa dos dados: o efeito roda depois de o `<dialog>` aparecer e, quando o banco muda
+  (outra aba, outro aparelho, replanejamento), apagava o que estava sendo digitado.
 - **Downloads**: dentro do claude.ai só pelo recurso `downloads` (`plataforma.ts#salvarArquivo`).
 - **Recursos do claude.ai** (`ia`, `arquivos`) são resolvidos em `main.tsx` e ficam em `useApp().recursos`;
   `null` fora do claude.ai. Telas escondem o que depende deles (ex.: `BotaoPraticar`).
@@ -248,7 +271,14 @@ seed sozinho.
   abaixo de 70%). `blocosTeoria` calibrado para caber em 1h nos dias úteis (20h) e 3h nos fins de semana
   (9h–12h), rodízio de 5 assuntos, simulados fixos em 11/10, 08/11 e 29/11. Documentos em
   `seed/embu-2026.json` (reaplicar com ArtifactData batch).
-- **Rede do container**: o proxy bloqueia cdnjs e pciconcursos.com.br. A rotina do radar só funciona
+- **App instalável no GitHub Pages** (Fase 9, etapas 1 e 2, a pedido do usuário em 07/10/2026): o
+  repositório já existia e é público. Banco no aparelho (IndexedDB) com a mesma semântica do Artifact;
+  na primeira abertura traz o que houver no localStorage do modo local. Abas abertas se avisam pelo
+  BroadcastChannel. `navigator.storage.persist()` pede para o navegador não apagar o banco. Sem banner
+  amarelo (modo `aparelho`); Configurações explica que os dados ficam no aparelho e mostra "Instalar o
+  app" (convite do navegador ou passo a passo do iPhone/Android/computador). Sincronização entre
+  aparelhos, login e IA fora do claude.ai ficam para as etapas seguintes (Supabase; IDEIAS.md).
+- **Rede do container**: o proxy bloqueia cdnjs, pciconcursos.com.br e github.io. A rotina do radar só funciona
   depois de liberar `www.pciconcursos.com.br` nas configurações de rede do ambiente.
 
 ## Radar: rotina diária
@@ -277,3 +307,7 @@ Para testar o parser com a página real: `npm run radar:amostra` (troca o fixtur
 - [x] Fase 7: provas anteriores (PDF/texto → questões por tópico com IA, gabarito, incidência no planejador, refazer)
 - [x] Fase 8: polimento (CSV, lembrete de backup, contraste AA + teste axe, atalho no cronômetro; PWA,
   notificações e deploy próprio ficam para a hospedagem própria)
+- [ ] Fase 9: hospedagem própria
+  - [x] etapas 1 e 2: app instalável no GitHub Pages, offline, banco no aparelho, abas sincronizadas
+  - [ ] sincronização na nuvem e login (Supabase), IA por função no servidor (chave como segredo),
+    PDFs no Storage, notificações
