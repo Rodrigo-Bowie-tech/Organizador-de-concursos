@@ -35,3 +35,17 @@ export const CORES_DISCIPLINA = [
   '#2bb99a', '#4a90d9', '#e8864a', '#9b6fd0', '#d9577a',
   '#c9a227', '#3fa7b5', '#7f9c3a', '#b5674a', '#5c6fd6',
 ];
+
+/** Nome do bloco no calendário: a disciplina; sem disciplina, "Simulado" ou "Estudo". */
+export function nomeDoBloco(b: { tipo: TipoSessao; disciplinaId: string | null }, disciplina?: { nome: string }): string {
+  if (disciplina) return disciplina.nome;
+  if (b.tipo === 'simulado') return 'Simulado';
+  if (b.tipo === 'revisao' && !b.disciplinaId) return 'Revisões';
+  return b.disciplinaId ? 'Disciplina removida' : 'Estudo';
+}
+
+/** Títulos dos tópicos de um bloco que junta várias revisões. */
+export function titulosDasRevisoes(b: { revisoes?: string[] }, disciplinas: { topicos: Record<string, { titulo: string }> }[]): string[] {
+  if (!b.revisoes?.length) return [];
+  return b.revisoes.map((id) => disciplinas.find((d) => d.topicos[id])?.topicos[id]?.titulo ?? 'Tópico removido');
+}

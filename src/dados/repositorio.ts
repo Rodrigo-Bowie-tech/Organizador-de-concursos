@@ -98,6 +98,7 @@ export const CONFIG_PADRAO: Configuracao = {
   pomodoro: { ativo: false, focoMin: 25, pausaCurtaMin: 5, pausaLongaMin: 15, ciclosAtePausaLonga: 4 },
   tema: 'sistema',
   usarCapacidadeReal: true,
+  intercalarAssuntos: 0,
 };
 
 export interface Dados {
@@ -437,7 +438,7 @@ export class Repositorio {
   async atualizarTopico(
     disciplinaId: Id,
     topicoId: Id,
-    patch: Partial<Pick<Topico, 'titulo' | 'status' | 'autoavaliacao' | 'incidencia'>>,
+    patch: Partial<Pick<Topico, 'titulo' | 'status' | 'autoavaliacao' | 'incidencia' | 'blocosTeoria'>>,
   ): Promise<void> {
     const t = this.dados.disciplinas.find((x) => x.id === disciplinaId)?.topicos[topicoId];
     const extra: Partial<Topico> = {};
@@ -744,11 +745,29 @@ export class Repositorio {
       existentes: this.dados.blocos,
       acertos: acertoRecente(this.registrosDeQuestoes(), diaSP(agora)),
       capacidadeMin: this.capacidadeDoPlano(),
+      intercalar: this.dados.config.intercalarAssuntos,
+      ultimoEstudo: this.ultimoEstudoDeTeoria(),
+      simulados: this.dados.simulados,
       novoId,
     });
     await this.substituirFuturos(novos);
     await this.store.definir('estado/planejamento', { ultimoReplanejamento: diaSP(agora) });
     return novos.length;
+  }
+
+  /** Último estudo de teoria de cada disciplina (sessões e blocos de teoria feitos), para o rodízio. */
+  private ultimoEstudoDeTeoria(): Map<Id, string> {
+    const m = new Map<Id, string>();
+    const marcar = (id: Id | null, quando: string) => {
+      if (id && (m.get(id) ?? '') < quando) m.set(id, quando);
+    };
+    for (const s of this.dados.ativa ? [...this.dados.sessoes, this.dados.ativa] : this.dados.sessoes) {
+      if (s.tipo === 'teoria') marcar(s.disciplinaId, s.inicio);
+    }
+    for (const b of this.dados.blocos) {
+      if (b.motivo === 'teoria' && (b.status === 'feito' || b.status === 'parcial')) marcar(b.disciplinaId, instanteSP(b.dia, b.inicio).toISOString());
+    }
+    return m;
   }
 
   /** Replaneja se houver disponibilidade configurada (depois de sessões e blocos marcados). */

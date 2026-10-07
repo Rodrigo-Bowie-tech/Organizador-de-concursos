@@ -21,12 +21,14 @@ function ModalTopico({ alvo, editar, aoFechar }: { alvo: Alvo | null; editar: { 
   const { repo, executar } = useApp();
   const [titulo, setTitulo] = useState('');
   const [incidencia, setIncidencia] = useState('');
+  const [blocos, setBlocos] = useState('');
   const aberto = Boolean(alvo || editar);
 
   useEffect(() => {
     if (!aberto) return;
     setTitulo(editar?.topico.titulo ?? '');
     setIncidencia(editar?.topico.incidencia?.toString() ?? '');
+    setBlocos(editar?.topico.blocosTeoria?.toString() ?? '');
   }, [aberto, editar]);
 
   const pai = alvo?.paiId ? alvo.disciplina.topicos[alvo.paiId] : null;
@@ -39,6 +41,7 @@ function ModalTopico({ alvo, editar, aoFechar }: { alvo: Alvo | null; editar: { 
         await repo.atualizarTopico(editar.disciplina.id, editar.topico.id, {
           titulo: t,
           incidencia: incidencia === '' ? null : Math.max(0, Math.floor(Number(incidencia))),
+          blocosTeoria: blocos === '' ? null : Math.min(20, Math.max(1, Math.round(Number(blocos)))),
         });
       } else if (alvo) {
         await repo.adicionarTopico(alvo.disciplina.id, t, alvo.paiId);
@@ -78,6 +81,11 @@ function ModalTopico({ alvo, editar, aoFechar }: { alvo: Alvo | null; editar: { 
         {editar && (
           <Campo rotulo="Incidência na banca" dica="Quantas vezes o assunto caiu em provas dessa banca, se souber. Em branco, vale a contagem das provas anteriores importadas.">
             {(id) => <Entrada id={id} type="number" min={0} value={incidencia} onChange={(e) => setIncidencia(e.target.value)} />}
+          </Campo>
+        )}
+        {editar && (
+          <Campo rotulo="Blocos de teoria" dica="Quantos blocos do planejamento este tópico pede para a teoria. Em branco: 2 se não iniciado, 1 em estudo.">
+            {(id) => <Entrada id={id} type="number" min={1} max={20} placeholder="2" value={blocos} onChange={(e) => setBlocos(e.target.value)} />}
           </Campo>
         )}
       </form>

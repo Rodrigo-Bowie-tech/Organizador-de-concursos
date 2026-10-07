@@ -23,10 +23,12 @@ No celular, abra o link no navegador e use "Adicionar à tela inicial" para ter 
 subtópicos e você revisa antes de salvar. Tópicos iguais em editais diferentes podem ser vinculados.
 
 **Planejamento (Fases 3 e 4)**: você diz os horários livres de cada dia (e as exceções) e o app monta os
-blocos de estudo das próximas 4 semanas, por prioridade (peso, incidência, domínio e proximidade da
+blocos de estudo até a prova (ou 4 semanas sem data), por prioridade (peso, incidência, domínio e proximidade da
 prova), com revisões espaçadas. Ele se ajusta sozinho: replaneja quando você estuda, quando pula um bloco
 e uma vez por dia; se você estuda menos do que declarou, usa a sua média real; se o edital não fecha até
-a prova, sugere o que cortar.
+a prova, sugere o que cortar. Dá para intercalar assuntos em rodízio (Configurações), marcar quantos
+blocos de teoria cada tópico pede, e o último simulado ajusta o peso de cada área. Revisões são agrupadas
+(até 3 por bloco de 1h) e a última semana fica só para revisão e questões.
 
 **Desempenho (Fase 5)**: lançamento rápido de questões, importação de CSV, caderno de erros com revisão
 em D+3 e D+14, simulados com nota de corte e estatísticas (acerto por disciplina, heatmap do ano,

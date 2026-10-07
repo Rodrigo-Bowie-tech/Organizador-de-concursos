@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { diaDaSemana } from '../../src/dominio/datas';
-import { dominio, filaDeTeoria, fracaoRevisao, gerarPlano, janelasDoDia, slotsDoDia, statusSugerido } from '../../src/dominio/planejador';
+import { ajusteDosSimulados, dominio, filaDeTeoria, fracaoRevisao, gerarPlano, janelasDoDia, slotsDoDia, statusSugerido } from '../../src/dominio/planejador';
 import type { EntradaPlano } from '../../src/dominio/planejador';
 import { iniciarRevisao } from '../../src/dominio/revisoes';
-import type { BlocoPlanejado, Concurso, Disciplina, Disponibilidade, Topico } from '../../src/dominio/tipos';
+import type { BlocoPlanejado, Concurso, Disciplina, Disponibilidade, Simulado, Topico } from '../../src/dominio/tipos';
 
 // Segunda-feira, 28/09/2026, 05:00 em São Paulo.
 const AGORA = new Date('2026-09-28T08:00:00Z');
@@ -208,5 +208,109 @@ describe('realizado × planejado', () => {
     expect(statusSugerido(b, 50 * 60)).toBe('feito');
     expect(statusSugerido(b, 20 * 60)).toBe('parcial');
     expect(statusSugerido(b, 5 * 60)).toBeNull();
+  });
+});
+
+describe('cronograma por assuntos: rodízio, simulados e horizonte', () => {
+  // Uma hora por noite, todos os dias.
+  const NOITE: Disponibilidade = {
+    blocoMin: 60,
+    dias: Object.fromEntries(['0', '1', '2', '3', '4', '5', '6'].map((d) => [d, [{ inicio: '20:00', fim: '21:00' }]])),
+    excecoes: {},
+  };
+  const assunto = (id: string, ordem: number, questoes: number, n = 2) => ({
+    ...disciplina(id, 'embu', 1, questoes, Array.from({ length: n }, (_, i) => topico(`${id}${i + 1}`, { ordem: i }))),
+    ordem,
+  });
+  const base = (extra: Partial<EntradaPlano> = {}): EntradaPlano => ({
+    agora: AGORA,
+    concursos: [concurso('embu', '2026-12-06', 5)],
+    disciplinas: [assunto('bt', 0, 4), assunto('fp', 1, 2), assunto('mt', 2, 2), assunto('prot', 3, 2), assunto('spda', 4, 2), assunto('lum', 5, 1)],
+    disponibilidade: NOITE,
+    existentes: [],
+    novoId,
+    ...extra,
+  });
+  const teoria = (p: BlocoPlanejado[]) => p.filter((b) => b.motivo === 'teoria').map((b) => b.disciplinaId);
+
+  it('intercala os 4 assuntos de maior prioridade, um por bloco, na ordem das disciplinas', () => {
+    const p = gerarPlano(base({ intercalar: 4, horizonteDias: 10 }));
+    expect(teoria(p).slice(0, 8)).toEqual(['bt', 'fp', 'mt', 'prot', 'bt', 'fp', 'mt', 'prot']);
+    // As revisões esperam juntar: a do bt1 (devida em 03/10) espera 2 dias e sai num bloco só com fp1 e mt1.
+    const revisao = p.find((b) => b.motivo === 'revisao');
+    expect(revisao).toMatchObject({ dia: '2026-10-05', topicoId: null, disciplinaId: null, revisoes: ['bt1', 'fp1', 'mt1'] });
+    // Cada tópico tem os seus 2 blocos de teoria, um em cada volta do rodízio.
+    expect(p.filter((b) => b.topicoId === 'bt1' && b.motivo === 'teoria').map((b) => b.dia)).toEqual(['2026-09-28', '2026-10-02']);
+  });
+
+  it('continua o rodízio de onde parou: o assunto estudado por último vai para o fim', () => {
+    const ultimoEstudo = new Map([['bt', '2026-09-27T23:00:00.000Z']]);
+    const p = gerarPlano(base({ intercalar: 4, horizonteDias: 4, ultimoEstudo }));
+    expect(teoria(p)).toEqual(['fp', 'mt', 'prot', 'bt']);
+  });
+
+  it('quando um assunto acaba, o próximo por prioridade entra no rodízio', () => {
+    const p = gerarPlano(base({ intercalar: 2, horizonteDias: 30 }));
+    const ordem = teoria(p).filter((d, i, a) => a.indexOf(d) === i);
+    expect(ordem).toEqual(['bt', 'fp', 'mt', 'prot', 'spda', 'lum']);
+  });
+
+  it('sem rodízio, o desempate segue a ordem das disciplinas e do edital', () => {
+    const fila = filaDeTeoria([concurso('embu', '2026-12-06')], base().disciplinas, new Map(), '2026-09-28');
+    expect(fila.slice(0, 5).map((i) => i.topico.id)).toEqual(['bt1', 'bt2', 'fp1', 'fp2', 'mt1']);
+  });
+
+  it('o último simulado dá o tom: área fraca sobe, área forte desce, com efeito menor se teve poucas questões', () => {
+    const discs = base().disciplinas;
+    const simulado = (dia: string, notas: [string, number, number][]): Simulado => ({
+      id: dia, concursoId: 'embu', titulo: dia, dia, duracaoMin: 180, observacoes: '', notaTotal: 0, notaMaxima: 0,
+      notas: notas.map(([disciplinaId, nota, maximo]) => ({ disciplinaId, nome: disciplinaId, nota, maximo })),
+    });
+    const ajustes = ajusteDosSimulados(
+      [simulado('2026-09-20', [['lum', 0, 5]]), simulado('2026-09-27', [['spda', 0, 5], ['bt', 5, 5], ['fp', 0, 1]])],
+      discs,
+    );
+    expect(ajustes.get('spda')?.fator).toBeCloseTo(1.5);
+    expect(ajustes.get('bt')?.fator).toBeCloseTo(0.7);
+    expect(ajustes.get('fp')?.fator).toBeCloseTo(1.1); // 1 questão: 1/5 do efeito
+    expect(ajustes.get('lum')?.fator).toBeCloseTo(1.5); // vale o último simulado em que apareceu
+    const sims = [simulado('2026-09-27', [['spda', 0, 5], ['bt', 5, 5]])];
+    const fila = filaDeTeoria([concurso('embu', '2026-12-06')], discs, new Map(), '2026-09-28', sims);
+    expect(fila[0].disciplina.id).toBe('spda'); // 2 questões × 1,5 = 3 > fp 2... e bt 4 × 0,7 = 2,8
+    const p = gerarPlano(base({ intercalar: 4, horizonteDias: 4, simulados: sims }));
+    expect(teoria(p)).toEqual(['bt', 'fp', 'mt', 'spda']); // spda entra no rodízio no lugar de prot
+  });
+
+  it('assunto "dominado" não ganha blocos de questões, a não ser que caia no simulado', () => {
+    const pt = { ...disciplina('pt', 'embu', 1, 10, [topico('crase', { status: 'dominado' }), topico('virgula', { status: 'dominado' })]), ordem: 9 };
+    const discs = [...base().disciplinas, pt];
+    const semSimulado = gerarPlano(base({ disciplinas: discs, intercalar: 4, horizonteDias: 21 }));
+    expect(semSimulado.some((b) => b.disciplinaId === 'pt')).toBe(false);
+    const fraco: Simulado = {
+      id: 's', concursoId: 'embu', titulo: 's', dia: '2026-09-27', duracaoMin: 180, observacoes: '', notaTotal: 5, notaMaxima: 10,
+      notas: [{ disciplinaId: 'pt', nome: 'pt', nota: 5, maximo: 10 }],
+    };
+    const comSimulado = gerarPlano(base({ disciplinas: discs, intercalar: 4, horizonteDias: 21, simulados: [fraco] }));
+    expect(comSimulado.some((b) => b.disciplinaId === 'pt' && b.motivo === 'questoes')).toBe(true);
+  });
+
+  it('com a data da prova, o plano vai até ela (concurso sem disciplinas não conta)', () => {
+    const p = gerarPlano(base({ concursos: [concurso('embu', '2026-12-06', 5), concurso('transpetro', null)], intercalar: 4 }));
+    const dias = p.map((b) => b.dia).sort();
+    expect(dias[dias.length - 1] > '2026-10-26').toBe(true); // passa das 4 semanas
+    expect(dias[dias.length - 1] <= '2026-12-06').toBe(true);
+    // Sem data em um concurso com disciplinas, volta às 4 semanas.
+    const semData = gerarPlano(base({ concursos: [concurso('embu', null, 5)], intercalar: 4 }));
+    expect(semData.every((b) => b.dia < '2026-10-26')).toBe(true);
+  });
+
+  it('bloco de simulado fixo ocupa o horário e não tira nada da fila', () => {
+    const simulado: BlocoPlanejado = {
+      id: 'sim', dia: '2026-09-29', inicio: '20:00', fim: '21:00', concursoId: 'embu', disciplinaId: null, topicoId: null,
+      tipo: 'simulado', status: 'planejado', motivo: 'simulado', fixo: true,
+    };
+    const p = gerarPlano(base({ intercalar: 4, horizonteDias: 5, existentes: [simulado] }));
+    expect(p.some((b) => b.dia === '2026-09-29')).toBe(false);
+    expect(teoria(p)).toEqual(['bt', 'fp', 'mt', 'prot']);
   });
 });

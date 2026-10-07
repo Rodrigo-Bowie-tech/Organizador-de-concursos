@@ -1,0 +1,994 @@
+{
+  "_comentario": "Cronograma de Embu das Artes (Engenheiro Elétrico, INEPAM, 06/12/2026), aplicado em 07/10/2026 com a ferramenta ArtifactData (batch, op set). Assuntos com a incidência estimada em numQuestoes, blocos de teoria por tópico, disponibilidade, simulados fixos e as horas anotadas em 05 e 06/10. Ver CLAUDE.md, \"Cronograma de Embu\".",
+  "documentos": {
+    "concursos/embu-2026": {
+      "id": "embu-2026",
+      "nome": "Prefeitura de Embu das Artes · Engenheiro Elétrico",
+      "orgao": "Prefeitura Municipal de Embu das Artes",
+      "banca": "INEPAM",
+      "cargo": "Engenheiro Elétrico",
+      "area": "Engenharia Elétrica",
+      "dataProva": "2026-12-06",
+      "status": "edital_aberto",
+      "link": "https://www.inepam.org.br",
+      "notaCorte": null,
+      "prioridade": 5,
+      "criadoEm": "2026-10-07T15:00:00.000Z"
+    },
+    "disciplinas/embu-bt": {
+      "id": "embu-bt",
+      "concursoId": "embu-2026",
+      "editalId": null,
+      "nome": "Instalações de BT · NBR 5410",
+      "peso": 1,
+      "numQuestoes": 4,
+      "tipo": "especifica",
+      "ordem": 0,
+      "cor": "#2bb99a",
+      "topicos": {
+        "embu-bt-1": {
+          "id": "embu-bt-1",
+          "paiId": null,
+          "titulo": "Previsão de cargas, divisão de circuitos, tomadas e quadros de distribuição",
+          "ordem": 0,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        },
+        "embu-bt-2": {
+          "id": "embu-bt-2",
+          "paiId": null,
+          "titulo": "Dimensionamento de condutores: métodos de instalação, capacidade de condução, agrupamento, queda de tensão e seção mínima",
+          "ordem": 1,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        },
+        "embu-bt-3": {
+          "id": "embu-bt-3",
+          "paiId": null,
+          "titulo": "Proteção contra sobrecorrentes e choques: disjuntores, DR, esquemas de aterramento (TN, TT, IT) e DPS",
+          "ordem": 2,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        },
+        "embu-bt-4": {
+          "id": "embu-bt-4",
+          "paiId": null,
+          "titulo": "Comandos de motores, dispositivos de manobra e cálculo de demanda em BT",
+          "ordem": 3,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        }
+      }
+    },
+    "biblioteca/embu-bt": {
+      "disciplinaId": "embu-bt",
+      "itens": {
+        "mat-embu-bt": {
+          "id": "mat-embu-bt",
+          "disciplinaId": "embu-bt",
+          "topicoId": null,
+          "tipo": "livro",
+          "titulo": "Material de Embu [E]",
+          "url": "",
+          "arquivoId": null,
+          "arquivoNome": null,
+          "trecho": "Bloco 06, p. 66–95",
+          "observacao": "Também: [T] §5.1 e §5.2 · [C] p. 148 e 156",
+          "criadoEm": "2026-10-07T15:00:00.000Z"
+        }
+      }
+    },
+    "disciplinas/embu-fp": {
+      "id": "embu-fp",
+      "concursoId": "embu-2026",
+      "editalId": null,
+      "nome": "Sistemas de potência, grandezas e FP",
+      "peso": 1,
+      "numQuestoes": 2,
+      "tipo": "especifica",
+      "ordem": 1,
+      "cor": "#4a90d9",
+      "topicos": {
+        "embu-fp-1": {
+          "id": "embu-fp-1",
+          "paiId": null,
+          "titulo": "Geração, transmissão e distribuição: estrutura do sistema e níveis de tensão",
+          "ordem": 0,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 1
+        },
+        "embu-fp-2": {
+          "id": "embu-fp-2",
+          "paiId": null,
+          "titulo": "Grandezas elétricas e circuitos trifásicos: potência ativa, reativa e aparente",
+          "ordem": 1,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        },
+        "embu-fp-3": {
+          "id": "embu-fp-3",
+          "paiId": null,
+          "titulo": "Correção do fator de potência: bancos de capacitores, cálculo de kvar e cobrança de reativos",
+          "ordem": 2,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        }
+      }
+    },
+    "biblioteca/embu-fp": {
+      "disciplinaId": "embu-fp",
+      "itens": {
+        "mat-embu-fp": {
+          "id": "mat-embu-fp",
+          "disciplinaId": "embu-fp",
+          "topicoId": null,
+          "tipo": "livro",
+          "titulo": "Material de Embu [E]",
+          "url": "",
+          "arquivoId": null,
+          "arquivoNome": null,
+          "trecho": "Blocos 01 e 02, p. 3–30",
+          "observacao": "Também: [T] §4.6 · [C] p. 111 (geração e distribuição) · [T] §2.2 · [C] p. 33 (potência e FP)",
+          "criadoEm": "2026-10-07T15:00:00.000Z"
+        }
+      }
+    },
+    "disciplinas/embu-mt": {
+      "id": "embu-mt",
+      "concursoId": "embu-2026",
+      "editalId": null,
+      "nome": "Instalações de MT · NBR 14039",
+      "peso": 1,
+      "numQuestoes": 2,
+      "tipo": "especifica",
+      "ordem": 2,
+      "cor": "#e8864a",
+      "topicos": {
+        "embu-mt-1": {
+          "id": "embu-mt-1",
+          "paiId": null,
+          "titulo": "NBR 14039: campo de aplicação (1,0 a 36,2 kV), proteção, condutores e aterramento",
+          "ordem": 0,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        },
+        "embu-mt-2": {
+          "id": "embu-mt-2",
+          "paiId": null,
+          "titulo": "Entradas de energia, cabines primárias e de medição",
+          "ordem": 1,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 1
+        },
+        "embu-mt-3": {
+          "id": "embu-mt-3",
+          "paiId": null,
+          "titulo": "Transformadores: especificação, dimensionamento, cálculo de demanda e fator tarifário",
+          "ordem": 2,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        }
+      }
+    },
+    "biblioteca/embu-mt": {
+      "disciplinaId": "embu-mt",
+      "itens": {
+        "mat-embu-mt": {
+          "id": "mat-embu-mt",
+          "disciplinaId": "embu-mt",
+          "topicoId": null,
+          "tipo": "livro",
+          "titulo": "Material de Embu [E]",
+          "url": "",
+          "arquivoId": null,
+          "arquivoNome": null,
+          "trecho": "Bloco 05, p. 51–65",
+          "observacao": "Também: [T] §6.2 · [C] p. 186 (transformadores)",
+          "criadoEm": "2026-10-07T15:00:00.000Z"
+        }
+      }
+    },
+    "disciplinas/embu-prot": {
+      "id": "embu-prot",
+      "concursoId": "embu-2026",
+      "editalId": null,
+      "nome": "Sistemas de potência e proteção",
+      "peso": 1,
+      "numQuestoes": 2,
+      "tipo": "especifica",
+      "ordem": 3,
+      "cor": "#9b6fd0",
+      "topicos": {
+        "embu-prot-1": {
+          "id": "embu-prot-1",
+          "paiId": null,
+          "titulo": "Proteção de MT e BT: funções ANSI, relés, fusíveis, religadores e TCs",
+          "ordem": 0,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        },
+        "embu-prot-2": {
+          "id": "embu-prot-2",
+          "paiId": null,
+          "titulo": "Coordenação e seletividade da proteção",
+          "ordem": 1,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 1
+        }
+      }
+    },
+    "biblioteca/embu-prot": {
+      "disciplinaId": "embu-prot",
+      "itens": {
+        "mat-embu-prot": {
+          "id": "mat-embu-prot",
+          "disciplinaId": "embu-prot",
+          "topicoId": null,
+          "tipo": "livro",
+          "titulo": "Material de Embu [E]",
+          "url": "",
+          "arquivoId": null,
+          "arquivoNome": null,
+          "trecho": "Bloco 01, p. 3–16",
+          "observacao": "Também: [T] §4.7 · [C] p. 141",
+          "criadoEm": "2026-10-07T15:00:00.000Z"
+        }
+      }
+    },
+    "disciplinas/embu-rl": {
+      "id": "embu-rl",
+      "concursoId": "embu-2026",
+      "editalId": null,
+      "nome": "Raciocínio Lógico",
+      "peso": 1,
+      "numQuestoes": 10,
+      "tipo": "basica",
+      "ordem": 4,
+      "cor": "#d9577a",
+      "topicos": {
+        "embu-rl-1": {
+          "id": "embu-rl-1",
+          "paiId": null,
+          "titulo": "Proposições, conectivos e tabelas-verdade",
+          "ordem": 0,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        },
+        "embu-rl-2": {
+          "id": "embu-rl-2",
+          "paiId": null,
+          "titulo": "Equivalências e negações (De Morgan, condicional e contrapositiva)",
+          "ordem": 1,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        },
+        "embu-rl-3": {
+          "id": "embu-rl-3",
+          "paiId": null,
+          "titulo": "Quantificadores, diagramas lógicos e silogismos",
+          "ordem": 2,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        },
+        "embu-rl-4": {
+          "id": "embu-rl-4",
+          "paiId": null,
+          "titulo": "Argumentos válidos e encadeamento de condicionais (modus ponens e tollens)",
+          "ordem": 3,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        },
+        "embu-rl-5": {
+          "id": "embu-rl-5",
+          "paiId": null,
+          "titulo": "Associação lógica, ordenação e verdades e mentiras",
+          "ordem": 4,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        }
+      }
+    },
+    "disciplinas/embu-spda": {
+      "id": "embu-spda",
+      "concursoId": "embu-2026",
+      "editalId": null,
+      "nome": "SPDA e aterramento · NBR 5419",
+      "peso": 1,
+      "numQuestoes": 2,
+      "tipo": "especifica",
+      "ordem": 5,
+      "cor": "#c9a227",
+      "topicos": {
+        "embu-spda-1": {
+          "id": "embu-spda-1",
+          "paiId": null,
+          "titulo": "NBR 5419 partes 1 e 2: princípios, níveis de proteção e gerenciamento de risco",
+          "ordem": 0,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        },
+        "embu-spda-2": {
+          "id": "embu-spda-2",
+          "paiId": null,
+          "titulo": "NBR 5419 partes 3 e 4: captação, descidas, aterramento e medidas de proteção contra surtos",
+          "ordem": 1,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 2
+        }
+      }
+    },
+    "biblioteca/embu-spda": {
+      "disciplinaId": "embu-spda",
+      "itens": {
+        "mat-embu-spda": {
+          "id": "mat-embu-spda",
+          "disciplinaId": "embu-spda",
+          "topicoId": null,
+          "tipo": "livro",
+          "titulo": "Material de Embu [E]",
+          "url": "",
+          "arquivoId": null,
+          "arquivoNome": null,
+          "trecho": "Bloco 09, p. 126–149",
+          "observacao": "Também: [T] §5.3 e §5.6 · [C] p. 162 e 177",
+          "criadoEm": "2026-10-07T15:00:00.000Z"
+        }
+      }
+    },
+    "disciplinas/embu-nr10": {
+      "id": "embu-nr10",
+      "concursoId": "embu-2026",
+      "editalId": null,
+      "nome": "NR-10 e segurança do trabalho",
+      "peso": 1,
+      "numQuestoes": 2,
+      "tipo": "especifica",
+      "ordem": 6,
+      "cor": "#3fa7b5",
+      "topicos": {
+        "embu-nr10-1": {
+          "id": "embu-nr10-1",
+          "paiId": null,
+          "titulo": "NR-10: medidas de controle, desenergização, zona de risco e prontuário",
+          "ordem": 0,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 1
+        },
+        "embu-nr10-2": {
+          "id": "embu-nr10-2",
+          "paiId": null,
+          "titulo": "NR-10: habilitação, qualificação, capacitação, autorização e treinamentos; EPI e EPC",
+          "ordem": 1,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 1
+        }
+      }
+    },
+    "biblioteca/embu-nr10": {
+      "disciplinaId": "embu-nr10",
+      "itens": {
+        "mat-embu-nr10": {
+          "id": "mat-embu-nr10",
+          "disciplinaId": "embu-nr10",
+          "topicoId": null,
+          "tipo": "livro",
+          "titulo": "Material de Embu [E]",
+          "url": "",
+          "arquivoId": null,
+          "arquivoNome": null,
+          "trecho": "Bloco 18, p. 253 em diante",
+          "observacao": "Também: [T] §8.2 · [C] p. 245",
+          "criadoEm": "2026-10-07T15:00:00.000Z"
+        }
+      }
+    },
+    "disciplinas/embu-lum": {
+      "id": "embu-lum",
+      "concursoId": "embu-2026",
+      "editalId": null,
+      "nome": "Luminotécnica",
+      "peso": 1,
+      "numQuestoes": 1,
+      "tipo": "especifica",
+      "ordem": 7,
+      "cor": "#7f9c3a",
+      "topicos": {
+        "embu-lum-1": {
+          "id": "embu-lum-1",
+          "paiId": null,
+          "titulo": "Grandezas fotométricas, lâmpadas, luminárias, reatores e LED",
+          "ordem": 0,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 1
+        },
+        "embu-lum-2": {
+          "id": "embu-lum-2",
+          "paiId": null,
+          "titulo": "Cálculo de iluminação (método dos lúmens) e iluminação de emergência",
+          "ordem": 1,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 1
+        }
+      }
+    },
+    "biblioteca/embu-lum": {
+      "disciplinaId": "embu-lum",
+      "itens": {
+        "mat-embu-lum": {
+          "id": "mat-embu-lum",
+          "disciplinaId": "embu-lum",
+          "topicoId": null,
+          "tipo": "livro",
+          "titulo": "Material de Embu [E]",
+          "url": "",
+          "arquivoId": null,
+          "arquivoNome": null,
+          "trecho": "Bloco 08, p. 109–125",
+          "observacao": "",
+          "criadoEm": "2026-10-07T15:00:00.000Z"
+        }
+      }
+    },
+    "disciplinas/embu-efic": {
+      "id": "embu-efic",
+      "concursoId": "embu-2026",
+      "editalId": null,
+      "nome": "Eficiência energética e fontes alternativas",
+      "peso": 1,
+      "numQuestoes": 1,
+      "tipo": "especifica",
+      "ordem": 8,
+      "cor": "#b5674a",
+      "topicos": {
+        "embu-efic-1": {
+          "id": "embu-efic-1",
+          "paiId": null,
+          "titulo": "Eficiência energética nas instalações elétricas, de climatização e automação",
+          "ordem": 0,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 1
+        },
+        "embu-efic-2": {
+          "id": "embu-efic-2",
+          "paiId": null,
+          "titulo": "Fontes alternativas: fotovoltaica, eólica, solar térmica e termelétrica",
+          "ordem": 1,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 1
+        }
+      }
+    },
+    "biblioteca/embu-efic": {
+      "disciplinaId": "embu-efic",
+      "itens": {
+        "mat-embu-efic": {
+          "id": "mat-embu-efic",
+          "disciplinaId": "embu-efic",
+          "topicoId": null,
+          "tipo": "livro",
+          "titulo": "Material de Embu [E]",
+          "url": "",
+          "arquivoId": null,
+          "arquivoNome": null,
+          "trecho": "Blocos 03 e 04, p. 31–50",
+          "observacao": "",
+          "criadoEm": "2026-10-07T15:00:00.000Z"
+        }
+      }
+    },
+    "disciplinas/embu-ger": {
+      "id": "embu-ger",
+      "concursoId": "embu-2026",
+      "editalId": null,
+      "nome": "Geradores, nobreaks e cogeração",
+      "peso": 1,
+      "numQuestoes": 1,
+      "tipo": "especifica",
+      "ordem": 9,
+      "cor": "#5c6fd6",
+      "topicos": {
+        "embu-ger-1": {
+          "id": "embu-ger-1",
+          "paiId": null,
+          "titulo": "Grupos motogeradores a diesel, nobreaks, estabilizadores e cogeração",
+          "ordem": 0,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 1
+        }
+      }
+    },
+    "biblioteca/embu-ger": {
+      "disciplinaId": "embu-ger",
+      "itens": {
+        "mat-embu-ger": {
+          "id": "mat-embu-ger",
+          "disciplinaId": "embu-ger",
+          "topicoId": null,
+          "tipo": "livro",
+          "titulo": "Material de Embu [E]",
+          "url": "",
+          "arquivoId": null,
+          "arquivoNome": null,
+          "trecho": "Bloco 07, p. 96–108",
+          "observacao": "",
+          "criadoEm": "2026-10-07T15:00:00.000Z"
+        }
+      }
+    },
+    "disciplinas/embu-orc": {
+      "id": "embu-orc",
+      "concursoId": "embu-2026",
+      "editalId": null,
+      "nome": "Orçamento, obras e contratos",
+      "peso": 1,
+      "numQuestoes": 1,
+      "tipo": "especifica",
+      "ordem": 10,
+      "cor": "#2bb99a",
+      "topicos": {
+        "embu-orc-1": {
+          "id": "embu-orc-1",
+          "paiId": null,
+          "titulo": "Quantitativos, composição de custos em tabelas públicas, BDI e cronograma físico-financeiro",
+          "ordem": 0,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 1
+        },
+        "embu-orc-2": {
+          "id": "embu-orc-2",
+          "paiId": null,
+          "titulo": "Planejamento e fiscalização de obras: contratos, compatibilização de projetos, controle, vistorias e pareceres",
+          "ordem": 1,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 1
+        }
+      }
+    },
+    "biblioteca/embu-orc": {
+      "disciplinaId": "embu-orc",
+      "itens": {
+        "mat-embu-orc": {
+          "id": "mat-embu-orc",
+          "disciplinaId": "embu-orc",
+          "topicoId": null,
+          "tipo": "livro",
+          "titulo": "Material de Embu [E]",
+          "url": "",
+          "arquivoId": null,
+          "arquivoNome": null,
+          "trecho": "Blocos 13, 14 e 15, p. 183–229",
+          "observacao": "Também: [T] §8.1 · [C] p. 245 (Lei 14.133/2021)",
+          "criadoEm": "2026-10-07T15:00:00.000Z"
+        }
+      }
+    },
+    "disciplinas/embu-pred": {
+      "id": "embu-pred",
+      "concursoId": "embu-2026",
+      "editalId": null,
+      "nome": "Sistemas prediais",
+      "peso": 1,
+      "numQuestoes": 1,
+      "tipo": "especifica",
+      "ordem": 11,
+      "cor": "#4a90d9",
+      "topicos": {
+        "embu-pred-1": {
+          "id": "embu-pred-1",
+          "paiId": null,
+          "titulo": "Detecção e alarme de incêndio, redes estruturadas, ar-condicionado, ventilação, elevadores e automação predial",
+          "ordem": 0,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 1
+        }
+      }
+    },
+    "biblioteca/embu-pred": {
+      "disciplinaId": "embu-pred",
+      "itens": {
+        "mat-embu-pred": {
+          "id": "mat-embu-pred",
+          "disciplinaId": "embu-pred",
+          "topicoId": null,
+          "tipo": "livro",
+          "titulo": "Material de Embu [E]",
+          "url": "",
+          "arquivoId": null,
+          "arquivoNome": null,
+          "trecho": "Blocos 10, 11 e 12, p. 150–182",
+          "observacao": "",
+          "criadoEm": "2026-10-07T15:00:00.000Z"
+        }
+      }
+    },
+    "disciplinas/embu-man": {
+      "id": "embu-man",
+      "concursoId": "embu-2026",
+      "editalId": null,
+      "nome": "Manutenção predial e desenho técnico",
+      "peso": 1,
+      "numQuestoes": 1,
+      "tipo": "especifica",
+      "ordem": 12,
+      "cor": "#e8864a",
+      "topicos": {
+        "embu-man-1": {
+          "id": "embu-man-1",
+          "paiId": null,
+          "titulo": "Manutenção preditiva, preventiva e corretiva; desenho técnico, simbologia e CAD",
+          "ordem": 0,
+          "status": "nao_iniciado",
+          "autoavaliacao": null,
+          "incidencia": null,
+          "grupoEquivalenciaId": null,
+          "blocosTeoria": 1
+        }
+      }
+    },
+    "biblioteca/embu-man": {
+      "disciplinaId": "embu-man",
+      "itens": {
+        "mat-embu-man": {
+          "id": "mat-embu-man",
+          "disciplinaId": "embu-man",
+          "topicoId": null,
+          "tipo": "livro",
+          "titulo": "Material de Embu [E]",
+          "url": "",
+          "arquivoId": null,
+          "arquivoNome": null,
+          "trecho": "Blocos 16 e 17, p. 230–252",
+          "observacao": "",
+          "criadoEm": "2026-10-07T15:00:00.000Z"
+        }
+      }
+    },
+    "disciplinas/embu-pt": {
+      "id": "embu-pt",
+      "concursoId": "embu-2026",
+      "editalId": null,
+      "nome": "Língua Portuguesa",
+      "peso": 1,
+      "numQuestoes": 10,
+      "tipo": "basica",
+      "ordem": 13,
+      "cor": "#9b6fd0",
+      "topicos": {
+        "embu-pt-1": {
+          "id": "embu-pt-1",
+          "paiId": null,
+          "titulo": "Interpretação de textos",
+          "ordem": 0,
+          "status": "dominado",
+          "autoavaliacao": 4,
+          "incidencia": null,
+          "grupoEquivalenciaId": null
+        },
+        "embu-pt-2": {
+          "id": "embu-pt-2",
+          "paiId": null,
+          "titulo": "Concordância verbal e nominal",
+          "ordem": 1,
+          "status": "dominado",
+          "autoavaliacao": 4,
+          "incidencia": null,
+          "grupoEquivalenciaId": null
+        },
+        "embu-pt-3": {
+          "id": "embu-pt-3",
+          "paiId": null,
+          "titulo": "Crase e colocação pronominal",
+          "ordem": 2,
+          "status": "dominado",
+          "autoavaliacao": 4,
+          "incidencia": null,
+          "grupoEquivalenciaId": null
+        },
+        "embu-pt-4": {
+          "id": "embu-pt-4",
+          "paiId": null,
+          "titulo": "Pontuação",
+          "ordem": 3,
+          "status": "dominado",
+          "autoavaliacao": 4,
+          "incidencia": null,
+          "grupoEquivalenciaId": null
+        },
+        "embu-pt-5": {
+          "id": "embu-pt-5",
+          "paiId": null,
+          "titulo": "Acentuação, ortografia, fonema e sílaba",
+          "ordem": 4,
+          "status": "dominado",
+          "autoavaliacao": 4,
+          "incidencia": null,
+          "grupoEquivalenciaId": null
+        },
+        "embu-pt-6": {
+          "id": "embu-pt-6",
+          "paiId": null,
+          "titulo": "Classes de palavras",
+          "ordem": 5,
+          "status": "dominado",
+          "autoavaliacao": 4,
+          "incidencia": null,
+          "grupoEquivalenciaId": null
+        },
+        "embu-pt-7": {
+          "id": "embu-pt-7",
+          "paiId": null,
+          "titulo": "Análise sintática (período simples e composto)",
+          "ordem": 6,
+          "status": "dominado",
+          "autoavaliacao": 4,
+          "incidencia": null,
+          "grupoEquivalenciaId": null
+        },
+        "embu-pt-8": {
+          "id": "embu-pt-8",
+          "paiId": null,
+          "titulo": "Figuras de linguagem",
+          "ordem": 7,
+          "status": "dominado",
+          "autoavaliacao": 4,
+          "incidencia": null,
+          "grupoEquivalenciaId": null
+        }
+      }
+    },
+    "disponibilidade/geral": {
+      "dias": {
+        "1": [
+          {
+            "inicio": "20:00",
+            "fim": "21:00"
+          }
+        ],
+        "2": [
+          {
+            "inicio": "20:00",
+            "fim": "21:00"
+          }
+        ],
+        "3": [
+          {
+            "inicio": "20:00",
+            "fim": "21:00"
+          }
+        ],
+        "4": [
+          {
+            "inicio": "20:00",
+            "fim": "21:00"
+          }
+        ],
+        "5": [
+          {
+            "inicio": "20:00",
+            "fim": "21:00"
+          }
+        ],
+        "6": [
+          {
+            "inicio": "09:00",
+            "fim": "12:00"
+          }
+        ],
+        "0": [
+          {
+            "inicio": "09:00",
+            "fim": "12:00"
+          }
+        ]
+      },
+      "excecoes": {
+        "2026-10-11": {
+          "blocos": [],
+          "motivo": "Simulado diagnóstico (9h–12h)"
+        },
+        "2026-11-08": {
+          "blocos": [],
+          "motivo": "Simulado 2 (9h–12h)"
+        },
+        "2026-11-29": {
+          "blocos": [],
+          "motivo": "Simulado 3 (9h–12h)"
+        },
+        "2026-12-05": {
+          "blocos": [
+            {
+              "inicio": "09:00",
+              "fim": "11:00"
+            }
+          ],
+          "motivo": "Véspera da prova: só revisão leve"
+        },
+        "2026-12-06": {
+          "blocos": [],
+          "motivo": "Prova às 17h (portões fecham 17h00)"
+        }
+      },
+      "blocoMin": 60
+    },
+    "plano/2026-10-11": {
+      "semana": "2026-10-11",
+      "itens": {
+        "sim-embu-1": {
+          "id": "sim-embu-1",
+          "dia": "2026-10-11",
+          "inicio": "09:00",
+          "fim": "12:00",
+          "concursoId": "embu-2026",
+          "disciplinaId": null,
+          "topicoId": null,
+          "tipo": "simulado",
+          "status": "planejado",
+          "motivo": "simulado",
+          "fixo": true
+        }
+      }
+    },
+    "plano/2026-11-08": {
+      "semana": "2026-11-08",
+      "itens": {
+        "sim-embu-2": {
+          "id": "sim-embu-2",
+          "dia": "2026-11-08",
+          "inicio": "09:00",
+          "fim": "12:00",
+          "concursoId": "embu-2026",
+          "disciplinaId": null,
+          "topicoId": null,
+          "tipo": "simulado",
+          "status": "planejado",
+          "motivo": "simulado",
+          "fixo": true
+        }
+      }
+    },
+    "plano/2026-11-29": {
+      "semana": "2026-11-29",
+      "itens": {
+        "sim-embu-3": {
+          "id": "sim-embu-3",
+          "dia": "2026-11-29",
+          "inicio": "09:00",
+          "fim": "12:00",
+          "concursoId": "embu-2026",
+          "disciplinaId": null,
+          "topicoId": null,
+          "tipo": "simulado",
+          "status": "planejado",
+          "motivo": "simulado",
+          "fixo": true
+        }
+      }
+    },
+    "sessoes/2026-10-04": {
+      "semana": "2026-10-04",
+      "itens": {
+        "embu-sessao-0510": {
+          "id": "embu-sessao-0510",
+          "concursoId": "embu-2026",
+          "disciplinaId": null,
+          "topicoId": null,
+          "tipo": "resumo",
+          "inicio": "2026-10-05T23:00:00.000Z",
+          "fim": "2026-10-06T00:00:00.000Z",
+          "pausas": [],
+          "segundosLiquidos": 3600,
+          "questoesFeitas": 0,
+          "acertos": 0,
+          "paginas": 0,
+          "anotacoes": "Organização dos estudos para Embu (anotado no papel)",
+          "origem": "manual",
+          "concluiuTeoria": false
+        },
+        "embu-sessao-0610": {
+          "id": "embu-sessao-0610",
+          "concursoId": "embu-2026",
+          "disciplinaId": "embu-bt",
+          "topicoId": null,
+          "tipo": "teoria",
+          "inicio": "2026-10-06T23:00:00.000Z",
+          "fim": "2026-10-07T00:00:00.000Z",
+          "pausas": [],
+          "segundosLiquidos": 3600,
+          "questoesFeitas": 0,
+          "acertos": 0,
+          "paginas": 0,
+          "anotacoes": "NBR 5410 (anotado no papel)",
+          "origem": "manual",
+          "concluiuTeoria": false
+        }
+      }
+    }
+  }
+}

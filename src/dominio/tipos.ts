@@ -59,6 +59,8 @@ export interface Topico {
   revisao?: EstadoRevisao | null;
   /** Cortado do plano (edital não fecha até a prova). Continua no edital, fora do planejador. */
   cortado?: boolean;
+  /** Blocos de teoria que o tópico pede (vazio = 2 se não iniciado, 1 em estudo). */
+  blocosTeoria?: number | null;
 }
 
 /** Estado da repetição espaçada de um tópico (ver dominio/revisoes.ts). */
@@ -173,6 +175,11 @@ export interface Configuracao {
   tema: Tema;
   /** Fase 4: planejar com a média real dos últimos 14 dias quando ela fica abaixo da disponibilidade. */
   usarCapacidadeReal: boolean;
+  /**
+   * Teoria em rodízio entre as N disciplinas (assuntos) de maior prioridade: cada bloco vai para a
+   * estudada há mais tempo. 0 ou 1 = desligado (no máximo 2 blocos seguidos da mesma disciplina).
+   */
+  intercalarAssuntos: number;
 }
 
 // ------------------------------------------------- Fases seguintes (tipos já definidos)
@@ -268,10 +275,12 @@ export interface BlocoPlanejado {
   topicoId: Id | null;
   tipo: TipoSessao;
   status: StatusBloco;
-  /** Por que o planejador escolheu este bloco. */
-  motivo: 'teoria' | 'revisao' | 'revisao_atrasada' | 'questoes';
+  /** Por que o planejador escolheu este bloco ("simulado": marcado por você no cronograma). */
+  motivo: 'teoria' | 'revisao' | 'revisao_atrasada' | 'questoes' | 'simulado';
   /** Movido por você: replanejar não mexe nele. */
   fixo?: boolean;
+  /** Bloco de revisão que junta vários tópicos (cerca de 20 min cada); o primeiro fica em `topicoId` se for só um. */
+  revisoes?: Id[];
 }
 
 /** Fase 5: simulado, em `simulados/<id>`. */

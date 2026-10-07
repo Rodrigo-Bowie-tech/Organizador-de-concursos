@@ -7,7 +7,7 @@ import { segundosLiquidos } from '../dominio/cronometro';
 import { diaSP, diasEntre, formatarData, formatarDuracao, formatarHora, inicioDaSemana, inicioDoMes, nomeDiaCurto, nomeMes, somarDias } from '../dominio/datas';
 import { hojeSP } from '../dominio/painel';
 import { minutos, segundosNoBloco, statusSugerido } from '../dominio/planejador';
-import { TIPO_SESSAO } from '../dominio/rotulos';
+import { TIPO_SESSAO, nomeDoBloco, titulosDasRevisoes } from '../dominio/rotulos';
 import type { BlocoPlanejado, DiaISO, Sessao } from '../dominio/tipos';
 import { useAgora, useApp } from '../estado';
 import { gravarLocal, lerLocal } from '../plataforma';
@@ -79,7 +79,7 @@ function CartaoBloco({ b, sessoesDoDia, agora, aoAbrir, arrastavel }: { b: Bloco
       onClick={aoAbrir}
       draggable={arrastavel && b.status === 'planejado'}
       onDragStart={(e) => e.dataTransfer.setData('text/plain', b.id)}
-      aria-label={`${b.inicio} ${d?.nome ?? ''}: ${t?.titulo ?? ''} (${STATUS[b.status]})`}
+      aria-label={`${b.inicio} ${nomeDoBloco(b, d)}: ${t?.titulo ?? ''} (${STATUS[b.status]})`}
       className={cx(
         'grid w-full gap-1 rounded-lg border-l-4 p-2 text-left text-sm transition hover:brightness-95',
         b.status === 'pulado' && 'border-dashed opacity-60',
@@ -88,7 +88,7 @@ function CartaoBloco({ b, sessoesDoDia, agora, aoAbrir, arrastavel }: { b: Bloco
     >
       <span className={cx('flex items-start gap-1 font-bold leading-tight', feito && 'text-suave line-through')}>
         {feito && <Check size={15} className="mt-0.5 shrink-0 text-verde-forte" aria-hidden />}
-        {d?.nome ?? 'Disciplina removida'}
+        {nomeDoBloco(b, d)}
       </span>
       <span className="flex flex-wrap gap-1">
         <span className="numeros rounded-full bg-superficie px-1.5 text-xs font-bold">{b.inicio}</span>
@@ -96,6 +96,9 @@ function CartaoBloco({ b, sessoesDoDia, agora, aoAbrir, arrastavel }: { b: Bloco
         {b.tipo !== 'teoria' && <span className="rounded-full bg-superficie px-1.5 text-xs font-bold text-roxo">{b.motivo === 'revisao_atrasada' ? 'Revisão atrasada' : TIPO_SESSAO[b.tipo]}</span>}
       </span>
       {t && <span className={cx('line-clamp-2 text-xs', feito && 'text-suave line-through')}>{t.titulo}</span>}
+      {!t && b.revisoes && b.revisoes.length > 0 && (
+        <span className={cx('line-clamp-3 text-xs', feito && 'text-suave line-through')}>{titulosDasRevisoes(b, dados.disciplinas).join(' · ')}</span>
+      )}
       {estudado > 0 && (
         <span className="numeros inline-flex items-center gap-1 justify-self-end rounded-full bg-verde-suave px-1.5 text-xs font-bold text-verde-forte">
           <Clock size={12} aria-hidden /> {formatarDuracao(estudado)}
@@ -127,7 +130,7 @@ function ModalBloco({ bloco, aoFechar }: { bloco: BlocoPlanejado | null; aoFecha
   };
 
   return (
-    <Modal aberto aoFechar={aoFechar} titulo={t?.titulo ?? d?.nome ?? 'Bloco'} largo>
+    <Modal aberto aoFechar={aoFechar} titulo={t?.titulo ?? nomeDoBloco(bloco, d)} largo>
       <div className="grid gap-4">
         <p className="text-suave">
           {[concurso?.nome, d?.nome].filter(Boolean).join(' › ')} · {TIPO_SESSAO[bloco.tipo]}
@@ -137,6 +140,17 @@ function ModalBloco({ bloco, aoFechar }: { bloco: BlocoPlanejado | null; aoFecha
           </span>
           {estudado > 0 && <> · estudou {formatarDuracao(estudado)} nesse horário</>}
         </p>
+        {bloco.revisoes && bloco.revisoes.length > 1 && (
+          <div>
+            <p className="mb-1 font-bold">Revise neste bloco (cerca de 20 min cada):</p>
+            <ul className="list-disc pl-5 text-sm">
+              {titulosDasRevisoes(bloco, dados.disciplinas).map((titulo, i) => (
+                <li key={i}>{titulo}</li>
+              ))}
+            </ul>
+            <p className="mt-1 text-xs text-suave">Avalie cada uma na tela Revisões para o app marcar a próxima.</p>
+          </div>
+        )}
         {sugestao && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg bg-verde-suave px-3 py-2">
             <span className="font-bold text-verde-forte">
@@ -405,7 +419,7 @@ export function Planejamento() {
               disabled={semDisponibilidade}
               onClick={async () => {
                 const n = await executar(() => repo.replanejar());
-                if (n !== undefined) avisar(n ? `Plano refeito: ${n} blocos nas próximas 4 semanas.` : 'Nada a planejar: cadastre tópicos ou horários livres.');
+                if (n !== undefined) avisar(n ? `Plano refeito: ${n} blocos.` : 'Nada a planejar: cadastre tópicos ou horários livres.');
               }}
             >
               <RefreshCcw size={18} /> Replanejar
@@ -473,7 +487,9 @@ export function Planejamento() {
                 <ItensDoDia dia={dataRef} camadas={camadas} aoAbrir={setAberto} />
                 {dataRef >= hoje && !(dados.blocos.some((b) => b.dia === dataRef)) && (
                   <p className="text-sm text-suave">
-                    {diasEntre(hoje, dataRef) > 28 ? 'O plano cobre as próximas 4 semanas.' : 'Nenhum bloco neste dia.'}
+                    {diasEntre(hoje, dataRef) > 28 && !dados.blocos.some((b) => b.dia > dataRef)
+                      ? 'O plano vai até a data da prova (ou 4 semanas, se faltar a data).'
+                      : 'Nenhum bloco neste dia.'}
                   </p>
                 )}
               </div>

@@ -1,6 +1,6 @@
 import { Download, FileSpreadsheet, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Botao, CabecalhoTela, Campo, Cartao, Confirmar, Entrada, Progresso, cx } from '../componentes/ui';
+import { Botao, CabecalhoTela, Campo, Cartao, Confirmar, Entrada, Progresso, Selecao, cx } from '../componentes/ui';
 import type { Backup } from '../dados/repositorio';
 import { diaSP, formatarData } from '../dominio/datas';
 import { csvQuestoes, csvSessoes } from '../dominio/exportacao';
@@ -142,6 +142,27 @@ export function Configuracoes() {
         </Cartao>
 
         <Cartao titulo="Planejamento">
+          <div className="mb-4 grid gap-1">
+            <Campo
+              rotulo="Intercalar assuntos"
+              dica="Teoria em rodízio entre os assuntos (disciplinas) de maior prioridade: cada bloco vai para o que você estudou há mais tempo."
+            >
+              {(id) => (
+                <Selecao
+                  id={id}
+                  value={dados.config.intercalarAssuntos ?? 0}
+                  onChange={(e) => salvar({ ...dados.config, intercalarAssuntos: Number(e.target.value) }, 'Planejamento atualizado.')}
+                >
+                  <option value={0}>Desligado (até 2 blocos seguidos do mesmo assunto)</option>
+                  {[2, 3, 4, 5, 6].map((n) => (
+                    <option key={n} value={n}>
+                      {n} assuntos em rodízio
+                    </option>
+                  ))}
+                </Selecao>
+              )}
+            </Campo>
+          </div>
           <label className="flex items-start gap-2">
             <input
               type="checkbox"

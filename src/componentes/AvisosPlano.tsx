@@ -28,7 +28,7 @@ export function AvisosPlano({ compacto }: { compacto?: boolean }) {
     const disciplinas = comIncidenciaDasProvas(dados.disciplinas, dados.concursos, dados.provas);
     const inviaveis = dados.concursos
       .filter((c) => c.status !== 'prova_feita')
-      .map((c) => viabilidade(c, disciplinas, dados.disponibilidade, agora, acertos, cap))
+      .map((c) => viabilidade(c, disciplinas, dados.disponibilidade, agora, acertos, cap, dados.simulados))
       .filter((v): v is Viabilidade => Boolean(v && !v.fecha));
     return { capacidade, inviaveis };
   }, [dados, repo]);

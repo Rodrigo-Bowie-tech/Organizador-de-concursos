@@ -5,7 +5,7 @@ import { segundosPorDia } from './cronometro';
 import { diaDaSemana, diaSP, diasEntre, somarDias } from './datas';
 import { fracaoRevisao, filaDeTeoria, minutos, minutosDeclarados, slotsDoDia } from './planejador';
 import type { AcertoRecente, ItemFila } from './planejador';
-import type { Concurso, DiaISO, Disciplina, Disponibilidade, Id, Sessao } from './tipos';
+import type { Concurso, DiaISO, Disciplina, Disponibilidade, Id, Sessao, Simulado } from './tipos';
 
 export const JANELA_CAPACIDADE = 14;
 /** Abaixo de 80% do declarado, o plano passa a usar a capacidade real. */
@@ -90,12 +90,13 @@ export function viabilidade(
   agora: Date | number,
   acertos: Map<Id, AcertoRecente> = new Map(),
   capacidadeMin?: Record<string, number>,
+  simulados: Simulado[] = [],
 ): Viabilidade | null {
   if (!concurso.dataProva) return null;
   const hoje = diaSP(agora);
   const dias = diasEntre(hoje, concurso.dataProva);
   if (dias < 0) return null;
-  const fila = filaDeTeoria([concurso], disciplinas.filter((x) => x.concursoId === concurso.id), acertos, hoje);
+  const fila = filaDeTeoria([concurso], disciplinas.filter((x) => x.concursoId === concurso.id), acertos, hoje, simulados);
   const necessarios = fila.reduce((t, i) => t + i.blocos, 0);
 
   let disponiveis = 0;
@@ -111,7 +112,8 @@ export function viabilidade(
         return true;
       });
     }
-    disponiveis += slots.length * (1 - fracaoRevisao(diasEntre(dia, concurso.dataProva)));
+    // Na última semana o plano prefere revisão, mas ainda dá para ver teoria: a conta para em 60%.
+    disponiveis += slots.length * (1 - Math.min(0.6, fracaoRevisao(diasEntre(dia, concurso.dataProva))));
   }
   disponiveis = Math.floor(disponiveis);
 

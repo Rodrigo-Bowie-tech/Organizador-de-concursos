@@ -130,6 +130,7 @@ Limites: **5.000 documentos** no total e 256 KiB por documento. Por isso os regi
 | `oportunidades/<UF>` | `{ uf, itens: { <id>: Oportunidade } }`, radar ("BR" = nacional); id = hash do link |
 | `radar_filtros/<id>` | FiltroRadar (áreas, UFs, bancas, salário mínimo; o `padrao` vem do seed) |
 | `estado/radar` | `{ vistoAte }`: oportunidades coletadas depois disso são "novas" (alerta na Home) |
+| `plano/<semana>` (fixos) | simulados marcados no cronograma: `tipo`/`motivo` `simulado`, sem disciplina, `fixo: true` |
 | `estado/backup` | `{ ultimoEm }`: último backup exportado (lembrete na Home depois de 30 dias, com ≥ 10 sessões) |
 | `provas/<id>` | ProvaAnterior com as questões dentro (`questoes: { <id>: QuestaoProva }`); PDF em `arquivoId` |
 
@@ -187,10 +188,23 @@ seed sozinho.
   - domínio = teoria (até 0,5) + autoavaliação (0,25) + acerto recente com meia-vida de 30 dias (0,25, a
     partir de 5 questões); prioridade = peso×questões normalizado × incidência (1 a 2) × (1 − domínio) ×
     urgência (cresce nos 120 dias antes da prova) × prioridade do concurso;
-  - teoria estimada em 2 blocos por tópico não iniciado e 1 em estudo; ao fim, o plano já agenda D+1 e D+7;
-  - revisão atrasada entra no primeiro bloco livre; revisão/questões ocupam 20% dos blocos, subindo até
-    60% nas últimas 3 semanas; no máximo 2 blocos seguidos da mesma disciplina quando há outra;
-  - tópicos vinculados entram uma vez só (prioridades somadas); horizonte de 28 dias, até a última prova;
+  - teoria estimada em `topico.blocosTeoria` (campo do Edital) ou, vazio, 2 blocos se não iniciado e 1 em
+    estudo; ao fim, o plano já agenda D+1 e D+7 e, a partir de D+7, o tópico entra nos blocos de questões;
+  - revisão atrasada entra no primeiro bloco livre; revisões juntam-se num bloco (20 min cada, até 3 por
+    bloco de 60 min) e só viram bloco quando enchem ou quando alguma espera 2 dias; revisão/questões ocupam
+    20% dos últimos 10 blocos, subindo até 60% nas últimas 3 semanas e 100% na última (sem conteúdo novo,
+    se houver o que revisar); a viabilidade conta no máximo 60%;
+  - teoria: sem rodízio, no máximo 2 blocos seguidos da mesma disciplina quando há outra. Com
+    `config.intercalarAssuntos` = N, rodízio entre as N disciplinas de maior prioridade: cada bloco vai
+    para a estudada há mais tempo (sessões de teoria e blocos feitos), nunca estudada antes, empate pela
+    `ordem` da disciplina; quando uma acaba, a próxima por prioridade entra. Desempate da fila: ordem da
+    disciplina e ordem do edital;
+  - simulados dão o tom (`ajusteDosSimulados`): o último simulado em que a disciplina apareceu multiplica o
+    peso dela por 1,7 − acerto (entre 0,5 e 1,5; 70% é neutro), com efeito proporcional a até 5 questões.
+    Tópico "dominado" não ganha blocos de questões, a não ser que a disciplina tenha ficado abaixo de 70%;
+  - blocos `fixo` (movidos por você ou simulados marcados, `motivo: 'simulado'`, sem disciplina) ficam;
+  - tópicos vinculados entram uma vez só (prioridades somadas); horizonte até a última prova dos concursos
+    com disciplinas (máximo 120 dias) ou 28 dias se faltar alguma data;
   - replanejar troca só os blocos `planejado` que ainda não começaram e não foram movidos (`fixo`);
     marcados ficam para sempre.
 - **Adaptação** (Fase 4, `dominio/adaptacao.ts`): replaneja ao finalizar/registrar sessão, ao marcar bloco e
@@ -225,6 +239,13 @@ seed sozinho.
   (abrem direto no Excel); lembrete de backup; espaço pausa/retoma o cronômetro no desktop (fora de
   campos, botões e modais). PWA, notificações com o app fechado e deploy próprio dependem da hospedagem
   própria (IDEIAS.md).
+- **Cronograma de Embu** (07/10/2026, a pedido do usuário): concurso `embu-2026` (INEPAM, 06/12, 17h)
+  com a específica dividida em 12 assuntos (disciplinas) cuja `numQuestoes` é a incidência estimada em 20
+  questões (sem provas da INEPAM disponíveis; importar provas reais em Provas anteriores refina por
+  tópico), Raciocínio Lógico (10) e Português (10, tópicos "dominado": entra só se um simulado ficar
+  abaixo de 70%). `blocosTeoria` calibrado para caber em 1h nos dias úteis (20h) e 3h nos fins de semana
+  (9h–12h), rodízio de 5 assuntos, simulados fixos em 11/10, 08/11 e 29/11. Documentos em
+  `seed/embu-2026.json` (reaplicar com ArtifactData batch).
 - **Rede do container**: o proxy bloqueia cdnjs e pciconcursos.com.br. A rotina do radar só funciona
   depois de liberar `www.pciconcursos.com.br` nas configurações de rede do ambiente.
 

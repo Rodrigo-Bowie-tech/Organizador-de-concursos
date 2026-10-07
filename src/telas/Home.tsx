@@ -9,7 +9,7 @@ import { cobertura, hojeSP, provasFuturas, sequenciaDeDias, totaisPorPeriodo, ul
 import { minutos } from '../dominio/planejador';
 import { revisoesAgendadas, separarRevisoes } from '../dominio/revisoes';
 import { errosParaRevisar } from '../dominio/desempenho';
-import { TIPO_SESSAO } from '../dominio/rotulos';
+import { TIPO_SESSAO, nomeDoBloco, titulosDasRevisoes } from '../dominio/rotulos';
 import { useAgora, useApp } from '../estado';
 import { oportunidadesNovas } from '../radar/radar';
 import { backupAtrasado } from '../dominio/exportacao';
@@ -82,9 +82,15 @@ function BlocosDeHoje({ hoje }: { hoje: string }) {
                 {b.inicio}–{b.fim}
               </span>
               <span className="min-w-0 flex-1 basis-48">
-                <span className={b.status === 'feito' ? 'block font-bold text-suave line-through' : 'block font-bold'}>{d?.nome ?? 'Disciplina'}</span>
+                <span className={b.status === 'feito' ? 'block font-bold text-suave line-through' : 'block font-bold'}>{nomeDoBloco(b, d)}</span>
                 <span className="block truncate text-sm text-suave">
-                  {t?.titulo ?? 'Disciplina inteira'} · {TIPO_SESSAO[b.tipo]} · {Math.round(minutos(b))} min
+                  {t?.titulo ??
+                    (b.revisoes?.length
+                      ? titulosDasRevisoes(b, dados.disciplinas).join(' · ')
+                      : b.disciplinaId
+                        ? 'Disciplina inteira'
+                        : 'Todas as disciplinas')}{' '}
+                  · {TIPO_SESSAO[b.tipo]} · {Math.round(minutos(b))} min
                 </span>
               </span>
               {b.status === 'planejado' ? (
