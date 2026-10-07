@@ -1,5 +1,5 @@
 // Camada de armazenamento. No claude.ai, o banco do Artifact (`claude.use("db")`);
-// no app instalado (GitHub Pages), o IndexedDB do aparelho; em desenvolvimento,
+// no app instalado (GitHub Pages), o IndexedDB do aparelho (aparelho.ts); em desenvolvimento,
 // testes e quando o banco não está disponível, um banco em memória que persiste
 // no localStorage deste navegador.
 // As implementações seguem a mesma semântica do banco do Artifact:
@@ -158,101 +158,6 @@ export class MemoriaStore implements Store {
   }
 }
 
-// ------------------------------------------------- IndexedDB (app instalado)
-
-const BANCO_APARELHO = 'organizador-concursos';
-const TABELA = 'documentos';
-
-function pedido<T>(r: IDBRequest<T>): Promise<T> {
-  return new Promise((ok, falha) => {
-    r.onsuccess = () => ok(r.result);
-    r.onerror = () => falha(r.error);
-  });
-}
-
-/**
- * Banco do app instalado (GitHub Pages): os documentos ficam no IndexedDB do aparelho e
- * funcionam sem internet. Abas abertas ao mesmo tempo se avisam pelo BroadcastChannel.
- * Na primeira abertura, traz o que havia no banco local (localStorage).
- */
-export class IndexedDBStore extends MemoriaStore {
-  override readonly modo = 'aparelho' as const;
-  private canal: BroadcastChannel | null = null;
-
-  private constructor(
-    private idb: IDBDatabase,
-    docs: Map<string, Json>,
-  ) {
-    super(null);
-    this.docs = docs;
-    if (typeof BroadcastChannel === 'undefined') return;
-    this.canal = new BroadcastChannel(BANCO_APARELHO);
-    this.canal.onmessage = (e: MessageEvent<{ caminho: string; dado: Json | null }>) => {
-      const { caminho, dado } = e.data;
-      if (dado) this.docs.set(caminho, dado);
-      else this.docs.delete(caminho);
-      this.avisar(caminho);
-    };
-  }
-
-  static async abrir(chaveAntiga: string | null = CHAVE_LOCAL): Promise<IndexedDBStore> {
-    const abertura = indexedDB.open(BANCO_APARELHO, 1);
-    abertura.onupgradeneeded = () => abertura.result.createObjectStore(TABELA);
-    const idb = await pedido(abertura);
-    const tabela = idb.transaction(TABELA, 'readonly').objectStore(TABELA);
-    const [chaves, valores] = await Promise.all([pedido(tabela.getAllKeys()), pedido(tabela.getAll())]);
-    const store = new IndexedDBStore(idb, new Map(chaves.map((c, i) => [String(c), valores[i] as Json])));
-    if (!chaves.length && chaveAntiga) await store.trazerDoLocalStorage(chaveAntiga);
-    return store;
-  }
-
-  private async trazerDoLocalStorage(chave: string) {
-    let salvo: Record<string, Json> | null = null;
-    try {
-      const texto = localStorage.getItem(chave);
-      salvo = texto ? (JSON.parse(texto) as Record<string, Json>) : null;
-    } catch {
-      return;
-    }
-    if (!salvo) return;
-    for (const [caminho, dado] of Object.entries(salvo)) this.docs.set(caminho, dado);
-    await this.gravar([...this.docs.keys()]);
-    try {
-      localStorage.removeItem(chave);
-    } catch {
-      // fica a cópia antiga; o IndexedDB já não está vazio, então ela não volta.
-    }
-  }
-
-  protected override async persistir(caminho: string): Promise<void> {
-    const dado = this.docs.get(caminho) ?? null;
-    await this.gravar([caminho]);
-    this.canal?.postMessage({ caminho, dado });
-  }
-
-  private gravar(caminhos: string[]): Promise<void> {
-    return new Promise((ok, falha) => {
-      const tx = this.idb.transaction(TABELA, 'readwrite');
-      const tabela = tx.objectStore(TABELA);
-      for (const c of caminhos) {
-        const dado = this.docs.get(c);
-        if (dado) tabela.put(dado, c);
-        else tabela.delete(c);
-      }
-      tx.oncomplete = () => ok();
-      tx.onerror = tx.onabort = () => {
-        const cheio = tx.error?.name === 'QuotaExceededError';
-        falha({
-          codigo: cheio ? 'quota_exceeded' : 'unavailable',
-          mensagem: cheio
-            ? 'O espaço do navegador para o app acabou. Exporte um backup em Configurações e apague registros antigos.'
-            : 'Não consegui gravar neste aparelho. Recarregue a página e tente de novo.',
-        } satisfies ErroStore);
-      };
-    });
-  }
-}
-
 // ------------------------------------------------------ banco do claude.ai
 
 // Tipos mínimos do banco do Artifact (contrato 0.2.60, ver db.d.ts).
@@ -359,19 +264,8 @@ export async function recursoClaude<T>(nome: string): Promise<T | null> {
 
 export const CHAVE_LOCAL = 'organizador-concursos:banco-local';
 
-/**
- * Banco do claude.ai quando disponível; no app instalado (`aparelho`), o IndexedDB;
- * senão, o banco local do navegador.
- */
-export async function abrirStore(aparelho = false): Promise<Store> {
+/** Banco do claude.ai quando disponível; senão, o banco local do navegador. */
+export async function abrirStore(): Promise<Store> {
   const db = await recursoClaude<BancoArtifact>('db');
-  if (db) return new ArtifactStore(db);
-  if (aparelho && typeof indexedDB !== 'undefined') {
-    try {
-      return await IndexedDBStore.abrir();
-    } catch {
-      // IndexedDB bloqueado (ex.: navegação privada antiga): segue com o localStorage.
-    }
-  }
-  return new MemoriaStore(CHAVE_LOCAL);
+  return db ? new ArtifactStore(db) : new MemoriaStore(CHAVE_LOCAL);
 }

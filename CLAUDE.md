@@ -25,7 +25,11 @@ Também existe o **app instalável** (PWA, Fase 9) no GitHub Pages, com os dados
 
 - Link: https://rodrigo-bowie-tech.github.io/Organizador-de-concursos/
 - Publicado pelo CI a cada push no branch padrão, se os testes passarem (Settings > Pages > Source:
-  GitHub Actions). Os dados **não** sincronizam com o Artifact: levar com backup (exportar/importar).
+  GitHub Actions).
+- **Sincroniza entre aparelhos pelo GitHub** (Configurações › Sincronizar com o GitHub): repositório
+  privado `Rodrigo-Bowie-tech/organizador-dados` + token fine-grained (Contents: Read and write) que o
+  usuário cola em cada aparelho. Com o Artifact do claude.ai **não** sincroniza (o Artifact não acessa
+  sites de fora): levar com backup (exportar/importar).
 - Sem IA, PDFs da biblioteca e radar automático (dependem do claude.ai ou de um servidor; IDEIAS.md).
 
 ## Comandos
@@ -74,8 +78,12 @@ src/
     pci.ts         parser das listagens do PCI Concursos (testado sobre HTML salvo) e leitor de robots.txt
     texto.ts       pedido à IA para extrair oportunidades de um texto colado + validação
   dados/
-    store.ts       interface Store; ArtifactStore (claude.use("db")), IndexedDBStore (app instalável,
-                   abas sincronizadas por BroadcastChannel) e MemoriaStore (localStorage)
+    store.ts       interface Store; ArtifactStore (claude.use("db")) e MemoriaStore (localStorage)
+    aparelho.ts    banco do app instalável: BancoAparelho (memória + pendentes/bases/meta da
+                   sincronização) e IndexedDBStore (IndexedDB, abas avisadas por BroadcastChannel)
+    juntar.ts      junção de três vias (base, local, remoto) e formato dos arquivos do repositório
+    github.ts      cliente da API Git Data (ref, árvore, blobs, commit sem force)
+    sincronizacao.ts  Sincronizador: quando sincronizar, trazer/juntar/enviar, estado para a interface
     repositorio.ts espelho do banco via assinaturas + todas as gravações
   estado.tsx     contexto React: dados, concurso ativo, navegação, avisos
   telas/         Home, Concursos, Disciplinas, Edital, ImportarEdital, Planejamento, Disponibilidade,
@@ -83,7 +91,8 @@ src/
                  Provas, ImportarProva, Radar, Cronometro, Configuracoes
   componentes/   ui.tsx (botões, modal <dialog>, campos), campos/modais de sessão, botão flutuante,
                  Pomodoro, Materiais (biblioteca), PraticaIA, Alternativas (questão respondida com um clique),
-                 QuestoesProva (revisão de assunto/gabarito/anulada das questões de uma prova)
+                 QuestoesProva (revisão de assunto/gabarito/anulada das questões de uma prova),
+                 Sincronizacao (indicador no topo e cartão em Configurações)
   plataforma.ts  recursos do claude.ai (IA, arquivos, downloads), wake lock, bipes, localStorage,
                  app instalável (service worker, convite de instalação)
   globais.d.ts   __WEB__ (true só no build do app instalável)
@@ -94,6 +103,7 @@ scripts/
   gerar-icones.mjs     PNGs dos ícones (Playwright) a partir de web/icones/*.svg
   servir-preview.mjs   servidor local do preview (React de node_modules) e de dist/web
 web/icones/      ícones do app instalável (SVG + PNGs gerados, versionados)
+tests/github-falso.ts  GitHub em memória (mesmos SHAs do git) para os testes da sincronização
   radar/coletar.ts     coletor do PCI (Node 22, robots.txt, User-Agent, 1 req/4 s, cache do dia em .cache/radar)
   radar/mesclar.ts     junta a coleta com o banco e gera o lote de escritas para o ArtifactData
 ```
@@ -278,6 +288,21 @@ seed sozinho.
   amarelo (modo `aparelho`); Configurações explica que os dados ficam no aparelho e mostra "Instalar o
   app" (convite do navegador ou passo a passo do iPhone/Android/computador). Sincronização entre
   aparelhos, login e IA fora do claude.ai ficam para as etapas seguintes (Supabase; IDEIAS.md).
+- **Sincronização pelo GitHub** (Fase 9, etapa 3, a pedido do usuário em 07/10/2026, no lugar do
+  Supabase): cada documento vira `dados/<colecao>/<id>.json` (`{ em, dado }`, chaves em ordem) num
+  repositório privado. O aparelho guarda `pendentes` (mudou aqui, com hora e versão), `bases` (última
+  versão em comum, com o SHA do git) e `meta` (repositório, token, último commit) no IndexedDB; o token
+  nunca vai para o repositório. Ciclo (`sincronizacao.ts`, com Web Lock entre abas): lê o ref do ramo
+  (sem mudança e sem pendentes = 1 pedido só); se mudou, baixa só os arquivos cujo SHA difere da base;
+  o que não mudou aqui é copiado, o que mudou dos dois lados é juntado (`juntar3`: campos comuns
+  indivisíveis, mapas `itens`/`topicos`/`questoes`/`dias`/`excecoes` registro por registro, conflito =
+  vale o mais novo pelo `em`); envia tudo num commit (árvore com `base_tree`, commit, PATCH do ref sem
+  `force`); se o ramo andou, recomeça (até 3 vezes). Documento editado aqui no meio da sincronização não
+  é sobrescrito (`versaoEsperada`) nem enviado sem juntar. Primeira vez num repositório: tudo deste
+  aparelho vai junto, mas em conflito vale o que já estava no GitHub (`em` vazio). Quando sincroniza: ao
+  abrir (antes do replanejamento do dia, esperando até 4 s), 3 s depois de cada gravação, a cada minuto
+  com a tela visível, ao voltar a internet e no botão. Plano juntado dos dois lados soma os blocos dos
+  dois: o app replaneja (`aoJuntar`). Repositório vazio começa com `LEIAME.md` pela API contents.
 - **Rede do container**: o proxy bloqueia cdnjs, pciconcursos.com.br e github.io. A rotina do radar só funciona
   depois de liberar `www.pciconcursos.com.br` nas configurações de rede do ambiente.
 
@@ -309,5 +334,5 @@ Para testar o parser com a página real: `npm run radar:amostra` (troca o fixtur
   notificações e deploy próprio ficam para a hospedagem própria)
 - [ ] Fase 9: hospedagem própria
   - [x] etapas 1 e 2: app instalável no GitHub Pages, offline, banco no aparelho, abas sincronizadas
-  - [ ] sincronização na nuvem e login (Supabase), IA por função no servidor (chave como segredo),
-    PDFs no Storage, notificações
+  - [x] etapa 3: sincronização entre aparelhos por um repositório privado do GitHub
+  - [ ] IA fora do claude.ai (função no servidor, chave como segredo), PDFs, notificações

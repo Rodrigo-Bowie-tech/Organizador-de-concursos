@@ -1,5 +1,5 @@
 // Recursos do navegador e do claude.ai usados pelas telas.
-
+import type { Sincronizador } from './dados/sincronizacao';
 import { recursoClaude } from './dados/store';
 
 /** `claude.use("sample")`: perguntar ao Claude usando o plano de quem está usando o app. */
@@ -24,6 +24,8 @@ export interface ArmazemArquivos {
 export interface Recursos {
   ia: Amostra | null;
   arquivos: ArmazemArquivos | null;
+  /** Sincronização pelo GitHub (só no app instalável). */
+  sinc: Sincronizador | null;
 }
 
 /** Mensagem para o usuário a partir do código de erro da IA do claude.ai. */

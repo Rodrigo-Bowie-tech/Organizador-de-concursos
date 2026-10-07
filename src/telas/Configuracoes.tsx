@@ -1,5 +1,6 @@
 import { Download, FileSpreadsheet, MonitorSmartphone, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { CartaoSincronizacao, useSinc } from '../componentes/Sincronizacao';
 import { Botao, CabecalhoTela, Campo, Cartao, Confirmar, Entrada, Progresso, Selecao, cx } from '../componentes/ui';
 import type { Backup } from '../dados/repositorio';
 import { diaSP, formatarData } from '../dominio/datas';
@@ -15,6 +16,7 @@ const minutosDe = (h: string) => Math.max(0, Math.round((Number(h.replace(',', '
 
 export function Configuracoes() {
   const { dados, repo, executar, avisar } = useApp();
+  const sinc = useSinc();
   const [metas, setMetas] = useState({ dia: '', semana: '', mes: '' });
   const [pomodoro, setPomodoro] = useState(dados.config.pomodoro);
   const [backupPendente, setBackupPendente] = useState<Backup | null>(null);
@@ -206,6 +208,7 @@ export function Configuracoes() {
         </Cartao>
 
         {APP_INSTALAVEL && <CartaoInstalar />}
+        <CartaoSincronizacao />
 
         <Cartao titulo="Backup">
           <p className="text-suave">
@@ -243,7 +246,9 @@ export function Configuracoes() {
             {dados.modo === 'claude'
               ? 'Os dados ficam no banco deste app no claude.ai e sincronizam entre notebook, desktop e celular.'
               : dados.modo === 'aparelho'
-                ? 'Os dados ficam neste aparelho e funcionam sem internet. Eles não vão sozinhos para o claude.ai nem para outro aparelho: para levar, exporte o backup aqui e importe no outro.'
+                ? sinc?.repositorio
+                  ? 'Os dados ficam neste aparelho, funcionam sem internet e sincronizam com os seus outros aparelhos pelo GitHub. O app do claude.ai continua separado (leve com o backup).'
+                  : 'Os dados ficam neste aparelho e funcionam sem internet. Para usar nos outros aparelhos, ligue a sincronização com o GitHub; para o claude.ai, use o backup.'
                 : dentroDoClaude()
                 ? 'O banco do claude.ai não respondeu nesta visita; os dados estão só neste navegador.'
                 : 'Modo local de desenvolvimento: os dados ficam só neste navegador.'}

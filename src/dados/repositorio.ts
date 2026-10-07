@@ -770,8 +770,8 @@ export class Repositorio {
     return m;
   }
 
-  /** Replaneja se houver disponibilidade configurada (depois de sessões e blocos marcados). */
-  private async replanejarSePuder(): Promise<void> {
+  /** Replaneja se houver disponibilidade configurada (depois de sessões e blocos marcados, ou do plano juntado de dois aparelhos). */
+  async replanejarSePuder(): Promise<void> {
     if (this.temDisponibilidade()) await this.replanejar();
   }
 

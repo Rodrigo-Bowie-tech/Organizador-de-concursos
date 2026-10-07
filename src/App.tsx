@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
 import { BotaoCronometro } from './componentes/BotaoCronometro';
+import { IndicadorSinc } from './componentes/Sincronizacao';
 import { VigiaPomodoro } from './componentes/VigiaPomodoro';
 import { cx } from './componentes/ui';
 import { hojeSP } from './dominio/painel';
@@ -213,6 +214,7 @@ export function App() {
         </button>
         <span className="font-extrabold text-verde-forte lg:hidden">Organizador</span>
         <div className="ml-auto flex min-w-0 items-center gap-2">
+          <IndicadorSinc />
           <SeletorConcurso />
         </div>
       </header>

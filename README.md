@@ -20,10 +20,15 @@ própria e funciona sem internet. Para instalar:
 - **Android (Chrome):** menu ⋮ › Instalar app.
 - **Computador (Chrome ou Edge):** ícone de instalar na barra de endereço, ou Configurações › Instalar o app.
 
-Os dados ficam **no aparelho** (não sincronizam com o claude.ai nem entre aparelhos). Para levar seus dados
-do claude.ai para o app instalável: Configurações › Exportar backup no claude.ai e Importar backup no app.
-Por enquanto ele não tem as funções com IA, os PDFs da biblioteca nem o radar automático; a
-sincronização e a IA fora do Claude são as próximas etapas (ver `IDEIAS.md`).
+Os dados ficam **no aparelho** e funcionam sem internet. Para usar os mesmos dados no celular e no
+computador, ligue **Configurações › Sincronizar com o GitHub** em cada aparelho: o app guarda uma cópia
+no repositório privado `organizador-dados` e cada aparelho busca e envia as mudanças (ao abrir, alguns
+segundos depois de cada mudança e a cada minuto). O token pedido é um *fine-grained token* do GitHub só
+para esse repositório, com **Contents: Read and write**; ele fica só no aparelho.
+
+Com o claude.ai não há sincronização. Para levar seus dados de lá: Configurações › Exportar backup no
+claude.ai e Importar backup no app (num aparelho só; a sincronização leva para os outros). Por enquanto
+o app instalado não tem as funções com IA, os PDFs da biblioteca nem o radar automático (`IDEIAS.md`).
 
 ## O que o app faz
 
