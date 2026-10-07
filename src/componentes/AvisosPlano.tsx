@@ -97,7 +97,7 @@ function ModalCortes({ v, aoFechar }: { v: Viabilidade; aoFechar: () => void }) 
         Os tópicos de menor prioridade (peso e incidência baixos), do menos ao mais importante. Cortados saem do plano, mas continuam no edital, e
         dá para devolvê-los a qualquer momento.
       </p>
-      <ul className="grid gap-1">
+      <ul className="grid grid-cols-1 gap-1">
         {v.cortes.map((i) => (
           <li key={i.topico.id}>
             <label className="flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-superficie-2">

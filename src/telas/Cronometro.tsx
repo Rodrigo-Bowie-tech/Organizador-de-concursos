@@ -180,7 +180,7 @@ export function Cronometro() {
         }
       >
         {fase ? (
-          <div className="grid gap-2">
+          <div className="grid grid-cols-1 gap-2">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="font-extrabold">
                 {FASES[fase.fase]} · ciclo {fase.ciclosCompletos + (fase.fase === 'foco' ? 1 : 0)}
@@ -240,7 +240,7 @@ function TrocarEstudo({ aoFechar }: { aoFechar: () => void }) {
   );
   if (!ativa || !valor) return null;
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-1 gap-4">
       <CamposEstudo valor={valor} aoMudar={setValor} />
       <div className="flex justify-end gap-2">
         <Botao variante="secundario" onClick={aoFechar}>

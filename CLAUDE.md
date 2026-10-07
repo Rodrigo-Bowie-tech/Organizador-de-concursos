@@ -101,7 +101,9 @@ scripts/
   fixo: sobre o verde use `bg-verde-botao text-sobre-verde`, sobre o vermelho `text-sobre-perigo`
   (`--verde` fica para barras e ícones). `tests/e2e/acessibilidade.spec.ts` roda o axe (WCAG 2.1 A/AA) em
   todas as telas e num modal; tela nova entra na lista `TELAS` dele. Área com rolagem horizontal leva
-  `tabIndex={0}`, `role="region"` e `aria-label`; botão não fica dentro de `<summary>`. O `lang="pt-BR"`
+  `tabIndex={0}`, `role="region"` e `aria-label`; botão não fica dentro de `<summary>`. Grid de uma coluna
+  leva `grid-cols-1` (senão um texto `truncate` ou o heatmap alargam a página no celular); o teste de
+  acessibilidade também falha se alguma tela ficar mais larga que o celular. O `lang="pt-BR"`
   é posto em `main.tsx` (a página do Artifact não tem `<html>` próprio).
 - **Gráficos**: tokens `--grafico-tempo`/`--grafico-peso` validados com o script do skill dataviz nos dois
   temas (contraste, daltonismo). Barras ≤ 24 px, ponta arredondada, legenda sempre presente.

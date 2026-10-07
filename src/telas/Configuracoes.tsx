@@ -74,10 +74,10 @@ export function Configuracoes() {
   return (
     <>
       <CabecalhoTela titulo="Configurações" />
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Cartao titulo="Metas de horas líquidas">
           <form
-            className="grid gap-3"
+            className="grid grid-cols-1 gap-3"
             onSubmit={(e) => {
               e.preventDefault();
               salvar({
@@ -107,7 +107,7 @@ export function Configuracoes() {
 
         <Cartao titulo="Pomodoro">
           <form
-            className="grid gap-3"
+            className="grid grid-cols-1 gap-3"
             onSubmit={(e) => {
               e.preventDefault();
               salvar({ ...dados.config, pomodoro }, 'Pomodoro salvo.');
@@ -142,7 +142,7 @@ export function Configuracoes() {
         </Cartao>
 
         <Cartao titulo="Planejamento">
-          <div className="mb-4 grid gap-1">
+          <div className="mb-4 grid grid-cols-1 gap-1">
             <Campo
               rotulo="Intercalar assuntos"
               dica="Teoria em rodízio entre os assuntos (disciplinas) de maior prioridade: cada bloco vai para o que você estudou há mais tempo."
@@ -244,7 +244,7 @@ export function Configuracoes() {
                 ? 'O banco do claude.ai não respondeu nesta visita; os dados estão só neste navegador.'
                 : 'Modo local de desenvolvimento: os dados ficam só neste navegador.'}
           </p>
-          <div className="mt-3 grid max-w-md gap-1">
+          <div className="mt-3 grid grid-cols-1 max-w-md gap-1">
             <div className="numeros flex justify-between text-sm">
               <span>Registros usados</span>
               <span>

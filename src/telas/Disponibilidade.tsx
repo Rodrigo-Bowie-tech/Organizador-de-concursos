@@ -10,7 +10,7 @@ const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sáb
 
 function Janelas({ lista, aoMudar, rotulo }: { lista: BlocoHorario[]; aoMudar: (l: BlocoHorario[]) => void; rotulo: string }) {
   return (
-    <div className="grid gap-2">
+    <div className="grid grid-cols-1 gap-2">
       {lista.map((b, i) => (
         <div key={i} className="flex flex-wrap items-center gap-2">
           <Entrada aria-label={`${rotulo}: início ${i + 1}`} type="time" className="w-28" value={b.inicio} onChange={(e) => aoMudar(lista.map((x, k) => (k === i ? { ...x, inicio: e.target.value } : x)))} />
@@ -68,11 +68,11 @@ export function Disponibilidade() {
           </Botao>
         }
       />
-      <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_22rem]">
         <Cartao titulo="Grade semanal">
-          <div className="grid gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {DIAS.map((nome, i) => (
-              <section key={nome} className="grid gap-2 border-b border-borda pb-4 last:border-b-0 last:pb-0">
+              <section key={nome} className="grid grid-cols-1 gap-2 border-b border-borda pb-4 last:border-b-0 last:pb-0">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="font-extrabold">{nome}</h3>
                   {i === 1 && (d.dias['1'] ?? []).length > 0 && (
@@ -87,7 +87,7 @@ export function Disponibilidade() {
           </div>
         </Cartao>
 
-        <div className="grid content-start gap-4">
+        <div className="grid grid-cols-1 content-start gap-4">
           <Cartao titulo="Blocos">
             <Campo rotulo="Duração de cada bloco de estudo">
               {(id) => (
@@ -104,11 +104,11 @@ export function Disponibilidade() {
 
           <Cartao titulo="Exceções">
             <p className="mb-3 text-sm text-suave">Plantão, viagem ou folga: nesse dia valem só os horários da exceção.</p>
-            <div className="grid gap-4">
+            <div className="grid grid-cols-1 gap-4">
               {Object.entries(d.excecoes)
                 .sort(([a], [b]) => a.localeCompare(b))
                 .map(([dia, ex]) => (
-                  <section key={dia} className="grid gap-2 rounded-lg bg-superficie-2 p-3">
+                  <section key={dia} className="grid grid-cols-1 gap-2 rounded-lg bg-superficie-2 p-3">
                     <div className="flex items-center justify-between gap-2">
                       <strong className="numeros">{formatarData(dia)}</strong>
                       <BotaoIcone

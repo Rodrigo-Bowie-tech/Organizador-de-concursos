@@ -241,8 +241,8 @@ export function ImportarEdital() {
 
       {etapa === 'fonte' && (
         <Cartao>
-          <div className="grid gap-4">
-            <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Campo rotulo="Concurso">
                 {(id) => (
                   <Selecao id={id} value={concursoId} onChange={(e) => { setConcursoId(e.target.value); setCargo(dados.concursos.find((c) => c.id === e.target.value)?.cargo ?? ''); }}>
@@ -275,7 +275,7 @@ export function ImportarEdital() {
 
       {(etapa === 'trecho' || etapa === 'processando') && (
         <Cartao>
-          <div className="grid gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <p className="text-sm text-suave">
               Confira o trecho: apague o que não for do seu cargo. Se o edital tem a tabela de provas (peso e número de questões), cole-a no final.
             </p>
@@ -316,10 +316,10 @@ export function ImportarEdital() {
       )}
 
       {etapa === 'revisao' && (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {itens.map((item) => (
             <Cartao key={item.chave} className={item.incluir ? '' : 'opacity-60'}>
-              <div className="grid gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="flex items-center gap-2 font-bold">
                     <input type="checkbox" className="h-4 w-4 accent-[var(--verde)]" checked={item.incluir} onChange={(e) => mudarItem(item.chave, { incluir: e.target.checked })} />
@@ -370,7 +370,7 @@ export function ImportarEdital() {
           ))}
           <Cartao>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="grid gap-1">
+              <div className="grid grid-cols-1 gap-1">
                 <p className="font-bold">
                   {itens.filter((i) => i.incluir).length} disciplinas e {totalTopicos} tópicos serão salvos em {concurso?.nome}.
                 </p>

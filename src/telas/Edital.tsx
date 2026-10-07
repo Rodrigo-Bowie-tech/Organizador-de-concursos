@@ -68,7 +68,7 @@ function ModalTopico({ alvo, editar, aoFechar }: { alvo: Alvo | null; editar: { 
       }
     >
       <form
-        className="grid gap-3"
+        className="grid grid-cols-1 gap-3"
         onSubmit={(e) => {
           e.preventDefault();
           void salvar();
@@ -140,7 +140,7 @@ function ModalLote({ aberto, aoFechar }: { aberto: boolean; aoFechar: () => void
         </>
       }
     >
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <p className="text-sm text-suave">
           Um tópico por linha. A numeração do edital (1., 1.1, 1.1.1) define os subtópicos; sem numeração, use recuo
           (tab ou dois espaços).
@@ -423,7 +423,7 @@ export function Edital() {
           acao={<Botao onClick={() => irPara('disciplinas')}>Ir para Disciplinas</Botao>}
         />
       ) : (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {disciplinas.map((d) => {
             const linhas = achatar(d.topicos);
             const c = cobertura([d]);

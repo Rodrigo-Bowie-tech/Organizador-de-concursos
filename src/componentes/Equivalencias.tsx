@@ -32,7 +32,7 @@ export function PainelEquivalencias() {
       <p className="mb-3 text-sm text-suave">
         Vincular faz o estudo de um contar para o outro: status, revisões, horas e questões passam a valer para os dois.
       </p>
-      <ul className="grid gap-2">
+      <ul className="grid grid-cols-1 gap-2">
         {visiveis.map((s) => {
           const [daqui, dali] = s.a.concursoId === concursoAtivo.id ? [s.a, s.b] : [s.b, s.a];
           return (

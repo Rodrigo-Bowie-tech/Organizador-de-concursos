@@ -172,8 +172,8 @@ export function ImportarProva() {
 
       {etapa === 'fonte' && (
         <Cartao>
-          <div className="grid gap-4">
-            <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Campo rotulo="Edital de referência" dica="As questões são ligadas aos tópicos deste concurso.">
                 {(id) => (
                   <Selecao id={id} value={concursoId} onChange={(e) => escolherConcurso(e.target.value)}>
@@ -218,7 +218,7 @@ export function ImportarProva() {
 
       {(etapa === 'texto' || etapa === 'processando') && (
         <Cartao>
-          <div className="grid gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <p className="text-sm text-suave">Confira o texto: pode apagar capa, instruções e redação. Questões cortadas no meio são ignoradas.</p>
             <AreaTexto aria-label="Texto da prova" className="min-h-72 font-mono text-xs" value={texto} disabled={etapa === 'processando'} onChange={(e) => setTexto(e.target.value)} />
             <div className="flex flex-wrap items-center gap-2 text-sm text-suave">
@@ -253,13 +253,13 @@ export function ImportarProva() {
       )}
 
       {etapa === 'revisao' && (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <Cartao titulo={titulo}>
             <EditorQuestoes questoes={questoes} disciplinas={disciplinas} aoMudar={setQuestoes} />
           </Cartao>
           <Cartao>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="grid gap-1">
+              <div className="grid grid-cols-1 gap-1">
                 <p className="font-bold">
                   {questoes.length} questões serão salvas, ligadas ao edital de {concurso?.nome}.
                 </p>

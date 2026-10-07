@@ -131,7 +131,7 @@ function ModalBloco({ bloco, aoFechar }: { bloco: BlocoPlanejado | null; aoFecha
 
   return (
     <Modal aberto aoFechar={aoFechar} titulo={t?.titulo ?? nomeDoBloco(bloco, d)} largo>
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <p className="text-suave">
           {[concurso?.nome, d?.nome].filter(Boolean).join(' › ')} · {TIPO_SESSAO[bloco.tipo]}
           <br />
@@ -223,7 +223,7 @@ function ItensDoDia({ dia, camadas, aoAbrir, arrastavel, compacto }: { dia: DiaI
   const blocos = blocosPorDia.get(dia) ?? [];
   const revisoes = camadas.revisoes ? revisoesDoDia(dia) : [];
   return (
-    <div className="grid content-start gap-1.5">
+    <div className="grid grid-cols-1 content-start gap-1.5">
       {camadas.planejamento && blocos.map((b) => <CartaoBloco key={b.id} b={b} sessoesDoDia={sessoes} agora={agora} aoAbrir={() => aoAbrir(b)} arrastavel={arrastavel} />)}
       {revisoes.map((r) => (
         <span key={r.id} className={cx('rounded-md px-2 py-1 text-xs font-bold', r.atrasada ? 'bg-alerta/15 text-alerta' : 'bg-roxo/10 text-roxo', r.feita && 'opacity-70')}>
@@ -440,7 +440,7 @@ export function Planejamento() {
       ) : (
         <>
         <AvisosPlano />
-        <div className="grid gap-4 lg:grid-cols-[1fr_17rem]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_17rem]">
           <Cartao className="min-w-0">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-1">
@@ -483,7 +483,7 @@ export function Planejamento() {
               />
             )}
             {visao === 'dia' && (
-              <div className="grid gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 <ItensDoDia dia={dataRef} camadas={camadas} aoAbrir={setAberto} />
                 {dataRef >= hoje && !(dados.blocos.some((b) => b.dia === dataRef)) && (
                   <p className="text-sm text-suave">
@@ -496,7 +496,7 @@ export function Planejamento() {
             )}
           </Cartao>
 
-          <Cartao className="grid content-start gap-5">
+          <Cartao className="grid grid-cols-1 content-start gap-5">
             <MiniCalendario base={dataRef} aoEscolher={setDataRef} />
             <div>
               <p className="mb-2 text-sm font-extrabold tracking-wide text-suave uppercase">Minhas agendas</p>

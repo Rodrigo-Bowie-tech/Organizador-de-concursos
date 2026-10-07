@@ -80,7 +80,7 @@ export function Estatisticas() {
   return (
     <>
       <CabecalhoTela titulo="Estatísticas" subtitulo={concursoAtivo.nome} />
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <Cartao titulo="Dias estudados no último ano" acao={<Etiqueta tom="verde">{totalAno} {totalAno === 1 ? 'dia' : 'dias'}</Etiqueta>}>
           <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Dias estudados no último ano (role para os lados)">
             <div className="inline-grid gap-[3px]" style={{ gridTemplateColumns: `2rem repeat(${mapa.length}, 11px)` }} role="img" aria-label={`Heatmap: ${totalAno} ${totalAno === 1 ? 'dia' : 'dias'} com estudo no último ano`}>
@@ -101,7 +101,7 @@ export function Estatisticas() {
           <p className="mt-2 text-xs text-suave">Cada quadrado é um dia; quanto mais escuro, mais perto da meta diária.</p>
         </Cartao>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Cartao titulo="Planejado × realizado por semana">
             <div className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-suave" aria-hidden>
               <span className="flex items-center gap-2">
@@ -181,12 +181,12 @@ export function Estatisticas() {
           </Cartao>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Cartao titulo="Acerto por disciplina">
             {!doConcurso.length ? (
               <p className="text-suave">Sem questões ainda. Lance em Questões, no fim das sessões ou na prática com IA.</p>
             ) : (
-              <ul className="grid gap-2">
+              <ul className="grid grid-cols-1 gap-2">
                 {disciplinas.map((d) => {
                   const t = porDisc.get(d.id);
                   const serie = acertoSemanal(doConcurso, hoje, 12, d.id).map((x) => x.taxa);
@@ -208,7 +208,7 @@ export function Estatisticas() {
             {!piores.length ? (
               <p className="text-suave">Aparecem aqui os tópicos com pelo menos 5 questões.</p>
             ) : (
-              <ul className="grid gap-2">
+              <ul className="grid grid-cols-1 gap-2">
                 {piores.map((p) => (
                   <li key={p.titulo + p.disciplina} className="flex items-center gap-3">
                     <span className="min-w-0 flex-1">

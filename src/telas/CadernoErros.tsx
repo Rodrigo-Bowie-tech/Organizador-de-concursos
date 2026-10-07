@@ -60,7 +60,7 @@ function ModalErro({ inicial, aoFechar }: { inicial: ErroCaderno | null; aoFecha
         </>
       }
     >
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Campo rotulo="Disciplina">
           {(id) => (
             <Selecao id={id} value={f.disciplinaId} onChange={(e) => setF({ ...f, disciplinaId: e.target.value, topicoId: null })}>
@@ -142,7 +142,7 @@ function CartaoErro({ e, revisar, aoEditar, aoExcluir }: { e: ErroCaderno; revis
   }
 
   return (
-    <li className="grid gap-2 border-t border-borda py-3 first:border-t-0 first:pt-0">
+    <li className="grid grid-cols-1 gap-2 border-t border-borda py-3 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-start gap-2">
         <span className="mt-1 h-3 w-3 shrink-0 rounded-full" style={{ background: d?.cor }} aria-hidden />
         <div className="min-w-0 flex-1 basis-60">
@@ -163,7 +163,7 @@ function CartaoErro({ e, revisar, aoEditar, aoExcluir }: { e: ErroCaderno; revis
         </BotaoIcone>
       </div>
       {mostrar ? (
-        <div className="grid gap-1 rounded-lg bg-superficie-2 px-3 py-2 text-sm">
+        <div className="grid grid-cols-1 gap-1 rounded-lg bg-superficie-2 px-3 py-2 text-sm">
           {e.minhaResposta && (
             <p>
               <span className="font-bold text-perigo">Minha resposta:</span> {e.minhaResposta}
@@ -240,7 +240,7 @@ export function CadernoErros() {
           </Botao>
         }
       />
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:max-w-2xl">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:max-w-2xl">
         <Selecao aria-label="Filtrar por disciplina" value={filtroDisc} onChange={(e) => setFiltroDisc(e.target.value)}>
           <option value="">Todas as disciplinas</option>
           {disciplinas.map((d) => (
@@ -266,7 +266,7 @@ export function CadernoErros() {
           acao={<Botao onClick={() => setEditando('novo')}>Anotar erro</Botao>}
         />
       ) : (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {paraHoje.length > 0 && (
             <Cartao titulo={`Para revisar hoje (${paraHoje.length})`}>
               <ul>

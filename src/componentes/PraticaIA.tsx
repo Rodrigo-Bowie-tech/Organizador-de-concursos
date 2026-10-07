@@ -194,9 +194,9 @@ export function ModalPratica({ disciplinaId, topicoId, aoFechar }: { disciplinaI
       }
     >
       {etapa === 'configurar' && (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <p className="text-sm text-suave">{caminho.join(' › ')}</p>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Campo rotulo="Banca">
               {(id) => (
                 <Entrada
@@ -248,7 +248,7 @@ export function ModalPratica({ disciplinaId, topicoId, aoFechar }: { disciplinaI
       )}
 
       {etapa === 'gerando' && (
-        <div className="grid place-items-center gap-2 py-8 text-center" aria-live="polite">
+        <div className="grid grid-cols-1 place-items-center gap-2 py-8 text-center" aria-live="polite">
           <Sparkles className="animate-pulse text-verde" size={32} />
           <p className="font-extrabold">Gerando {quantidade} questões no estilo {banca || 'da banca'}…</p>
           <p className="text-sm text-suave">
@@ -258,7 +258,7 @@ export function ModalPratica({ disciplinaId, topicoId, aoFechar }: { disciplinaI
       )}
 
       {etapa === 'respondendo' && q && (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <div className="flex items-center justify-between gap-2">
             <Etiqueta tom="roxo">
               Questão {atual + 1} de {questoes.length}
@@ -285,7 +285,7 @@ export function ModalPratica({ disciplinaId, topicoId, aoFechar }: { disciplinaI
       )}
 
       {etapa === 'resultado' && (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <div className="text-center">
             <p className="numeros text-4xl font-extrabold">
               {acertos} de {questoes.length}
@@ -295,7 +295,7 @@ export function ModalPratica({ disciplinaId, topicoId, aoFechar }: { disciplinaI
           {acertos < questoes.length && (
             <div>
               <p className="mb-2 font-extrabold">Para revisar</p>
-              <ul className="grid gap-2">
+              <ul className="grid grid-cols-1 gap-2">
                 {questoes.map((x, i) =>
                   respostas[i] !== x.correta ? (
                     <li key={i} className="rounded-lg bg-superficie-2 px-3 py-2 text-sm">

@@ -25,7 +25,7 @@ export function GraficoTempoPeso({ linhas, periodo = 'últimas 4 semanas' }: { l
   const escala = Math.min(1, Math.ceil(maximo * 10) / 10);
   const largura = (f: number) => `${(f / escala) * 100}%`;
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-1 gap-4">
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-suave" aria-hidden>
         <span className="flex items-center gap-2">
           <span className="h-2.5 w-4 rounded-sm bg-grafico-tempo" /> Tempo estudado ({periodo})
@@ -34,12 +34,12 @@ export function GraficoTempoPeso({ linhas, periodo = 'últimas 4 semanas' }: { l
           <span className="h-2.5 w-4 rounded-sm bg-grafico-peso" /> Peso na prova
         </span>
       </div>
-      <ul className="grid gap-3">
+      <ul className="grid grid-cols-1 gap-3">
         {linhas.map((l) => {
           const abaixo = l.fracaoPeso - l.fracaoTempo >= 0.1;
           const resumo = `${l.disciplina.nome}: ${pct(l.fracaoTempo)} do tempo, ${pct(l.fracaoPeso)} da prova`;
           return (
-            <li key={l.disciplina.id} className="group grid gap-1 rounded-lg px-2 py-1.5 hover:bg-superficie-2" title={resumo} aria-label={resumo}>
+            <li key={l.disciplina.id} className="group grid grid-cols-1 gap-1 rounded-lg px-2 py-1.5 hover:bg-superficie-2" title={resumo} aria-label={resumo}>
               <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                 <span className="font-bold">{l.disciplina.nome}</span>
                 <span className="numeros text-sm text-suave">
@@ -51,7 +51,7 @@ export function GraficoTempoPeso({ linhas, periodo = 'últimas 4 semanas' }: { l
                   )}
                 </span>
               </div>
-              <div className="grid gap-0.5 border-l border-borda" aria-hidden>
+              <div className="grid grid-cols-1 gap-0.5 border-l border-borda" aria-hidden>
                 <div className="h-3 rounded-r bg-grafico-tempo transition-[width]" style={{ width: largura(l.fracaoTempo) }} />
                 <div className="h-3 rounded-r bg-grafico-peso transition-[width]" style={{ width: largura(l.fracaoPeso) }} />
               </div>
@@ -108,7 +108,7 @@ export function Balanco() {
         subtitulo={`${concursoAtivo.nome} · semana de ${formatarData(inicioSemana)} a ${formatarData(somarDias(inicioSemana, 6))}`}
       />
 
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Numero rotulo="Esta semana" valor={formatarDuracao(estaSemana)} detalhe={meta ? `${pct(estaSemana / meta)} da meta de ${formatarDuracao(meta)}` : undefined} />
           <Numero
@@ -135,14 +135,14 @@ export function Balanco() {
           ) : !projecao ? (
             <p className="text-suave">Cadastre os tópicos do edital para ver a projeção.</p>
           ) : (
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <p>
                 No ritmo das últimas 4 semanas ({projecao.ritmoSemanal.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}{' '}
                 {projecao.ritmoSemanal === 1 ? 'tópico' : 'tópicos'} por semana), você cobre{' '}
                 <strong>{pct(projecao.fracaoProjetada)} do edital</strong> até {formatarData(concursoAtivo.dataProva)}, daqui a{' '}
                 {projecao.diasAteProva} {projecao.diasAteProva === 1 ? 'dia' : 'dias'}.
               </p>
-              <div className="grid gap-1">
+              <div className="grid grid-cols-1 gap-1">
                 <div className="numeros flex justify-between text-sm text-suave">
                   <span>Hoje: {projecao.concluidos} de {projecao.total} tópicos ({pct(projecao.concluidos / projecao.total)})</span>
                   <span>Na prova: {pct(projecao.fracaoProjetada)}</span>
@@ -173,7 +173,7 @@ export function Balanco() {
           {!esquecidas.length && !parados.length ? (
             <p className="text-suave">Nada esquecido: as disciplinas de peso alto foram estudadas nos últimos 7 dias e nenhum tópico está parado.</p>
           ) : (
-            <ul className="grid gap-2">
+            <ul className="grid grid-cols-1 gap-2">
               {esquecidas.map((l) => (
                 <li key={l.disciplina.id} className={cx('flex flex-wrap items-center gap-2')}>
                   <Etiqueta tom="alerta">disciplina esquecida</Etiqueta>

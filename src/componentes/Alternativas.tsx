@@ -21,7 +21,7 @@ export function Alternativas({
 }) {
   const revelada = escolhida !== null;
   return (
-    <div className="grid gap-2" role="group" aria-label="Alternativas">
+    <div className="grid grid-cols-1 gap-2" role="group" aria-label="Alternativas">
       {alternativas.map((alt, i) => {
         const certa = i === correta;
         return (

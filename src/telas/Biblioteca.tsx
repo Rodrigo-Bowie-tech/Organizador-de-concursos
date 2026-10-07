@@ -50,7 +50,7 @@ export function Biblioteca() {
         <Entrada aria-label="Buscar na biblioteca" className="pl-9" value={busca} placeholder="Buscar material ou tópico" onChange={(e) => setBusca(e.target.value)} />
       </label>
 
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         {disciplinas.map((d) => {
           const doDisc = dados.materiais.filter((m) => m.disciplinaId === d.id);
           const gerais = doDisc.filter((m) => !m.topicoId || !d.topicos[m.topicoId]).filter((m) => combina(m, ''));
@@ -77,7 +77,7 @@ export function Biblioteca() {
               {vazio ? (
                 <p className="text-sm text-suave">Nenhum material. Adicione a apostila, as videoaulas e os livros desta disciplina.</p>
               ) : (
-                <div className="grid gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   {gerais.length > 0 && (
                     <div>
                       <p className="mb-1 text-sm font-extrabold text-suave">Disciplina inteira</p>

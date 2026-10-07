@@ -72,7 +72,7 @@ function BlocosDeHoje({ hoje }: { hoje: string }) {
         </Botao>
       }
     >
-      <ul className="grid gap-2">
+      <ul className="grid grid-cols-1 gap-2">
         {blocos.map((b) => {
           const d = dados.disciplinas.find((x) => x.id === b.disciplinaId);
           const t = d && b.topicoId ? d.topicos[b.topicoId] : undefined;
@@ -155,7 +155,7 @@ export function Home() {
     <>
       <CabecalhoTela titulo="Home" subtitulo={`${DIAS[diaDaSemana(hoje)]}, ${formatarData(hoje)}`} />
 
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         {ativa && (
           <button
             type="button"
@@ -186,7 +186,7 @@ export function Home() {
         <BlocosDeHoje hoje={hoje} />
         <AvisosPlano compacto />
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Meta rotulo="Hoje" segundos={totais.hoje} metaMin={dados.config.metaDiariaMin} />
           <Meta rotulo="Semana" segundos={totais.semana} metaMin={dados.config.metaSemanalMin} />
           <Meta rotulo="Mês" segundos={totais.mes} metaMin={dados.config.metaMensalMin} />
@@ -220,10 +220,10 @@ export function Home() {
           </Cartao>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Cartao titulo={<span className="flex items-center gap-2"><CalendarClock size={18} /> Provas</span>}>
             {provas.length ? (
-              <ul className="grid gap-3">
+              <ul className="grid grid-cols-1 gap-3">
                 {provas.map(({ concurso, dias }) => (
                   <li key={concurso.id} className="flex items-center gap-4">
                     <span className="numeros w-16 shrink-0 rounded-lg bg-verde-suave py-1.5 text-center leading-tight text-verde-forte">
@@ -251,17 +251,17 @@ export function Home() {
           </Cartao>
 
           <Cartao titulo="Cobertura do edital">
-            <ul className="grid gap-4">
+            <ul className="grid grid-cols-1 gap-4">
               {dados.concursos.map((c) => {
                 const discs = dados.disciplinas.filter((d) => d.concursoId === c.id);
                 const cob = cobertura(discs);
                 const proj = c.dataProva ? projecaoCobertura(discs, dados.sessoes, c.dataProva, hoje) : null;
                 return (
-                  <li key={c.id} className="grid gap-1.5">
+                  <li key={c.id} className="grid grid-cols-1 gap-1.5">
                     <div className="flex items-baseline justify-between gap-3">
                       <button
                         type="button"
-                        className="truncate text-left font-bold hover:text-verde-forte"
+                        className="min-w-0 truncate text-left font-bold hover:text-verde-forte"
                         onClick={() => {
                           escolherConcurso(c.id);
                           irPara('edital');

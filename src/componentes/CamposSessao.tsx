@@ -19,7 +19,7 @@ export function CamposEstudo({
   const linhas = disciplina ? achatar(disciplina.topicos) : [];
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <Campo rotulo="Concurso">
         {(id) => (
           <Selecao
@@ -99,7 +99,7 @@ export function CamposResultado({
   const feitas = valor.questoesFeitas ?? 0;
   const acertos = valor.acertos ?? 0;
   return (
-    <div className="grid gap-3">
+    <div className="grid grid-cols-1 gap-3">
       <div className="grid grid-cols-3 gap-3">
         <Campo rotulo="Questões feitas">
           {(id) => (

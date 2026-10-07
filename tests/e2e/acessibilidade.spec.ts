@@ -27,6 +27,9 @@ for (const tema of ['claro', 'escuro'] as const) {
       await menu(page, t);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
       achadas.push(...(await violacoes(page, t)));
+      // Nada pode passar da largura da tela (no celular, rolagem lateral só dentro das regiões próprias).
+      const largura = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+      if (largura[0] > largura[1]) achadas.push(`${t} · página mais larga que a tela (${largura[0]} > ${largura[1]} px)`);
     }
     // Um modal aberto (registro manual de sessão).
     await menu(page, 'Histórico');

@@ -67,7 +67,7 @@ function FormDisciplina({ aberto, aoFechar, inicial }: { aberto: boolean; aoFech
       }
     >
       <form
-        className="grid gap-3 sm:grid-cols-2"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2"
         onSubmit={(e) => {
           e.preventDefault();
           void salvar();
@@ -156,7 +156,7 @@ export function Disciplinas() {
           acao={<Botao onClick={() => abrir(null)}>Cadastrar disciplina</Botao>}
         />
       ) : (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 gap-3">
           {disciplinas.map((d) => {
             const cob = cobertura([d]);
             const valor = d.peso * (d.numQuestoes ?? 1);
@@ -179,7 +179,7 @@ export function Disciplinas() {
                       <p className="text-suave">Estudado</p>
                       <p className="font-extrabold">{formatarDuracao(horas.get(d.id) ?? 0)}</p>
                     </div>
-                    <div className="grid gap-1">
+                    <div className="grid grid-cols-1 gap-1">
                       <p className="text-suave">
                         {cob.total ? `${cob.concluidos}/${cob.total} tópicos` : 'Sem tópicos'}
                       </p>

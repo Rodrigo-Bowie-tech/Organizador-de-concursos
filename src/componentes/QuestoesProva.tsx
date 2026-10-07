@@ -54,7 +54,7 @@ export function EditorQuestoes({
       </div>
       <details className="rounded-lg bg-superficie-2 px-3 py-2">
         <summary className="cursor-pointer font-bold">Colar gabarito</summary>
-        <div className="mt-2 grid gap-2">
+        <div className="mt-2 grid grid-cols-1 gap-2">
           <AreaTexto
             aria-label="Gabarito"
             className="min-h-20 font-mono text-sm"

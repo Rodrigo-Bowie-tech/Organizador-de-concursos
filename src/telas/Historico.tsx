@@ -51,7 +51,7 @@ export function Historico() {
       />
 
       {dados.sessoes.length > 0 && (
-        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:max-w-2xl">
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:max-w-2xl">
           <Selecao aria-label="Filtrar por concurso" value={filtroConcurso} onChange={(e) => { setFiltroConcurso(e.target.value); setFiltroDisciplina(''); }}>
             <option value="">Todos os concursos</option>
             {dados.concursos.map((c) => (
@@ -77,7 +77,7 @@ export function Historico() {
           texto={dados.sessoes.length ? 'Troque os filtros para ver outras sessões.' : 'As sessões do cronômetro aparecem aqui. Estudou sem cronômetro? Registre manualmente.'}
         />
       ) : (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {grupos.map(([dia, sessoes]) => (
             <Cartao
               key={dia}
@@ -88,7 +88,7 @@ export function Historico() {
               }
               acao={<Etiqueta tom="verde">{formatarDuracao(sessoes.reduce((t, s) => t + segundosLiquidos(s, Date.now()), 0))}</Etiqueta>}
             >
-              <ul className="grid">
+              <ul className="grid grid-cols-1">
                 {sessoes.map((s) => {
                   const d = s.disciplinaId ? disciplinasPorId.get(s.disciplinaId) : undefined;
                   const topico = d && s.topicoId ? d.topicos[s.topicoId] : undefined;

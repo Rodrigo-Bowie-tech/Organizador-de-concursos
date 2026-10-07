@@ -64,8 +64,8 @@ function ModalSimulado({ inicial, aoFechar }: { inicial: Simulado | null; aoFech
         </>
       }
     >
-      <div className="grid gap-4">
-        <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Campo rotulo="Título" className="sm:col-span-3">
             {(id) => <Entrada id={id} value={titulo} onChange={(e) => setTitulo(e.target.value)} />}
           </Campo>
@@ -78,7 +78,7 @@ function ModalSimulado({ inicial, aoFechar }: { inicial: Simulado | null; aoFech
         </div>
         <div>
           <p className="mb-2 text-sm font-bold text-suave">Nota por disciplina (deixe em branco o que não caiu)</p>
-          <div className="grid gap-2">
+          <div className="grid grid-cols-1 gap-2">
             {linhas.map((l, i) => (
               <div key={i} className="grid grid-cols-[1fr_5.5rem_5.5rem] items-center gap-2">
                 <span className="truncate text-sm font-bold">{l.nome}</span>
@@ -178,7 +178,7 @@ export function Simulados() {
       {!lista.length ? (
         <Vazio titulo="Nenhum simulado" texto="Registre as notas por disciplina de cada simulado para acompanhar a evolução e a distância até a nota de corte." acao={<Botao onClick={() => setEditando('novo')}>Registrar simulado</Botao>} />
       ) : (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {evolucao.length > 1 && (
             <Cartao titulo="Evolução da nota total">
               <GraficoEvolucao pontos={evolucao.map((e) => ({ rotulo: formatarData(e.simulado.dia).slice(0, 5), valor: e.simulado.notaTotal, maximo: e.simulado.notaMaxima }))} corte={corte} />
@@ -208,9 +208,9 @@ export function Simulados() {
                     {num(s.notaTotal)} de {num(s.notaMaxima)} ({Math.round(percentual(s) * 100)}%)
                   </strong>
                 </p>
-                <ul className="grid gap-1.5 sm:grid-cols-2">
+                <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                   {s.notas.map((n, i) => (
-                    <li key={i} className="grid gap-1">
+                    <li key={i} className="grid grid-cols-1 gap-1">
                       <div className="numeros flex justify-between gap-2 text-sm">
                         <span className="truncate">{n.nome}</span>
                         <span className="font-bold">

@@ -65,7 +65,7 @@ export function ModalFinalizar({ aberto, aoFechar }: { aberto: boolean; aoFechar
         {formatarDuracao(liquido)} líquidas desde {formatarHora(ativa.inicio)}
         {ativa.pausas.length > 0 && `, com ${ativa.pausas.length} ${ativa.pausas.length === 1 ? 'pausa' : 'pausas'}`}.
       </p>
-      <div className="grid gap-5">
+      <div className="grid grid-cols-1 gap-5">
         <CamposEstudo valor={valor} aoMudar={setValor} />
         <CamposResultado valor={valor} aoMudar={setValor} />
       </div>
@@ -160,7 +160,7 @@ export function ModalSessao({
         </>
       }
     >
-      <div className="grid gap-5">
+      <div className="grid grid-cols-1 gap-5">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Campo rotulo="Dia" className="col-span-2 sm:col-span-1">
             {(id) => <Entrada id={id} type="date" value={dia} onChange={(e) => setDia(e.target.value)} required />}

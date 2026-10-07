@@ -45,7 +45,7 @@ export function ListaMateriais({
 }) {
   if (!materiais.length) return <p className="text-sm text-suave">{vazio}</p>;
   return (
-    <ul className="grid gap-1">
+    <ul className="grid grid-cols-1 gap-1">
       {materiais.map((m) => {
         const { icone: Icone, rotulo } = TIPOS_MATERIAL[m.tipo];
         const href = enderecoMaterial(m);
@@ -182,7 +182,7 @@ export function ModalMaterial({
       }
     >
       <form
-        className="grid gap-3 sm:grid-cols-2"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2"
         onSubmit={(e) => {
           e.preventDefault();
           void salvar();
@@ -262,7 +262,7 @@ export function PainelMateriais({ disciplinaId, topicoId }: { disciplinaId: Id; 
   const lista = materiaisDe(dados.materiais, disciplinaId, topicoId);
 
   return (
-    <div className="grid gap-2">
+    <div className="grid grid-cols-1 gap-2">
       <ListaMateriais materiais={lista} aoEditar={setEditando} aoExcluir={setExcluir} vazio="Nenhum material para este tópico ainda." />
       <Botao tamanho="pequeno" variante="secundario" className="justify-self-start" onClick={() => setNovo(true)}>
         Adicionar material

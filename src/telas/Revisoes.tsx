@@ -44,14 +44,14 @@ export function ModalRevisao({ item, aoFechar }: { item: RevisaoPendente | null;
 
   return (
     <Modal aberto aoFechar={aoFechar} titulo={`Revisar: ${topico.titulo}`} largo>
-      <div className="grid gap-5">
+      <div className="grid grid-cols-1 gap-5">
         <p className="text-sm text-suave">
           {[concurso?.nome, disciplina.nome, ...caminhoDoTopico(disciplina.topicos, topico.id).slice(0, -1)].filter(Boolean).join(' › ')}
           {' · '}
           {estado.ultima ? `última revisão em ${formatarData(estado.ultima)}` : 'primeira revisão'}
         </p>
 
-        <section className="grid gap-2">
+        <section className="grid grid-cols-1 gap-2">
           <h3 className="font-extrabold">Materiais</h3>
           <PainelMateriais disciplinaId={disciplina.id} topicoId={topico.id} />
         </section>
@@ -64,7 +64,7 @@ export function ModalRevisao({ item, aoFechar }: { item: RevisaoPendente | null;
           <BotaoPraticar disciplinaId={disciplina.id} topicoId={topico.id} />
         </div>
 
-        <section className="grid gap-2">
+        <section className="grid grid-cols-1 gap-2">
           <h3 className="font-extrabold">Como foi a revisão?</h3>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {AVALIACOES.map((a) => (
@@ -140,7 +140,7 @@ export function Revisoes() {
         acoes={feitasHoje > 0 && <Etiqueta tom="verde">{feitasHoje} feitas hoje</Etiqueta>}
       />
 
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         {semRevisao > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-verde-suave px-4 py-3">
             <p className="font-bold text-verde-forte">

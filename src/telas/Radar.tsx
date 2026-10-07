@@ -59,7 +59,7 @@ function ModalFiltro({ inicial, aoFechar }: { inicial: FiltroRadar | null; aoFec
         </>
       }
     >
-      <div className="grid gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <Campo rotulo="Nome">{(id) => <Entrada id={id} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Elétrica no Sudeste" />}</Campo>
         <Campo rotulo="Áreas" dica="Separadas por vírgula. “Engenharia Elétrica” também acha “Engenheiro Eletricista”.">
           {(id) => <Entrada id={id} value={areas} onChange={(e) => setAreas(e.target.value)} />}
@@ -122,7 +122,7 @@ function ModalManual({ aoFechar }: { aoFechar: () => void }) {
         </>
       }
     >
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Campo rotulo="Órgão" className="sm:col-span-2">{(id) => <Entrada id={id} value={f.orgao} onChange={muda('orgao')} />}</Campo>
         <Campo rotulo="Cargos" dica="Separados por vírgula." className="sm:col-span-2">{(id) => <Entrada id={id} value={f.cargos} onChange={muda('cargos')} />}</Campo>
         <Campo rotulo="UF" dica="Sigla, ou BR se for nacional.">{(id) => <Entrada id={id} value={f.uf} maxLength={2} onChange={muda('uf')} />}</Campo>
@@ -203,7 +203,7 @@ function ModalColar({ aoFechar }: { aoFechar: () => void }) {
       }
     >
       {!itens ? (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <p className="text-sm text-suave">
             Abra a listagem do PCI Concursos (ou uma notícia de concurso), selecione tudo, copie e cole aqui. A IA do Claude separa os concursos
             para você conferir antes de salvar.
@@ -216,7 +216,7 @@ function ModalColar({ aoFechar }: { aoFechar: () => void }) {
           )}
         </div>
       ) : (
-        <ul className="grid gap-2">
+        <ul className="grid grid-cols-1 gap-2">
           {itens.map((o, i) => (
             <li key={o.id + i}>
               <label className="flex items-start gap-3 rounded-lg bg-superficie-2 px-3 py-2">
@@ -374,7 +374,7 @@ export function Radar() {
         }
       />
 
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <Cartao
           titulo="Meus filtros"
           acao={
@@ -386,7 +386,7 @@ export function Radar() {
           {!dados.filtrosRadar.length ? (
             <p className="text-sm text-suave">Sem filtros: todas as oportunidades aparecem e geram alerta na Home.</p>
           ) : (
-            <ul className="grid gap-2">
+            <ul className="grid grid-cols-1 gap-2">
               {dados.filtrosRadar.map((f) => (
                 <li key={f.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-superficie-2 px-3 py-2">
                   <span className="font-bold">{f.nome}</span>
@@ -434,7 +434,7 @@ export function Radar() {
             }
           />
         ) : (
-          <ul className="grid gap-3" aria-label="Oportunidades">
+          <ul className="grid grid-cols-1 gap-3" aria-label="Oportunidades">
             {visiveis.map((o) => (
               <CartaoOportunidade key={o.id} o={o} hoje={hoje} nova={!o.ignorada && (!vistoAte || o.coletadoEm > vistoAte)} />
             ))}

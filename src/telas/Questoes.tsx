@@ -84,7 +84,7 @@ function ModalCsv({ aoFechar }: { aoFechar: () => void }) {
         </>
       }
     >
-      <div className="grid gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <p className="text-sm text-suave">
           Colunas: tópico, questões feitas, acertos e, se quiser, data (dd/mm/aaaa) e fonte. Separadas por ponto e vírgula, vírgula ou tab, com ou sem
           cabeçalho. Serve para o desempenho do QConcursos, do TEC ou de planilhas suas.
@@ -189,11 +189,11 @@ export function Questoes() {
           </Botao>
         }
       />
-      <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
-        <div className="grid content-start gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_22rem]">
+        <div className="grid grid-cols-1 content-start gap-4">
           <Cartao titulo="Lançamento rápido">
             <form
-              className="grid gap-3 sm:grid-cols-2"
+              className="grid grid-cols-1 gap-3 sm:grid-cols-2"
               onSubmit={async (e) => {
                 e.preventDefault();
                 if (!valido) return;
@@ -247,7 +247,7 @@ export function Questoes() {
             {!dados.registrosQuestoes.length ? (
               <p className="text-suave">Nenhum ainda. As questões feitas em sessões do cronômetro aparecem no Histórico.</p>
             ) : (
-              <ul className="grid">
+              <ul className="grid grid-cols-1">
                 {dados.registrosQuestoes.slice(0, 60).map((r) => (
                   <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-borda py-2 first:border-t-0">
                     <span className="numeros w-24 text-sm text-suave">{formatarData(r.dia)}</span>
@@ -272,7 +272,7 @@ export function Questoes() {
           {!disciplinas.length ? (
             <p className="text-suave">Cadastre as disciplinas do concurso.</p>
           ) : (
-            <ul className="grid gap-2">
+            <ul className="grid grid-cols-1 gap-2">
               {disciplinas.map((d) => {
                 const t = porDisciplina.get(d.id);
                 return (

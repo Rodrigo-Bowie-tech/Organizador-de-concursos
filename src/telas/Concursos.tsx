@@ -61,7 +61,7 @@ function FormConcurso({ aberto, aoFechar, inicial }: { aberto: boolean; aoFechar
         </>
       }
     >
-      <form className="grid gap-3 sm:grid-cols-2" onSubmit={(e) => void salvar(e)}>
+      <form className="grid grid-cols-1 gap-3 sm:grid-cols-2" onSubmit={(e) => void salvar(e)}>
         <Campo rotulo="Nome do concurso" className="sm:col-span-2">
           {(id) => <Entrada id={id} required autoFocus value={f.nome} placeholder="Ex.: Fundação Florestal SP" onChange={(e) => mudar({ nome: e.target.value })} />}
         </Campo>
@@ -148,7 +148,7 @@ export function Concursos() {
           acao={<Botao onClick={() => abrir(null)}>Cadastrar concurso</Botao>}
         />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {dados.concursos.map((c) => {
             const disciplinas = dados.disciplinas.filter((d) => d.concursoId === c.id);
             const cob = cobertura(disciplinas);
@@ -190,7 +190,7 @@ export function Concursos() {
                   )}
                 </p>
 
-                <div className="mt-3 grid gap-1">
+                <div className="mt-3 grid grid-cols-1 gap-1">
                   <div className="numeros flex justify-between text-sm text-suave">
                     <span>
                       {disciplinas.length} {disciplinas.length === 1 ? 'disciplina' : 'disciplinas'}

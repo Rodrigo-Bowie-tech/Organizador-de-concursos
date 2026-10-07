@@ -166,7 +166,7 @@ function ModalRefazer({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () 
       }
     >
       {etapa === 'configurar' && (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <p className="text-sm text-suave">
             {todas.length} questões com gabarito (anuladas e sem gabarito ficam de fora). O resultado entra no acerto por tópico e no planejamento.
           </p>
@@ -186,7 +186,7 @@ function ModalRefazer({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () 
       )}
 
       {etapa === 'respondendo' && q && (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <Etiqueta tom="roxo">
               Questão {q.numero} · {atual + 1} de {questoes.length}
@@ -210,7 +210,7 @@ function ModalRefazer({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () 
       )}
 
       {etapa === 'resultado' && (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <div className="text-center">
             <p className="numeros text-4xl font-extrabold">
               {acertos} de {respondidas.length}
@@ -220,7 +220,7 @@ function ModalRefazer({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () 
           {acertos < respondidas.length && (
             <div>
               <p className="mb-2 font-extrabold">Para revisar</p>
-              <ul className="grid gap-2">
+              <ul className="grid grid-cols-1 gap-2">
                 {respondidas
                   .filter((x) => respostas[x.id] !== x.correta)
                   .map((x) => (
@@ -253,14 +253,14 @@ function ModalRefazer({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () 
 function GraficoIncidencia({ itens, legenda }: { itens: { rotulo: string; detalhe: string; n: number }[]; legenda: string }) {
   const max = Math.max(1, ...itens.map((i) => i.n));
   return (
-    <figure className="grid gap-3">
+    <figure className="grid grid-cols-1 gap-3">
       <figcaption className="flex items-center gap-2 text-sm text-suave">
         <span className="inline-block h-3 w-3 rounded-sm" style={{ background: 'var(--grafico-peso)' }} aria-hidden />
         {legenda}
       </figcaption>
-      <ol className="grid gap-2.5" aria-label="Assuntos que mais caem">
+      <ol className="grid grid-cols-1 gap-2.5" aria-label="Assuntos que mais caem">
         {itens.map((i) => (
-          <li key={i.rotulo + i.detalhe} className="grid gap-1 sm:grid-cols-[minmax(0,16rem)_1fr] sm:items-center sm:gap-3">
+          <li key={i.rotulo + i.detalhe} className="grid grid-cols-1 gap-1 sm:grid-cols-[minmax(0,16rem)_1fr] sm:items-center sm:gap-3">
             <span className="min-w-0 text-sm">
               <span className="block truncate font-bold" title={i.rotulo}>
                 {i.rotulo}
@@ -328,7 +328,7 @@ export function Provas() {
         }
       />
 
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         {ranking.length > 0 && (
           <Cartao titulo={`Assuntos que mais caem${banca ? ` na ${banca}` : ''}`}>
             <GraficoIncidencia
@@ -352,7 +352,7 @@ export function Provas() {
             acao={<Botao onClick={() => irPara('importarProva')}>Importar prova</Botao>}
           />
         ) : (
-          <ul className="grid gap-3" aria-label="Provas">
+          <ul className="grid grid-cols-1 gap-3" aria-label="Provas">
             {lista.map((p) => {
               const qs = Object.values(p.questoes);
               const ligadas = qs.filter((q) => q.disciplinaId).length;
