@@ -1,6 +1,8 @@
-import { CalendarClock, CalendarDays, Check, Flame, Play, Radar, RefreshCcw } from 'lucide-react';
-import { useMemo } from 'react';
+import { CalendarClock, CalendarDays, Check, ClipboardList, Flame, Play, Radar, RefreshCcw } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { AvisosPlano } from '../componentes/AvisosPlano';
+import { CartaoFimDaTeoria } from '../componentes/FimDaTeoria';
+import { ModalGestao } from '../componentes/Gestao';
 import { Botao, CabecalhoTela, Cartao, Etiqueta, Progresso, Vazio, cx } from '../componentes/ui';
 import { estadoDaSessao, segundosLiquidos, segundosPorDia } from '../dominio/cronometro';
 import { diaDaSemana, formatarData, formatarDuracao, formatarRelogio } from '../dominio/datas';
@@ -9,7 +11,7 @@ import { cobertura, hojeSP, provasFuturas, sequenciaDeDias, totaisPorPeriodo, ul
 import { minutos } from '../dominio/planejador';
 import { revisoesAgendadas, separarRevisoes } from '../dominio/revisoes';
 import { errosParaRevisar } from '../dominio/desempenho';
-import { TIPO_SESSAO, nomeDoBloco, titulosDasRevisoes } from '../dominio/rotulos';
+import { TIPO_BLOCO, nomeDoBloco, titulosDasRevisoes } from '../dominio/rotulos';
 import { useAgora, useApp } from '../estado';
 import { oportunidadesNovas } from '../radar/radar';
 import { backupAtrasado } from '../dominio/exportacao';
@@ -61,6 +63,7 @@ function AlertaRadar({ hoje }: { hoje: string }) {
 
 function BlocosDeHoje({ hoje }: { hoje: string }) {
   const { dados, repo, executar, irPara } = useApp();
+  const [gestao, setGestao] = useState<string | null>(null);
   const blocos = dados.blocos.filter((b) => b.dia === hoje);
   if (!blocos.length) return null;
   return (
@@ -76,29 +79,36 @@ function BlocosDeHoje({ hoje }: { hoje: string }) {
         {blocos.map((b) => {
           const d = dados.disciplinas.find((x) => x.id === b.disciplinaId);
           const t = d && b.topicoId ? d.topicos[b.topicoId] : undefined;
+          const tipoSessao = b.tipo === 'gestao' ? null : b.tipo;
           return (
-            <li key={b.id} className="flex flex-wrap items-center gap-3 rounded-lg border-l-4 bg-superficie-2 px-3 py-2" style={{ borderLeftColor: d?.cor }}>
+            <li key={b.id} className="flex flex-wrap items-center gap-3 rounded-lg border-l-4 bg-superficie-2 px-3 py-2" style={{ borderLeftColor: b.motivo === 'gestao' ? 'var(--roxo)' : d?.cor }}>
               <span className="numeros w-24 shrink-0 font-bold">
                 {b.inicio}–{b.fim}
               </span>
               <span className="min-w-0 flex-1 basis-48">
                 <span className={b.status === 'feito' ? 'block font-bold text-suave line-through' : 'block font-bold'}>{nomeDoBloco(b, d)}</span>
                 <span className="block truncate text-sm text-suave">
-                  {t?.titulo ??
-                    (b.revisoes?.length
-                      ? titulosDasRevisoes(b, dados.disciplinas).join(' · ')
-                      : b.disciplinaId
-                        ? 'Disciplina inteira'
-                        : 'Todas as disciplinas')}{' '}
-                  · {TIPO_SESSAO[b.tipo]} · {Math.round(minutos(b))} min
+                  {b.motivo === 'gestao'
+                    ? `Editais, outros concursos, inscrições, planejamento e resultados · ${(b.tarefas ?? []).length} de 5 feitas`
+                    : t?.titulo ??
+                      (b.revisoes?.length
+                        ? titulosDasRevisoes(b, dados.disciplinas).join(' · ')
+                        : b.disciplinaId
+                          ? 'Disciplina inteira'
+                          : 'Todas as disciplinas')}{' '}
+                  · {TIPO_BLOCO[b.tipo]} · {Math.round(minutos(b))} min
                 </span>
               </span>
-              {b.status === 'planejado' ? (
+              {b.status === 'planejado' && !tipoSessao ? (
+                <Botao tamanho="pequeno" onClick={() => setGestao(b.id)}>
+                  <ClipboardList size={15} /> Abrir
+                </Botao>
+              ) : b.status === 'planejado' && tipoSessao ? (
                 <Botao
                   tamanho="pequeno"
                   disabled={Boolean(dados.ativa)}
                   onClick={async () => {
-                    const s = await executar(() => repo.iniciarSessao({ concursoId: b.concursoId, disciplinaId: b.disciplinaId, topicoId: b.topicoId, tipo: b.tipo }));
+                    const s = await executar(() => repo.iniciarSessao({ concursoId: b.concursoId, disciplinaId: b.disciplinaId, topicoId: b.topicoId, tipo: tipoSessao }));
                     if (s) irPara('cronometro');
                   }}
                 >
@@ -113,6 +123,7 @@ function BlocosDeHoje({ hoje }: { hoje: string }) {
           );
         })}
       </ul>
+      <ModalGestao blocoId={gestao} aoFechar={() => setGestao(null)} />
     </Cartao>
   );
 }
@@ -184,6 +195,7 @@ export function Home() {
           </p>
         )}
         <BlocosDeHoje hoje={hoje} />
+        <CartaoFimDaTeoria />
         <AvisosPlano compacto />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

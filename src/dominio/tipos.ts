@@ -59,8 +59,12 @@ export interface Topico {
   revisao?: EstadoRevisao | null;
   /** Cortado do plano (edital não fecha até a prova). Continua no edital, fora do planejador. */
   cortado?: boolean;
-  /** Blocos de teoria que o tópico pede (vazio = 2 se não iniciado, 1 em estudo). */
+  /** Blocos de teoria que o tópico pede, no total (vazio = 2). Ver dominio/teoria.ts. */
   blocosTeoria?: number | null;
+  /** Estimativa antes de o app mudá-la (mais blocos pedidos ou ajuste do assunto); mede o ritmo do assunto. */
+  blocosTeoriaOriginal?: number | null;
+  /** Blocos a mais pedidos na pergunta "terminou a teoria?" (acima da estimativa original). */
+  blocosTeoriaPedidos?: number | null;
 }
 
 /** Estado da repetição espaçada de um tópico (ver dominio/revisoes.ts). */
@@ -259,6 +263,17 @@ export interface Disponibilidade {
   excecoes: Record<DiaISO, ExcecaoDisponibilidade>;
   /** Duração de cada bloco de estudo, em minutos. */
   blocoMin: number;
+  /** Horário semanal para cuidar dos concursos; `null` = desligado. */
+  gestao?: GestaoSemanal | null;
+}
+
+/** Um horário por semana para editais, outros concursos, inscrições, planejamento e resultados. */
+export interface GestaoSemanal {
+  /** "0" (domingo) a "6" (sábado). */
+  dia: string;
+  /** `HH:mm` no fuso de São Paulo. */
+  inicio: string;
+  minutos: number;
 }
 
 export type StatusBloco = 'planejado' | 'feito' | 'parcial' | 'pulado';
@@ -273,14 +288,20 @@ export interface BlocoPlanejado {
   concursoId: Id | null;
   disciplinaId: Id | null;
   topicoId: Id | null;
-  tipo: TipoSessao;
+  /** O tipo de estudo; "gestao" no bloco semanal de cuidar dos concursos (não vira sessão). */
+  tipo: TipoSessao | 'gestao';
   status: StatusBloco;
-  /** Por que o planejador escolheu este bloco ("simulado": marcado por você no cronograma). */
-  motivo: 'teoria' | 'revisao' | 'revisao_atrasada' | 'questoes' | 'simulado';
+  /**
+   * Por que o planejador escolheu este bloco ("simulado": marcado por você no cronograma;
+   * "gestao": o horário semanal de cuidar dos concursos, que não é estudo).
+   */
+  motivo: 'teoria' | 'revisao' | 'revisao_atrasada' | 'questoes' | 'simulado' | 'gestao';
   /** Movido por você: replanejar não mexe nele. */
   fixo?: boolean;
   /** Bloco de revisão que junta vários tópicos (cerca de 20 min cada); o primeiro fica em `topicoId` se for só um. */
   revisoes?: Id[];
+  /** Bloco de gestão: tarefas da lista já feitas (ids de `TAREFAS_GESTAO`). */
+  tarefas?: string[];
 }
 
 /** Fase 5: simulado, em `simulados/<id>`. */

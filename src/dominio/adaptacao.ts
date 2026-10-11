@@ -3,7 +3,7 @@
 
 import { segundosPorDia } from './cronometro';
 import { diaDaSemana, diaSP, diasEntre, somarDias } from './datas';
-import { fracaoRevisao, filaDeTeoria, minutos, minutosDeclarados, slotsDoDia } from './planejador';
+import { fracaoRevisao, filaDeTeoria, horarioDaGestao, minutos, minutosDeclarados, slotsDoDia } from './planejador';
 import type { AcertoRecente, ItemFila } from './planejador';
 import type { Concurso, DiaISO, Disciplina, Disponibilidade, Id, Sessao, Simulado } from './tipos';
 
@@ -91,18 +91,22 @@ export function viabilidade(
   acertos: Map<Id, AcertoRecente> = new Map(),
   capacidadeMin?: Record<string, number>,
   simulados: Simulado[] = [],
+  /** Blocos de teoria já feitos por tópico (dominio/teoria.ts). */
+  feitos: Map<Id, number> = new Map(),
 ): Viabilidade | null {
   if (!concurso.dataProva) return null;
   const hoje = diaSP(agora);
   const dias = diasEntre(hoje, concurso.dataProva);
   if (dias < 0) return null;
-  const fila = filaDeTeoria([concurso], disciplinas.filter((x) => x.concursoId === concurso.id), acertos, hoje, simulados);
+  const fila = filaDeTeoria([concurso], disciplinas.filter((x) => x.concursoId === concurso.id), acertos, hoje, simulados, feitos);
   const necessarios = fila.reduce((t, i) => t + i.blocos, 0);
 
   let disponiveis = 0;
   for (let n = 0; n < dias; n++) {
     const dia = somarDias(hoje, n);
-    let slots = slotsDoDia(d, dia);
+    // O horário de gestão dos concursos não é estudo.
+    const gestao = horarioDaGestao(d.gestao, dia);
+    let slots = slotsDoDia(d, dia).filter((s) => !gestao || !(gestao.inicio < s.fim && s.inicio < gestao.fim));
     const cap = capacidadeMin?.[String(diaDaSemana(dia))];
     if (cap !== undefined) {
       let usados = 0;

@@ -2,12 +2,13 @@ import { Check, ChevronLeft, ChevronRight, Clock, Play, RefreshCcw, Settings2, T
 import { useMemo, useState } from 'react';
 import type { DragEvent } from 'react';
 import { AvisosPlano } from '../componentes/AvisosPlano';
+import { ListaGestao } from '../componentes/Gestao';
 import { Botao, BotaoIcone, CabecalhoTela, Campo, Cartao, Confirmar, Entrada, Modal, Selecao, Vazio, cx } from '../componentes/ui';
 import { segundosLiquidos } from '../dominio/cronometro';
 import { diaSP, diasEntre, formatarData, formatarDuracao, formatarHora, inicioDaSemana, inicioDoMes, nomeDiaCurto, nomeMes, somarDias } from '../dominio/datas';
 import { hojeSP } from '../dominio/painel';
 import { minutos, segundosNoBloco, statusSugerido } from '../dominio/planejador';
-import { TIPO_SESSAO, nomeDoBloco, titulosDasRevisoes } from '../dominio/rotulos';
+import { TIPO_BLOCO, nomeDoBloco, titulosDasRevisoes } from '../dominio/rotulos';
 import type { BlocoPlanejado, DiaISO, Sessao } from '../dominio/tipos';
 import { useAgora, useApp } from '../estado';
 import { gravarLocal, lerLocal } from '../plataforma';
@@ -72,7 +73,7 @@ function CartaoBloco({ b, sessoesDoDia, agora, aoAbrir, arrastavel }: { b: Bloco
   const t = d && b.topicoId ? d.topicos[b.topicoId] : undefined;
   const estudado = segundosNoBloco(b, sessoesDoDia, agora);
   const feito = b.status === 'feito';
-  const cor = d?.cor ?? 'var(--verde)';
+  const cor = b.motivo === 'gestao' ? 'var(--roxo)' : d?.cor ?? 'var(--verde)';
   return (
     <button
       type="button"
@@ -93,7 +94,11 @@ function CartaoBloco({ b, sessoesDoDia, agora, aoAbrir, arrastavel }: { b: Bloco
       <span className="flex flex-wrap gap-1">
         <span className="numeros rounded-full bg-superficie px-1.5 text-xs font-bold">{b.inicio}</span>
         <span className="numeros rounded-full bg-superficie px-1.5 text-xs font-bold">{formatarDuracao(minutos(b) * 60)}</span>
-        {b.tipo !== 'teoria' && <span className="rounded-full bg-superficie px-1.5 text-xs font-bold text-roxo">{b.motivo === 'revisao_atrasada' ? 'Revisão atrasada' : TIPO_SESSAO[b.tipo]}</span>}
+        {b.motivo === 'gestao' ? (
+          <span className="numeros rounded-full bg-superficie px-1.5 text-xs font-bold text-roxo">{(b.tarefas ?? []).length}/5 tarefas</span>
+        ) : (
+          b.tipo !== 'teoria' && <span className="rounded-full bg-superficie px-1.5 text-xs font-bold text-roxo">{b.motivo === 'revisao_atrasada' ? 'Revisão atrasada' : TIPO_BLOCO[b.tipo]}</span>
+        )}
       </span>
       {t && <span className={cx('line-clamp-2 text-xs', feito && 'text-suave line-through')}>{t.titulo}</span>}
       {!t && b.revisoes && b.revisoes.length > 0 && (
@@ -118,7 +123,9 @@ function ModalBloco({ bloco, aoFechar }: { bloco: BlocoPlanejado | null; aoFecha
   const d = dados.disciplinas.find((x) => x.id === bloco.disciplinaId);
   const t = d && bloco.topicoId ? d.topicos[bloco.topicoId] : undefined;
   const concurso = dados.concursos.find((c) => c.id === bloco.concursoId);
-  const estudado = segundosNoBloco(bloco, porDia.get(bloco.dia) ?? [], agora);
+  // O bloco de gestão dos concursos não é estudo: sem cronômetro e sem sugestão pelo tempo.
+  const tipoSessao = bloco.tipo === 'gestao' ? null : bloco.tipo;
+  const estudado = tipoSessao ? segundosNoBloco(bloco, porDia.get(bloco.dia) ?? [], agora) : 0;
   const sugestao = bloco.status === 'planejado' ? statusSugerido(bloco, estudado) : null;
 
   const marcar = async (status: BlocoPlanejado['status']) => {
@@ -133,7 +140,7 @@ function ModalBloco({ bloco, aoFechar }: { bloco: BlocoPlanejado | null; aoFecha
     <Modal aberto aoFechar={aoFechar} titulo={t?.titulo ?? nomeDoBloco(bloco, d)} largo>
       <div className="grid grid-cols-1 gap-4">
         <p className="text-suave">
-          {[concurso?.nome, d?.nome].filter(Boolean).join(' › ')} · {TIPO_SESSAO[bloco.tipo]}
+          {[concurso?.nome, d?.nome].filter(Boolean).join(' › ') || 'Todos os concursos'} · {TIPO_BLOCO[bloco.tipo]}
           <br />
           <span className="numeros">
             {nomeDiaCurto(bloco.dia)}, {formatarData(bloco.dia)} · {bloco.inicio}–{bloco.fim} ({formatarDuracao(minutos(bloco) * 60)})
@@ -161,20 +168,23 @@ function ModalBloco({ bloco, aoFechar }: { bloco: BlocoPlanejado | null; aoFecha
             </Botao>
           </div>
         )}
+        {!tipoSessao && <ListaGestao bloco={bloco} />}
         <div className="flex flex-wrap gap-2">
-          <Botao
-            disabled={Boolean(dados.ativa)}
-            title={dados.ativa ? 'Já existe uma sessão em andamento' : undefined}
-            onClick={async () => {
-              const s = await executar(() => repo.iniciarSessao({ concursoId: bloco.concursoId, disciplinaId: bloco.disciplinaId, topicoId: bloco.topicoId, tipo: bloco.tipo }));
-              if (s) {
-                aoFechar();
-                irPara('cronometro');
-              }
-            }}
-          >
-            <Play size={16} /> Começar
-          </Botao>
+          {tipoSessao && (
+            <Botao
+              disabled={Boolean(dados.ativa)}
+              title={dados.ativa ? 'Já existe uma sessão em andamento' : undefined}
+              onClick={async () => {
+                const s = await executar(() => repo.iniciarSessao({ concursoId: bloco.concursoId, disciplinaId: bloco.disciplinaId, topicoId: bloco.topicoId, tipo: tipoSessao }));
+                if (s) {
+                  aoFechar();
+                  irPara('cronometro');
+                }
+              }}
+            >
+              <Play size={16} /> Começar
+            </Botao>
+          )}
           {(['feito', 'parcial', 'pulado'] as const).map((s) => (
             <Botao key={s} variante={bloco.status === s ? 'primario' : 'secundario'} onClick={() => void marcar(s)}>
               {STATUS[s]}
@@ -306,7 +316,7 @@ function VisaoMes({ base: dataRef, aoEscolher }: { base: DiaISO; aoEscolher: (di
               <span
                 key={b.id}
                 className={cx('h-1.5 rounded-full', b.status === 'feito' && 'opacity-40')}
-                style={{ background: dados.disciplinas.find((x) => x.id === b.disciplinaId)?.cor ?? 'var(--verde)' }}
+                style={{ background: b.motivo === 'gestao' ? 'var(--roxo)' : dados.disciplinas.find((x) => x.id === b.disciplinaId)?.cor ?? 'var(--verde)' }}
               />
             ))}
             {blocos.length > 3 && <span className="text-xs text-suave">+{blocos.length - 3}</span>}

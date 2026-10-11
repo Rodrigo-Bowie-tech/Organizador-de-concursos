@@ -1,4 +1,4 @@
-import type { StatusConcurso, StatusTopico, TipoDisciplina, TipoSessao } from './tipos';
+import type { BlocoPlanejado, StatusConcurso, StatusTopico, TipoDisciplina, TipoSessao } from './tipos';
 
 export const STATUS_CONCURSO: Record<StatusConcurso, string> = {
   previsto: 'Previsto',
@@ -30,14 +30,18 @@ export const TIPO_SESSAO: Record<TipoSessao, string> = {
   simulado: 'Simulado',
 };
 
+/** Tipo do bloco do Planejamento: os de sessão e o da gestão semanal dos concursos. */
+export const TIPO_BLOCO: Record<BlocoPlanejado['tipo'], string> = { ...TIPO_SESSAO, gestao: 'Gestão' };
+
 /** Cores das disciplinas, na ordem em que são atribuídas. Legíveis nos dois temas. */
 export const CORES_DISCIPLINA = [
   '#2bb99a', '#4a90d9', '#e8864a', '#9b6fd0', '#d9577a',
   '#c9a227', '#3fa7b5', '#7f9c3a', '#b5674a', '#5c6fd6',
 ];
 
-/** Nome do bloco no calendário: a disciplina; sem disciplina, "Simulado" ou "Estudo". */
-export function nomeDoBloco(b: { tipo: TipoSessao; disciplinaId: string | null }, disciplina?: { nome: string }): string {
+/** Nome do bloco no calendário: a disciplina; sem disciplina, "Simulado", "Revisões" ou "Estudo". */
+export function nomeDoBloco(b: { tipo: BlocoPlanejado['tipo']; disciplinaId: string | null }, disciplina?: { nome: string }): string {
+  if (b.tipo === 'gestao') return 'Gestão dos concursos';
   if (disciplina) return disciplina.nome;
   if (b.tipo === 'simulado') return 'Simulado';
   if (b.tipo === 'revisao' && !b.disciplinaId) return 'Revisões';

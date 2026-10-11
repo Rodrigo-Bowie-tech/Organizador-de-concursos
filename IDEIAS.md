@@ -11,6 +11,11 @@ Coisas que ficaram de fora para manter as fases simples. Não são compromisso.
 - Mover um tópico para outro pai ou outra disciplina.
 - Filtro "só não iniciados" e busca por texto no edital.
 
+## Planejamento
+- Ajuste do assunto para baixo: quando os tópicos andam bem mais rápido que o previsto, sugerir
+  diminuir a estimativa dos que faltam (hoje só sugere aumentar).
+- Gestão semanal: guardar data de fim das inscrições e do boleto no concurso, para a lista avisar o prazo.
+
 ## Painel e histórico
 - Escolher se a semana começa no domingo ou na segunda.
 

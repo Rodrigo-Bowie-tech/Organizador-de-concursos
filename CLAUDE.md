@@ -69,6 +69,8 @@ src/
     balanco.ts     tempo × peso, disciplinas esquecidas, tópicos parados, projeção de cobertura
     edital.ts      importação: achar o conteúdo programático, dividir para a IA, validar/juntar, equivalências
     planejador.ts  núcleo (5.1/5.2/5.4): slots da disponibilidade, domínio, fila por prioridade, gerarPlano
+    teoria.ts      blocos de teoria feitos por tópico, o que falta, "terminou a teoria?" e ritmo/ajuste do assunto
+    gestao.ts      gestão semanal dos concursos: padrão, as 5 tarefas e o que pede atenção em cada uma
     adaptacao.ts   capacidade real (média de 14 dias por dia da semana) e viabilidade do edital com cortes
     desempenho.ts  questões (sessões + avulsas), CSV, caderno de erros (D+3/D+14), simulados, séries das estatísticas
     provas.ts      provas anteriores: dividir para a IA, pedido/validação, gabarito colado, incidência por tópico e banca
@@ -92,7 +94,9 @@ src/
   componentes/   ui.tsx (botões, modal <dialog>, campos), campos/modais de sessão, botão flutuante,
                  Pomodoro, Materiais (biblioteca), PraticaIA, Alternativas (questão respondida com um clique),
                  QuestoesProva (revisão de assunto/gabarito/anulada das questões de uma prova),
-                 Sincronizacao (indicador no topo e cartão em Configurações)
+                 Sincronizacao (indicador no topo e cartão em Configurações),
+                 FimDaTeoria (pergunta "terminou a teoria?", ajuste do assunto, cartão da Home),
+                 Gestao (lista de tarefas do bloco semanal de gestão)
   plataforma.ts  recursos do claude.ai (IA, arquivos, downloads), wake lock, bipes, localStorage,
                  app instalável (service worker, convite de instalação)
   globais.d.ts   __WEB__ (true só no build do app instalável)
@@ -156,7 +160,7 @@ Limites: **5.000 documentos** no total e 256 KiB por documento. Por isso os regi
 | `biblioteca/<disciplinaId>` | `{ disciplinaId, itens: { <id>: Material } }`; PDFs no `assets`, id em `arquivoId` |
 | `editais/<id>` | Edital importado (cargo, trecho usado, PDF em `arquivoId`) |
 | `estado/vinculos` | `{ ignorados: string[] }` sugestões de tópicos equivalentes recusadas (`chavePar`) |
-| `disponibilidade/geral` | Disponibilidade: `dias` ("0"–"6" → janelas), `excecoes` (dia → janelas + motivo), `blocoMin` |
+| `disponibilidade/geral` | Disponibilidade: `dias` ("0"–"6" → janelas), `excecoes` (dia → janelas + motivo), `blocoMin`, `gestao` (dia, início, minutos; ausente = padrão domingo 19h, 1h; `null` = desligada) |
 | `plano/<AAAA-MM-DD>` | `{ semana, itens: { <id>: BlocoPlanejado } }`, blocos do calendário por semana |
 | `estado/planejamento` | `{ ultimoReplanejamento }`: dia do último replanejamento (o "de madrugada") |
 | `questoes/<AAAA-MM-DD>` | `{ semana, itens: { <id>: RegistroQuestoes } }`, questões avulsas (lançamento rápido, CSV) |
@@ -166,6 +170,7 @@ Limites: **5.000 documentos** no total e 256 KiB por documento. Por isso os regi
 | `radar_filtros/<id>` | FiltroRadar (áreas, UFs, bancas, salário mínimo; o `padrao` vem do seed) |
 | `estado/radar` | `{ vistoAte }`: oportunidades coletadas depois disso são "novas" (alerta na Home) |
 | `plano/<semana>` (fixos) | simulados marcados no cronograma: `tipo`/`motivo` `simulado`, sem disciplina, `fixo: true` |
+| `plano/<semana>` (gestão) | gestão semanal: `tipo`/`motivo` `gestao`, sem disciplina; `tarefas` marcadas (com alguma marcada, `fixo: true`) |
 | `estado/backup` | `{ ultimoEm }`: último backup exportado (lembrete na Home depois de 30 dias, com ≥ 10 sessões) |
 | `provas/<id>` | ProvaAnterior com as questões dentro (`questoes: { <id>: QuestaoProva }`); PDF em `arquivoId` |
 
@@ -223,8 +228,10 @@ seed sozinho.
   - domínio = teoria (até 0,5) + autoavaliação (0,25) + acerto recente com meia-vida de 30 dias (0,25, a
     partir de 5 questões); prioridade = peso×questões normalizado × incidência (1 a 2) × (1 − domínio) ×
     urgência (cresce nos 120 dias antes da prova) × prioridade do concurso;
-  - teoria estimada em `topico.blocosTeoria` (campo do Edital) ou, vazio, 2 blocos se não iniciado e 1 em
-    estudo; ao fim, o plano já agenda D+1 e D+7 e, a partir de D+7, o tópico entra nos blocos de questões;
+  - teoria: estimativa total em `topico.blocosTeoria` (campo do Edital; vazio = 2) e o plano reserva só o
+    que falta pelos blocos feitos (`dominio/teoria.ts`); estimativa acabada sem a teoria concluída guarda
+    1 bloco até a resposta; ao fim, o plano já agenda D+1 e D+7 e, a partir de D+7, o tópico entra nos
+    blocos de questões;
   - revisão atrasada entra no primeiro bloco livre; revisões juntam-se num bloco (20 min cada, até 3 por
     bloco de 60 min) e só viram bloco quando enchem ou quando alguma espera 2 dias; revisão/questões ocupam
     20% dos últimos 10 blocos, subindo até 60% nas últimas 3 semanas e 100% na última (sem conteúdo novo,
@@ -238,6 +245,9 @@ seed sozinho.
     peso dela por 1,7 − acerto (entre 0,5 e 1,5; 70% é neutro), com efeito proporcional a até 5 questões.
     Tópico "dominado" não ganha blocos de questões, a não ser que a disciplina tenha ficado abaixo de 70%;
   - blocos `fixo` (movidos por você ou simulados marcados, `motivo: 'simulado'`, sem disciplina) ficam;
+  - gestão semanal (`disponibilidade.gestao`): um bloco `motivo: 'gestao'` por semana no horário escolhido,
+    se a semana ainda não tem um que fica (marcado, movido ou passado); o estudo não cai no horário, a
+    viabilidade não o conta e ele fica fora da cota de revisão, do rodízio e do planejado × realizado;
   - tópicos vinculados entram uma vez só (prioridades somadas); horizonte até a última prova dos concursos
     com disciplinas (máximo 120 dias) ou 28 dias se faltar alguma data;
   - replanejar troca só os blocos `planejado` que ainda não começaram e não foram movidos (`fixo`);
@@ -303,6 +313,22 @@ seed sozinho.
   abrir (antes do replanejamento do dia, esperando até 4 s), 3 s depois de cada gravação, a cada minuto
   com a tela visível, ao voltar a internet e no botão. Plano juntado dos dois lados soma os blocos dos
   dois: o app replaneja (`aoJuntar`). Repositório vazio começa com `LEIAME.md` pela API contents.
+- **Fim da teoria** (11/10/2026, a pedido do usuário): blocos feitos por tópico = o maior entre (tempo
+  das sessões de teoria ÷ `blocoMin`) e (blocos de teoria marcados; parcial = meio); vinculados somam
+  juntos; 75% de um bloco já conta. Quando os previstos acabam e a teoria não foi concluída, o tópico
+  fica "a confirmar": a pergunta abre sozinha (`VigiaTeoria`) só se a teoria dele foi mexida neste
+  aparelho nos últimos 5 min (sessão fechada/registrada, bloco marcado: `repo.tocouATeoria`); o que
+  chega pela sincronização ou já estava pendente fica no cartão da Home. "Terminei" = teoria concluída
+  (revisão D+1). "Ainda não, +N" = `blocosTeoria` vira feitos + N, guardando `blocosTeoriaOriginal` e
+  `blocosTeoriaPedidos`. Depois de qualquer resposta, se o assunto anda ≥ 1,25× o previsto (concluídos:
+  blocos feitos; os que pediram mais: a estimativa nova; tudo contra a original), o app oferece ajustar
+  os tópicos que ainda não começaram para original × ritmo. Editar a estimativa no Edital zera a
+  original e os pedidos.
+- **Gestão semanal dos concursos** (11/10/2026, a pedido do usuário): ligada por padrão (domingo, 19:00,
+  1 h, fora da grade de estudo do Embu), configurável ou desligável na Disponibilidade. O bloco não vai
+  para o cronômetro: traz as 5 tarefas (analisar editais, pesquisar outros concursos, verificar
+  inscrições, revisar o planejamento, conferir resultados) com o que pede atenção nos dados e um atalho
+  para a tela; com as 5 marcadas, o bloco fica feito.
 - **Rede do container**: o proxy bloqueia cdnjs, pciconcursos.com.br e github.io. A rotina do radar só funciona
   depois de liberar `www.pciconcursos.com.br` nas configurações de rede do ambiente.
 

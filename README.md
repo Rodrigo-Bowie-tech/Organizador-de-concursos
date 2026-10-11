@@ -51,6 +51,12 @@ a prova, sugere o que cortar. Dá para intercalar assuntos em rodízio (Configur
 blocos de teoria cada tópico pede, e o último simulado ajusta o peso de cada área. Revisões são agrupadas
 (até 3 por bloco de 1h) e a última semana fica só para revisão e questões.
 
+Quando os blocos previstos de teoria de um tópico acabam, o app pergunta se você terminou. Se não,
+você diz quantos blocos ainda precisa e o plano se ajusta; se o assunto inteiro está levando mais que o
+previsto, ele oferece ajustar os tópicos que ainda não começaram. Uma vez por semana (domingo às 19h, ou
+no horário que você escolher na Disponibilidade) há um bloco de **gestão dos concursos**: analisar
+editais, pesquisar outros concursos, verificar inscrições, revisar o planejamento e conferir resultados.
+
 **Desempenho (Fase 5)**: lançamento rápido de questões, importação de CSV, caderno de erros com revisão
 em D+3 e D+14, simulados com nota de corte e estatísticas (acerto por disciplina, heatmap do ano,
 planejado × realizado, melhor horário).

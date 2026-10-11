@@ -5,12 +5,13 @@ import { ModalPratica } from '../componentes/PraticaIA';
 import { AreaTexto, Botao, BotaoIcone, CabecalhoTela, Campo, Confirmar, Entrada, Modal, Progresso, Selecao, Vazio, cx, useAoAbrir } from '../componentes/ui';
 import { formatarData, formatarDuracao } from '../dominio/datas';
 import { lerLote } from '../dominio/lote';
-import { cobertura, questoesPorTopico, segundosPorTopico, topicoConcluido } from '../dominio/painel';
+import { cobertura, questoesPorTopico, segundosPorTopico, topicoConcluido, topicosFolha } from '../dominio/painel';
 import { incidenciaPorTopico } from '../dominio/provas';
 import type { Acerto } from '../dominio/painel';
 import { PainelEquivalencias } from '../componentes/Equivalencias';
 import { todasAsQuestoes } from '../dominio/desempenho';
 import { STATUS_TOPICO } from '../dominio/rotulos';
+import { estimativaTeoria, meioBloco } from '../dominio/teoria';
 import { achatar, comDescendentes } from '../dominio/topicos';
 import type { Disciplina, StatusTopico, Topico } from '../dominio/tipos';
 import { useApp } from '../estado';
@@ -87,7 +88,10 @@ function ModalTopico({ alvo, editar, aoFechar }: { alvo: Alvo | null; editar: { 
           </Campo>
         )}
         {editar && (
-          <Campo rotulo="Blocos de teoria" dica="Quantos blocos do planejamento este tópico pede para a teoria. Em branco: 2 se não iniciado, 1 em estudo.">
+          <Campo
+            rotulo="Blocos de teoria"
+            dica="Quantos blocos do planejamento este tópico pede para a teoria, no total (em branco: 2). O app conta os feitos e pergunta quando acabarem."
+          >
             {(id) => <Entrada id={id} type="number" min={1} max={20} placeholder="2" value={blocos} onChange={(e) => setBlocos(e.target.value)} />}
           </Campo>
         )}
@@ -184,6 +188,7 @@ function LinhaTopico({
   segundos,
   acerto,
   incidencia,
+  teoria,
   vinculos,
   nMateriais,
   aoMateriais,
@@ -200,6 +205,8 @@ function LinhaTopico({
   acerto: Acerto | undefined;
   /** Vezes que caiu na banca: informada à mão ou contada nas provas anteriores. */
   incidencia: { n: number; manual: boolean } | null;
+  /** Blocos de teoria feitos e previstos (tópicos-folha ainda em teoria). */
+  teoria?: { feitos: number; estimativa: number };
   /** Onde este tópico aparece em outros editais (tópicos vinculados). */
   vinculos: string[];
   nMateriais: number;
@@ -264,6 +271,11 @@ function LinhaTopico({
             </option>
           ))}
         </select>
+        {teoria && (
+          <span className="numeros text-xs font-bold text-suave" title="Blocos de teoria feitos / previstos (o app pergunta quando acabarem)">
+            {meioBloco(teoria.feitos).toLocaleString('pt-BR')}/{teoria.estimativa} blocos
+          </span>
+        )}
         <span className="numeros w-16 text-right text-xs text-suave" title="Tempo líquido estudado">
           {segundos ? formatarDuracao(segundos) : '–'}
         </span>
@@ -335,6 +347,7 @@ export function Edital() {
   const [materiais, setMateriais] = useState<{ disciplina: Disciplina; topico: Topico } | null>(null);
   const [praticar, setPraticar] = useState<{ disciplina: Disciplina; topico: Topico } | null>(null);
   const porTopico = useMemo(() => segundosPorTopico(dados.sessoes, Date.now()), [dados.sessoes]);
+  const feitos = useMemo(() => repo.blocosFeitos(), [dados, repo]);
   const acertos = useMemo(
     () => questoesPorTopico(todasAsQuestoes(dados.sessoes, dados.registrosQuestoes).map((q) => ({ topicoId: q.topicoId, feitas: q.feitas, acertos: q.acertos }))),
     [dados.sessoes, dados.registrosQuestoes],
@@ -427,6 +440,7 @@ export function Edital() {
         <div className="grid grid-cols-1 gap-4">
           {disciplinas.map((d) => {
             const linhas = achatar(d.topicos);
+            const folhas = new Set(topicosFolha(d.topicos).map((t) => t.id));
             const c = cobertura([d]);
             return (
               <div key={d.id} className="relative">
@@ -456,6 +470,11 @@ export function Edital() {
                           segundos={somaSegundos(l.topico)}
                           acerto={somaAcerto(l.topico)}
                           incidencia={incidenciaDe(l.topico)}
+                          teoria={
+                            folhas.has(l.topico.id) && !topicoConcluido(l.topico) && !l.topico.cortado
+                              ? { feitos: feitos.get(l.topico.id) ?? 0, estimativa: estimativaTeoria(l.topico) }
+                              : undefined
+                          }
                           vinculos={doGrupo(l.topico).filter((x) => x.topicoId !== l.topico.id).map((x) => `${x.concurso} › ${x.titulo}`)}
                           nMateriais={dados.materiais.filter((m) => m.topicoId === l.topico.id).length}
                           aoMateriais={() => setMateriais({ disciplina: d, topico: l.topico })}

@@ -35,7 +35,9 @@ import type { DisciplinaImportada } from '../dominio/edital';
 import { lerLote, topicosDoLote } from '../dominio/lote';
 import { comIncidenciaDasProvas } from '../dominio/provas';
 import type { QuestaoImportada } from '../dominio/provas';
+import { GESTAO_PADRAO } from '../dominio/gestao';
 import { topicoConcluido } from '../dominio/painel';
+import { blocosDeTeoriaFeitos, estimativaComMais, estimativaTeoria } from '../dominio/teoria';
 import * as rev from '../dominio/revisoes';
 import { CORES_DISCIPLINA } from '../dominio/rotulos';
 import { comDescendentes, mover, proximaOrdem } from '../dominio/topicos';
@@ -176,6 +178,8 @@ export class Repositorio {
   private erro: ErroStore | null = null;
   private dados: Dados;
   private limpandoAtiva = false;
+  /** Tópicos com teoria mexida neste aparelho (sessão fechada, registrada ou bloco marcado), e quando. */
+  private teoriaTocada = new Map<Id, number>();
 
   constructor(
     private store: Store,
@@ -253,7 +257,14 @@ export class Repositorio {
       .sort((a, b) => b.importadoEm.localeCompare(a.importadoEm));
     const vinculosIgnorados = new Set((this.col('estado').get('vinculos')?.ignorados as string[] | undefined) ?? []);
     const disp = this.col('disponibilidade').get('geral') as Partial<Disponibilidade> | undefined;
-    const disponibilidade: Disponibilidade = { ...DISPONIBILIDADE_VAZIA, ...disp, dias: disp?.dias ?? {}, excecoes: disp?.excecoes ?? {} };
+    const disponibilidade: Disponibilidade = {
+      ...DISPONIBILIDADE_VAZIA,
+      ...disp,
+      dias: disp?.dias ?? {},
+      excecoes: disp?.excecoes ?? {},
+      // Gestão semanal dos concursos: ligada por padrão até você desligar (aí fica `null`).
+      gestao: disp?.gestao === undefined ? GESTAO_PADRAO : disp.gestao,
+    };
     const blocos = this.itensSemanais<BlocoPlanejado>('plano').sort((a, b) => a.dia.localeCompare(b.dia) || a.inicio.localeCompare(b.inicio));
     const registrosQuestoes = this.itensSemanais<RegistroQuestoes>('questoes').sort((a, b) => b.dia.localeCompare(a.dia));
     const erros: ErroCaderno[] = [];
@@ -452,6 +463,11 @@ export class Repositorio {
         extra.concluidoEm = null;
         extra.revisao = null;
       }
+    }
+    if (t && patch.blocosTeoria !== undefined && (patch.blocosTeoria ?? null) !== (t.blocosTeoria ?? null)) {
+      // Estimativa digitada por você: o ritmo do assunto passa a contar a partir dela.
+      extra.blocosTeoriaOriginal = null;
+      extra.blocosTeoriaPedidos = null;
     }
     const mudancas = [{ disciplinaId, topicoId, patch: { ...patch, ...extra } }];
     // Tópicos equivalentes em outros editais acompanham o status (estudar um conta para o outro).
@@ -748,6 +764,7 @@ export class Repositorio {
       intercalar: this.dados.config.intercalarAssuntos,
       ultimoEstudo: this.ultimoEstudoDeTeoria(),
       simulados: this.dados.simulados,
+      feitos: this.blocosFeitos(),
       novoId,
     });
     await this.substituirFuturos(novos);
@@ -768,6 +785,70 @@ export class Repositorio {
       if (b.motivo === 'teoria' && (b.status === 'feito' || b.status === 'parcial')) marcar(b.disciplinaId, instanteSP(b.dia, b.inicio).toISOString());
     }
     return m;
+  }
+
+  private tocarTeoria(topicoId: Id | null) {
+    if (topicoId) this.teoriaTocada.set(topicoId, this.relogio().getTime());
+  }
+
+  /**
+   * A teoria do tópico (ou de um vinculado) foi mexida neste aparelho nos últimos minutos? Só
+   * então a pergunta "terminou a teoria?" abre sozinha; o que chega de outro aparelho fica no
+   * cartão da Home.
+   */
+  tocouATeoria(t: Pick<Topico, 'id' | 'grupoEquivalenciaId'>, minutos = 5): boolean {
+    const desde = this.relogio().getTime() - minutos * 60_000;
+    const ids = t.grupoEquivalenciaId ? [t.id, ...this.membrosDoGrupo(t.grupoEquivalenciaId).map((m) => m.topicoId)] : [t.id];
+    return ids.some((id) => (this.teoriaTocada.get(id) ?? 0) >= desde);
+  }
+
+  /** Blocos de teoria já feitos por tópico: tempo de teoria ou blocos marcados (dominio/teoria.ts). */
+  blocosFeitos(): Map<Id, number> {
+    return blocosDeTeoriaFeitos(this.dados.sessoes, this.dados.blocos, this.dados.disciplinas, this.dados.disponibilidade.blocoMin, this.relogio());
+  }
+
+  /** "Terminei a teoria": revisão amanhã (D+1), questões a partir daí e plano refeito. */
+  async concluirTeoria(disciplinaId: Id, topicoId: Id): Promise<void> {
+    await this.atualizarTopico(disciplinaId, topicoId, { status: 'teoria_concluida' });
+    await this.replanejarSePuder();
+  }
+
+  /**
+   * "Ainda não terminei": a estimativa vira o que já foi feito + `mais` blocos (a original fica
+   * guardada para medir o ritmo do assunto) e o plano é refeito. Vinculados acompanham.
+   */
+  async pedirMaisTeoria(disciplinaId: Id, topicoId: Id, mais: number): Promise<number> {
+    const t = this.disciplina(disciplinaId).topicos[topicoId];
+    if (!t) throw falha('nao_encontrado', 'Tópico não encontrado.');
+    const patch = estimativaComMais(t, this.blocosFeitos().get(topicoId) ?? 0, mais);
+    const membros = t.grupoEquivalenciaId ? this.membrosDoGrupo(t.grupoEquivalenciaId, topicoId) : [];
+    await this.aplicarEmTopicos([{ disciplinaId, topicoId, patch }, ...membros.map((m) => ({ ...m, patch }))]);
+    await this.replanejarSePuder();
+    return patch.blocosTeoria;
+  }
+
+  /** Ajuste do assunto: novas estimativas para os tópicos que ainda não começaram. */
+  async ajustarEstimativas(disciplinaId: Id, mudancas: { topicoId: Id; blocos: number }[]): Promise<void> {
+    const d = this.disciplina(disciplinaId);
+    await this.aplicarEmTopicos(
+      mudancas
+        .filter((m) => d.topicos[m.topicoId])
+        .map((m) => {
+          const t = d.topicos[m.topicoId];
+          return { disciplinaId, topicoId: m.topicoId, patch: { blocosTeoria: m.blocos, blocosTeoriaOriginal: t.blocosTeoriaOriginal ?? estimativaTeoria(t) } };
+        }),
+    );
+    await this.replanejarSePuder();
+  }
+
+  /** Bloco de gestão: marca ou desmarca uma tarefa; com todas feitas, o bloco fica feito. */
+  async marcarTarefaGestao(blocoId: Id, tarefa: string, feita: boolean, total: number): Promise<void> {
+    const b = this.dados.blocos.find((x) => x.id === blocoId);
+    if (!b) throw falha('nao_encontrado', 'Bloco não encontrado.');
+    const tarefas = [...new Set([...(b.tarefas ?? []).filter((x) => x !== tarefa), ...(feita ? [tarefa] : [])])];
+    // `fixo`: replanejar não troca o bloco (e não perde as marcas).
+    const status = tarefas.length >= total ? 'feito' : b.status;
+    await this.gravarItemSemanal('plano', inicioDaSemana(b.dia), { ...b, tarefas, fixo: true, status } as BlocoPlanejado);
   }
 
   /** Replaneja se houver disponibilidade configurada (depois de sessões e blocos marcados, ou do plano juntado de dois aparelhos). */
@@ -840,6 +921,7 @@ export class Repositorio {
   async marcarBloco(id: Id, status: BlocoPlanejado['status']): Promise<void> {
     const b = this.dados.blocos.find((x) => x.id === id);
     if (!b) throw falha('nao_encontrado', 'Bloco não encontrado.');
+    if (b.motivo === 'teoria' && (status === 'feito' || status === 'parcial')) this.tocarTeoria(b.topicoId);
     await this.gravarItemSemanal('plano', inicioDaSemana(b.dia), { ...b, status } as BlocoPlanejado);
     await this.replanejarSePuder();
   }
@@ -1112,6 +1194,7 @@ export class Repositorio {
     );
     // Primeiro grava no histórico; só depois limpa o estado. Se a segunda
     // gravação falhar, `reconciliarAtiva` limpa na próxima carga.
+    if (s.tipo === 'teoria') this.tocarTeoria(s.topicoId);
     await this.gravarSessao(s);
     await this.store.definir('estado/cronometro', { sessao: null });
     if (s.concluiuTeoria) await this.avancarStatus(s.disciplinaId, s.topicoId, 'teoria_concluida');
@@ -1153,6 +1236,7 @@ export class Repositorio {
       origem: d.origem ?? 'manual',
       concluiuTeoria: d.concluiuTeoria ?? false,
     };
+    if (s.tipo === 'teoria') this.tocarTeoria(s.topicoId);
     await this.gravarSessao(s);
     if (s.concluiuTeoria) await this.avancarStatus(s.disciplinaId, s.topicoId, 'teoria_concluida');
     await this.replanejarSePuder();

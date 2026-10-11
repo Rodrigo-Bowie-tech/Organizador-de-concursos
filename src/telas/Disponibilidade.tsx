@@ -2,6 +2,7 @@ import { ArrowLeft, Copy, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Botao, BotaoIcone, CabecalhoTela, Campo, Cartao, Entrada, Selecao } from '../componentes/ui';
 import { formatarData, formatarDuracao } from '../dominio/datas';
+import { GESTAO_PADRAO } from '../dominio/gestao';
 import { minutos } from '../dominio/planejador';
 import type { BlocoHorario, Disponibilidade as Disp } from '../dominio/tipos';
 import { useApp } from '../estado';
@@ -39,10 +40,16 @@ export function Disponibilidade() {
   const { dados, repo, executar, irPara } = useApp();
   const [d, setD] = useState<Disp>(dados.disponibilidade);
   const [novaData, setNovaData] = useState('');
-  useEffect(() => setD(dados.disponibilidade), [dados.disponibilidade]);
+  // Só recarrega se a disponibilidade gravada mudar de verdade (outro aparelho): outras gravações
+  // e sincronizações não apagam o que está sendo editado.
+  const gravada = JSON.stringify(dados.disponibilidade);
+  useEffect(() => setD(JSON.parse(gravada) as Disp), [gravada]);
 
   const total = Object.values(d.dias).flat().reduce((t, b) => t + minutos(b), 0);
-  const valido = Object.values(d.dias).flat().concat(Object.values(d.excecoes).flatMap((e) => e.blocos)).every((b) => minutos(b) > 0);
+  const valido =
+    Object.values(d.dias).flat().concat(Object.values(d.excecoes).flatMap((e) => e.blocos)).every((b) => minutos(b) > 0) &&
+    (!d.gestao || /^\d{2}:\d{2}$/.test(d.gestao.inicio));
+  const gestao = d.gestao ?? null;
 
   async function salvar(replanejar: boolean) {
     const limpo: Disp = {
@@ -102,6 +109,51 @@ export function Disponibilidade() {
             </Campo>
           </Cartao>
 
+          <Cartao titulo="Gestão dos concursos">
+            <p className="mb-3 text-sm text-suave">
+              Um horário por semana para analisar editais, pesquisar outros concursos, verificar inscrições, revisar o planejamento e conferir
+              resultados. Aparece no Planejamento com essa lista e não conta como estudo; se cair num horário de estudo, o plano deixa ele livre.
+            </p>
+            <label className="flex items-center gap-2 font-bold">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[var(--verde)]"
+                checked={Boolean(gestao)}
+                onChange={(e) => setD({ ...d, gestao: e.target.checked ? GESTAO_PADRAO : null })}
+              />
+              Reservar um horário por semana
+            </label>
+            {gestao && (
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                <Campo rotulo="Dia da gestão">
+                  {(id) => (
+                    <Selecao id={id} value={gestao.dia} onChange={(e) => setD({ ...d, gestao: { ...gestao, dia: e.target.value } })}>
+                      {DIAS.map((nome, i) => (
+                        <option key={nome} value={String(i)}>
+                          {nome}
+                        </option>
+                      ))}
+                    </Selecao>
+                  )}
+                </Campo>
+                <Campo rotulo="Começa às">
+                  {(id) => <Entrada id={id} type="time" value={gestao.inicio} onChange={(e) => setD({ ...d, gestao: { ...gestao, inicio: e.target.value } })} />}
+                </Campo>
+                <Campo rotulo="Duração da gestão">
+                  {(id) => (
+                    <Selecao id={id} value={gestao.minutos} onChange={(e) => setD({ ...d, gestao: { ...gestao, minutos: Number(e.target.value) } })}>
+                      {[30, 45, 60, 90, 120].map((m) => (
+                        <option key={m} value={m}>
+                          {formatarDuracao(m * 60)}
+                        </option>
+                      ))}
+                    </Selecao>
+                  )}
+                </Campo>
+              </div>
+            )}
+          </Cartao>
+
           <Cartao titulo="Exceções">
             <p className="mb-3 text-sm text-suave">Plantão, viagem ou folga: nesse dia valem só os horários da exceção.</p>
             <div className="grid grid-cols-1 gap-4">
@@ -142,7 +194,7 @@ export function Disponibilidade() {
           </Cartao>
 
           <Cartao>
-            {!valido && <p className="mb-2 text-sm font-bold text-perigo">Há horário com fim antes do início.</p>}
+            {!valido && <p className="mb-2 text-sm font-bold text-perigo">Há horário com fim antes do início, ou a gestão está sem horário.</p>}
             <div className="flex flex-wrap gap-2">
               <Botao disabled={!valido} onClick={() => void salvar(true)}>
                 Salvar e replanejar

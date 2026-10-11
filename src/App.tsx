@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
 import { BotaoCronometro } from './componentes/BotaoCronometro';
+import { VigiaTeoria } from './componentes/FimDaTeoria';
 import { IndicadorSinc } from './componentes/Sincronizacao';
 import { VigiaPomodoro } from './componentes/VigiaPomodoro';
 import { cx } from './componentes/ui';
@@ -238,6 +239,7 @@ export function App() {
 
       {tela !== 'cronometro' && <BotaoCronometro />}
       <VigiaPomodoro />
+      <VigiaTeoria />
       <Avisos />
     </div>
   );

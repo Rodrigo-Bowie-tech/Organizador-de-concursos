@@ -392,16 +392,19 @@ describe('planejamento no repositório', () => {
     await repo.salvarDisponibilidade(grade);
     const n = await repo.replanejar();
     expect(n).toBeGreaterThan(0);
-    expect(repo.atual.blocos[0]).toMatchObject({ dia: '2026-09-27', inicio: '20:00', fim: '21:00', status: 'planejado' });
+    // Sem a gestão dos concursos, que entra por padrão no domingo às 19h.
+    const estudo = () => repo.atual.blocos.filter((b) => b.motivo !== 'gestao');
+    expect(repo.atual.blocos.find((b) => b.motivo === 'gestao')).toMatchObject({ dia: '2026-09-27', inicio: '19:00', fim: '20:00', tipo: 'gestao' });
+    expect(estudo()[0]).toMatchObject({ dia: '2026-09-27', inicio: '20:00', fim: '21:00', status: 'planejado' });
     expect(Object.keys(store.despejar())).toContain('plano/2026-09-27');
 
-    const primeiro = repo.atual.blocos[0];
+    const primeiro = estudo()[0];
     await repo.marcarBloco(primeiro.id, 'feito');
     await repo.replanejar();
     expect(repo.atual.blocos.find((b) => b.id === primeiro.id)?.status).toBe('feito');
     expect(repo.atual.blocos.filter((b) => b.dia === '2026-09-27' && b.inicio === '20:00')).toHaveLength(1);
 
-    const outro = repo.atual.blocos.find((b) => b.status === 'planejado')!;
+    const outro = estudo().find((b) => b.status === 'planejado')!;
     await repo.moverBloco(outro.id, '2026-10-05', '06:30');
     expect(repo.atual.blocos.find((b) => b.id === outro.id)).toMatchObject({ dia: '2026-10-05', inicio: '06:30', fim: '07:30' });
 
@@ -559,5 +562,76 @@ describe('provas anteriores (Fase 7)', () => {
     await repo.excluirProva(prova);
     expect(repo.atual.provas).toHaveLength(0);
     expect(Object.keys(store.despejar()).some((c) => c.startsWith('provas/'))).toBe(false);
+  });
+});
+
+describe('fim da teoria e gestão semanal', () => {
+  const grade = {
+    blocoMin: 60,
+    excecoes: {},
+    dias: Object.fromEntries(['0', '1', '2', '3', '4', '5', '6'].map((d) => [d, [{ inicio: '20:00', fim: '22:00' }]])),
+  };
+
+  async function comTopicos() {
+    agora = new Date('2026-09-27T12:00:00Z'); // domingo, 09:00 em SP
+    const { repo, store } = await novoRepo();
+    const { disciplinaId } = await concursoComDisciplina(repo);
+    await repo.salvarDisponibilidade(grade);
+    const topicos = Object.values(repo.atual.disciplinas[0].topicos);
+    const ohm = topicos.find((t) => t.titulo === 'Lei de Ohm')!;
+    const maquinas = topicos.find((t) => t.titulo === 'Máquinas elétricas')!;
+    return { repo, store, disciplinaId, ohm, maquinas };
+  }
+
+  const blocosDe = (repo: Repositorio, topicoId: string) =>
+    repo.atual.blocos.filter((b) => b.topicoId === topicoId && b.motivo === 'teoria' && b.status === 'planejado').length;
+
+  it('conta os blocos feitos e o plano só reserva o que falta', async () => {
+    const { repo, disciplinaId, ohm } = await comTopicos();
+    await repo.atualizarTopico(disciplinaId, ohm.id, { blocosTeoria: 3 });
+    await repo.replanejar();
+    expect(blocosDe(repo, ohm.id)).toBe(3);
+    await repo.registrarManual({ concursoId: null, disciplinaId, topicoId: ohm.id, tipo: 'teoria', inicio: new Date('2026-09-26T23:00:00Z'), segundosLiquidos: 2 * 3600 });
+    expect(repo.blocosFeitos().get(ohm.id)).toBe(2);
+    expect(blocosDe(repo, ohm.id)).toBe(1);
+  });
+
+  it('"ainda não": estimativa = feitos + N, a original fica guardada e o plano ganha os blocos', async () => {
+    const { repo, disciplinaId, ohm } = await comTopicos();
+    await repo.atualizarTopico(disciplinaId, ohm.id, { blocosTeoria: 2 });
+    await repo.registrarManual({ concursoId: null, disciplinaId, topicoId: ohm.id, tipo: 'teoria', inicio: new Date('2026-09-26T23:00:00Z'), segundosLiquidos: 2 * 3600 });
+    expect(await repo.pedirMaisTeoria(disciplinaId, ohm.id, 2)).toBe(4);
+    expect(repo.atual.disciplinas[0].topicos[ohm.id]).toMatchObject({ blocosTeoria: 4, blocosTeoriaOriginal: 2, blocosTeoriaPedidos: 2 });
+    expect(blocosDe(repo, ohm.id)).toBe(2);
+    // Mudar a estimativa à mão recomeça a conta do ritmo.
+    await repo.atualizarTopico(disciplinaId, ohm.id, { blocosTeoria: 6 });
+    expect(repo.atual.disciplinas[0].topicos[ohm.id]).toMatchObject({ blocosTeoria: 6, blocosTeoriaOriginal: null, blocosTeoriaPedidos: null });
+  });
+
+  it('"terminei": teoria concluída com revisão amanhã; o ajuste do assunto muda os que não começaram', async () => {
+    const { repo, disciplinaId, ohm, maquinas } = await comTopicos();
+    await repo.concluirTeoria(disciplinaId, ohm.id);
+    expect(repo.atual.disciplinas[0].topicos[ohm.id]).toMatchObject({ status: 'teoria_concluida', revisao: { proxima: '2026-09-28' } });
+    await repo.ajustarEstimativas(disciplinaId, [{ topicoId: maquinas.id, blocos: 3 }]);
+    expect(repo.atual.disciplinas[0].topicos[maquinas.id]).toMatchObject({ blocosTeoria: 3, blocosTeoriaOriginal: 2 });
+    expect(blocosDe(repo, maquinas.id)).toBe(3);
+  });
+
+  it('gestão: ligada por padrão, desliga com null, tarefas marcadas fixam o bloco', async () => {
+    const { repo } = await comTopicos();
+    await repo.replanejar();
+    const gestao = repo.atual.blocos.find((b) => b.motivo === 'gestao')!;
+    expect(gestao).toMatchObject({ dia: '2026-09-27', inicio: '19:00', fim: '20:00', status: 'planejado' });
+    await repo.marcarTarefaGestao(gestao.id, 'editais', true, 2);
+    expect(repo.atual.blocos.find((b) => b.id === gestao.id)).toMatchObject({ tarefas: ['editais'], fixo: true, status: 'planejado' });
+    await repo.replanejar();
+    expect(repo.atual.blocos.filter((b) => b.motivo === 'gestao' && b.dia === '2026-09-27')).toHaveLength(1);
+    await repo.marcarTarefaGestao(gestao.id, 'outros', true, 2);
+    expect(repo.atual.blocos.find((b) => b.id === gestao.id)?.status).toBe('feito');
+
+    await repo.salvarDisponibilidade({ ...repo.atual.disponibilidade, gestao: null });
+    expect(repo.atual.disponibilidade.gestao).toBeNull();
+    await repo.replanejar();
+    expect(repo.atual.blocos.filter((b) => b.motivo === 'gestao').map((b) => b.id)).toEqual([gestao.id]);
   });
 });

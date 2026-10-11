@@ -4,18 +4,17 @@
 // status e o domínio dos tópicos, e a fila se reorganiza sozinha.
 
 import { intervalosAtivos } from './cronometro';
-import { diaDaSemana, diaSP, diasEntre, instanteSP, somarDias } from './datas';
+import { diaDaSemana, diaSP, diasEntre, inicioDaSemana, instanteSP, somarDias } from './datas';
 import { topicoConcluido, topicosFolha } from './painel';
+import { restanteDeTeoria } from './teoria';
 import { achatar } from './topicos';
-import type { BlocoHorario, BlocoPlanejado, Concurso, DiaISO, Disciplina, Disponibilidade, Id, Sessao, Simulado, Topico } from './tipos';
+import type { BlocoHorario, BlocoPlanejado, Concurso, DiaISO, Disciplina, Disponibilidade, GestaoSemanal, Id, Sessao, Simulado, Topico } from './tipos';
 
 export const DISPONIBILIDADE_VAZIA: Disponibilidade = { dias: {}, excecoes: {}, blocoMin: 60 };
 /** Horizonte quando falta a data de alguma prova. */
 export const HORIZONTE_DIAS = 28;
 /** Com todas as datas de prova, o plano vai até a última, limitado a este número de dias. */
 export const HORIZONTE_MAXIMO_DIAS = 120;
-/** Blocos de teoria estimados por tópico: não iniciado 2, em estudo 1. */
-const BLOCOS_TEORIA = { nao_iniciado: 2, em_estudo: 1 } as const;
 const MINIMO_BLOCO_MIN = 25;
 /** Tempo de uma revisão de tópico: um bloco de 60 min junta até 3 revisões. */
 export const MINUTOS_POR_REVISAO = 20;
@@ -33,6 +32,14 @@ const paraHora = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:
 export function minutos(b: Pick<BlocoHorario, 'inicio' | 'fim'>): number {
   return Math.max(0, paraMin(b.fim) - paraMin(b.inicio));
 }
+
+/** O horário de cuidar dos concursos neste dia, se a gestão semanal cair nele. */
+export function horarioDaGestao(g: GestaoSemanal | null | undefined, dia: DiaISO): BlocoHorario | null {
+  if (!g || !(g.minutos > 0) || String(diaDaSemana(dia)) !== g.dia) return null;
+  return { inicio: g.inicio, fim: paraHora(Math.min(24 * 60 - 1, paraMin(g.inicio) + g.minutos)) };
+}
+
+const sobrepoe = (a: Pick<BlocoHorario, 'inicio' | 'fim'>, b: Pick<BlocoHorario, 'inicio' | 'fim'>) => a.inicio < b.fim && b.inicio < a.fim;
 
 /** Janelas de estudo de um dia: a exceção, se houver, senão a grade do dia da semana. */
 export function janelasDoDia(d: Disponibilidade, dia: DiaISO): BlocoHorario[] {
@@ -109,11 +116,12 @@ function proximidade(diasAteProva: number | null): number {
   return Math.min(1, Math.max(0, 1 - diasAteProva / 120));
 }
 
-/** Blocos de teoria que faltam: a estimativa do tópico (metade, se já está em estudo) ou o padrão. */
-export function blocosDeTeoria(t: Pick<Topico, 'status' | 'blocosTeoria'>): number {
-  const padrao = BLOCOS_TEORIA[t.status as 'nao_iniciado' | 'em_estudo'] ?? 1;
-  if (!t.blocosTeoria || t.blocosTeoria < 1) return padrao;
-  return t.status === 'em_estudo' ? Math.max(1, Math.ceil(t.blocosTeoria / 2)) : Math.round(t.blocosTeoria);
+/**
+ * Blocos de teoria a planejar: o que falta da estimativa pelos blocos já feitos (dominio/teoria.ts).
+ * Se os previstos acabaram e a teoria não foi confirmada, guarda 1 bloco até a resposta.
+ */
+export function blocosDeTeoria(t: Pick<Topico, 'blocosTeoria'>, feitos = 0): number {
+  return Math.max(1, restanteDeTeoria(t, feitos));
 }
 
 // ------------------------------------------------------ simulados
@@ -169,6 +177,8 @@ export function filaDeTeoria(
   acertos: Map<Id, AcertoRecente>,
   hoje: DiaISO,
   simulados: Simulado[] = [],
+  /** Blocos de teoria já feitos por tópico: entra só o que falta. */
+  feitos: Map<Id, number> = new Map(),
 ): ItemFila[] {
   const ajustes = ajusteDosSimulados(simulados, disciplinas);
   const posicao = new Map<Id, number>();
@@ -206,7 +216,7 @@ export function filaDeTeoria(
           disciplina: d,
           topico: t,
           prioridade,
-          blocos: blocosDeTeoria(t),
+          blocos: blocosDeTeoria(t, feitos.get(t.id) ?? 0),
         });
       }
     }
@@ -250,6 +260,8 @@ export interface EntradaPlano {
   ultimoEstudo?: Map<Id, string>;
   /** O último simulado de cada disciplina ajusta a prioridade dela. */
   simulados?: Simulado[];
+  /** Blocos de teoria já feitos por tópico (dominio/teoria.ts): o plano só põe o que falta. */
+  feitos?: Map<Id, number>;
   novoId: () => Id;
 }
 
@@ -267,7 +279,7 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
   const acertos = e.acertos ?? new Map();
   const simulados = e.simulados ?? [];
   const ajustes = ajusteDosSimulados(simulados, e.disciplinas);
-  const fila = filaDeTeoria(e.concursos, e.disciplinas, acertos, hoje, simulados);
+  const fila = filaDeTeoria(e.concursos, e.disciplinas, acertos, hoje, simulados, e.feitos);
   const concursosAtivos = e.concursos.filter((c) => c.status !== 'prova_feita' && (!c.dataProva || c.dataProva >= hoje));
   const ativos = new Set(concursosAtivos.map((c) => c.id));
   const dataProva = new Map(concursosAtivos.map((c) => [c.id, c.dataProva]));
@@ -315,8 +327,9 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
   const agoraMs = e.agora.getTime();
   const ficam = e.existentes.filter((b) => b.status !== 'planejado' || b.fixo || instanteSP(b.dia, b.inicio).getTime() < agoraMs);
   const fixosFuturos = e.existentes.filter((b) => b.status === 'planejado' && b.fixo && instanteSP(b.dia, b.inicio).getTime() >= agoraMs);
-  const ocupado = (dia: DiaISO, s: BlocoHorario) =>
-    ficam.some((b) => b.dia === dia && b.inicio < s.fim && s.inicio < b.fim);
+  /** Blocos semanais de gestão dos concursos (não são estudo: ficam fora da cota e do rodízio). */
+  const gestao: BlocoPlanejado[] = [];
+  const ocupado = (dia: DiaISO, s: BlocoHorario) => ficam.some((b) => b.dia === dia && sobrepoe(b, s)) || gestao.some((b) => b.dia === dia && sobrepoe(b, s));
 
   const plano: BlocoPlanejado[] = [];
   const restantes = fila.map((i) => ({ ...i }));
@@ -374,6 +387,14 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
   for (let n = 0; n < horizonte; n++) {
     const dia = somarDias(hoje, n);
     if (todosComData && dia > provas[provas.length - 1]) break;
+    // Um horário por semana para cuidar dos concursos; o estudo não cai nele.
+    const hg = horarioDaGestao(e.disponibilidade.gestao, dia);
+    if (hg && instanteSP(dia, hg.inicio).getTime() >= agoraMs) {
+      const semana = inicioDaSemana(dia);
+      if (!ficam.some((b) => b.motivo === 'gestao' && inicioDaSemana(b.dia) === semana)) {
+        gestao.push({ id: e.novoId(), dia, ...hg, concursoId: null, disciplinaId: null, topicoId: null, tipo: 'gestao', status: 'planejado', motivo: 'gestao' });
+      }
+    }
     let slots = slotsDoDia(e.disponibilidade, dia).filter(
       (s) => instanteSP(dia, s.inicio).getTime() >= agoraMs && !ocupado(dia, s),
     );
@@ -453,7 +474,7 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
       plano.push(escolhido);
     }
   }
-  return plano;
+  return [...plano, ...gestao];
 }
 
 // ----------------------------------------------------- realizado × planejado
