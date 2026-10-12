@@ -32,6 +32,7 @@
   --sombra: 0 1px 2px rgba(20, 50, 40, 0.06), 0 4px 16px rgba(20, 50, 40, 0.06);
   --grafico-tempo: #1a9a7f;
   --grafico-peso: #7a4cc4;
+  --grafico-pausa: #eb6834;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -62,6 +63,7 @@
     --sombra: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
     --grafico-tempo: #23a888;
     --grafico-peso: #9573e0;
+    --grafico-pausa: #d95926;
   }
 }
 
@@ -92,6 +94,7 @@
   --sombra: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
   --grafico-tempo: #23a888;
   --grafico-peso: #9573e0;
+  --grafico-pausa: #d95926;
 }
 
 /* Escolha feita dentro do app (Configurações > Tema) vence o tema do claude.ai. */
@@ -122,6 +125,7 @@
   --sombra: 0 1px 2px rgba(20, 50, 40, 0.06), 0 4px 16px rgba(20, 50, 40, 0.06);
   --grafico-tempo: #1a9a7f;
   --grafico-peso: #7a4cc4;
+  --grafico-pausa: #eb6834;
 }
 
 :root[data-tema="escuro"] {
@@ -151,6 +155,7 @@
   --sombra: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
   --grafico-tempo: #23a888;
   --grafico-peso: #9573e0;
+  --grafico-pausa: #d95926;
 }
 
 @theme inline {
@@ -179,6 +184,7 @@
   --shadow-cartao: var(--sombra);
   --color-grafico-tempo: var(--grafico-tempo);
   --color-grafico-peso: var(--grafico-peso);
+  --color-grafico-pausa: var(--grafico-pausa);
 }
 
 html,

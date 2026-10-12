@@ -55,26 +55,60 @@ export function segundosDePausa(s: SessaoTempo, agora: Date | number): number {
 }
 
 /**
- * Soma o tempo líquido por dia civil de SP. Uma sessão das 23h30 à 0h30 conta
- * 30 minutos para cada dia.
+ * Pausa mais longa que isso não entra nas estatísticas de pausa: é o cronômetro esquecido
+ * em pausa (uma sessão pausada por dias não é procrastinação de dias).
  */
-export function segundosPorDia(sessoes: SessaoTempo[], agora: Date | number): Map<DiaISO, number> {
+export const PAUSA_ESQUECIDA_SEG = 2 * 60 * 60;
+
+/** Trechos em pausa dentro da sessão (sobrepostas juntas), sem as pausas esquecidas. */
+export function intervalosDePausa(s: SessaoTempo, agora: Date | number, limiteSeg = PAUSA_ESQUECIDA_SEG): Intervalo[] {
+  const inicio = Date.parse(s.inicio);
+  const fim = s.fim ? Date.parse(s.fim) : Number(agora);
+  if (!(fim > inicio)) return [];
+  const pausas: Intervalo[] = [];
+  let cursor = inicio;
+  for (const [a, b] of intervalosAtivos(s, agora)) {
+    if (a > cursor) pausas.push([cursor, a]);
+    cursor = b;
+  }
+  if (fim > cursor) pausas.push([cursor, fim]);
+  return pausas.filter(([a, b]) => b - a <= limiteSeg * 1000);
+}
+
+/** Tempo em pausa da sessão para as estatísticas (sem as pausas esquecidas). */
+export function segundosPausados(s: SessaoTempo, agora: Date | number, limiteSeg = PAUSA_ESQUECIDA_SEG): number {
+  return Math.floor(intervalosDePausa(s, agora, limiteSeg).reduce((t, [a, b]) => t + (b - a), 0) / 1000);
+}
+
+/** Soma trechos por dia civil de SP, cortando na meia-noite. */
+function porDiaSP(intervalos: Iterable<Intervalo>): Map<DiaISO, number> {
   const ms = new Map<DiaISO, number>();
-  for (const s of sessoes) {
-    for (const [a, b] of intervalosAtivos(s, agora)) {
-      let cursor = a;
-      while (cursor < b) {
-        const dia = diaSP(cursor);
-        const proximaMeiaNoite = inicioDoDiaSP(somarDias(dia, 1)).getTime();
-        const ate = Math.min(b, proximaMeiaNoite);
-        ms.set(dia, (ms.get(dia) ?? 0) + (ate - cursor));
-        cursor = ate;
-      }
+  for (const [a, b] of intervalos) {
+    let cursor = a;
+    while (cursor < b) {
+      const dia = diaSP(cursor);
+      const proximaMeiaNoite = inicioDoDiaSP(somarDias(dia, 1)).getTime();
+      const ate = Math.min(b, proximaMeiaNoite);
+      ms.set(dia, (ms.get(dia) ?? 0) + (ate - cursor));
+      cursor = ate;
     }
   }
   const segundos = new Map<DiaISO, number>();
   for (const [dia, v] of ms) segundos.set(dia, Math.floor(v / 1000));
   return segundos;
+}
+
+/**
+ * Soma o tempo líquido por dia civil de SP. Uma sessão das 23h30 à 0h30 conta
+ * 30 minutos para cada dia.
+ */
+export function segundosPorDia(sessoes: SessaoTempo[], agora: Date | number): Map<DiaISO, number> {
+  return porDiaSP(sessoes.flatMap((s) => intervalosAtivos(s, agora)));
+}
+
+/** Tempo em pausa por dia civil de SP (sem as pausas esquecidas). */
+export function pausaPorDia(sessoes: SessaoTempo[], agora: Date | number, limiteSeg = PAUSA_ESQUECIDA_SEG): Map<DiaISO, number> {
+  return porDiaSP(sessoes.flatMap((s) => intervalosDePausa(s, agora, limiteSeg)));
 }
 
 // ------------------------------------------------------------ transições

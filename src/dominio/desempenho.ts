@@ -1,7 +1,7 @@
 // Desempenho (Fase 5): questões (sessões e registros avulsos), caderno de
 // erros, simulados e as séries das estatísticas.
 
-import { intervalosAtivos, segundosLiquidos } from './cronometro';
+import { intervalosAtivos, pausaPorDia, segundosLiquidos, segundosPausados, segundosPorDia } from './cronometro';
 import { diaSP, inicioDaSemana, partesSP, somarDias } from './datas';
 import { normalizar, similaridade } from './edital';
 import { minutos } from './planejador';
@@ -83,6 +83,55 @@ export function planejadoRealizado(blocos: BlocoPlanejado[], sessoes: Sessao[], 
     }).reduce((t, s) => t + segundosLiquidos(s, agora) / 60, 0);
     return { semana, planejado, realizado: Math.round(realizado) };
   });
+}
+
+// ------------------------------------------------- estudado × pausado
+
+/** Segundos de estudo líquido e de pausa (sem as pausas esquecidas). */
+export interface EstudoPausa {
+  estudo: number;
+  pausa: number;
+}
+
+/** Estudo e pausa nos `n` dias até hoje, do mais antigo para o mais novo. */
+export function estudoEPausaPorDia(sessoes: Sessao[], agora: Date | number, hoje: DiaISO, n = 14): (EstudoPausa & { dia: DiaISO })[] {
+  const estudo = segundosPorDia(sessoes, agora);
+  const pausa = pausaPorDia(sessoes, agora);
+  return Array.from({ length: n }, (_, i) => {
+    const dia = somarDias(hoje, i - n + 1);
+    return { dia, estudo: estudo.get(dia) ?? 0, pausa: pausa.get(dia) ?? 0 };
+  });
+}
+
+/** Estudo e pausa por disciplina (sessões sem disciplina em `''`). */
+export function estudoEPausaPorDisciplina(sessoes: Sessao[], agora: Date | number): Map<string, EstudoPausa> {
+  const mapa = new Map<string, EstudoPausa>();
+  for (const s of sessoes) {
+    const chave = s.disciplinaId ?? '';
+    const atual = mapa.get(chave) ?? { estudo: 0, pausa: 0 };
+    atual.estudo += segundosLiquidos(s, agora);
+    atual.pausa += segundosPausados(s, agora);
+    mapa.set(chave, atual);
+  }
+  return mapa;
+}
+
+/**
+ * Totais de todo o período. A parte da pausa no tempo de cronômetro aberto só olha as
+ * sessões do cronômetro: as registradas à mão e as da prática com IA não têm pausas.
+ */
+export function totaisEstudoEPausa(sessoes: Sessao[], agora: Date | number): EstudoPausa & { fracaoPausa: number | null } {
+  let estudo = 0;
+  let pausa = 0;
+  let cronometrado = 0;
+  for (const s of sessoes) {
+    const liquido = segundosLiquidos(s, agora);
+    const pausado = segundosPausados(s, agora);
+    estudo += liquido;
+    pausa += pausado;
+    if (s.origem === 'cronometro') cronometrado += liquido + pausado;
+  }
+  return { estudo, pausa, fracaoPausa: cronometrado > 0 ? pausa / cronometrado : null };
 }
 
 // ------------------------------------------------------------ heatmap

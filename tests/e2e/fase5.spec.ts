@@ -73,6 +73,38 @@ test('simulados: nota por disciplina, distância do corte e evolução', async (
   await expect(page.getByRole('img', { name: 'Evolução da nota total nos simulados' })).toBeVisible();
 });
 
+test('estatísticas: horas estudadas e pausadas no total, por dia e por assunto', async ({ page }) => {
+  // Além das 3 h de Português registradas à mão (25/09), 1h30 de cronômetro em Elétrica no
+  // sábado, 26/09 (20:00–21:30 em SP), com 30 min de pausa; e uma pausa esquecida por 2 dias.
+  const base = (BANCO['sessoes/2026-09-20'] as { itens: Record<string, Record<string, unknown>> }).itens.s1;
+  const cronometro = (id: string, inicio: string, fim: string, pausas: { inicio: string; fim: string | null }[]) => ({
+    ...base, id, disciplinaId: 'ee', topicoId: 't3', inicio, fim, pausas, segundosLiquidos: null, origem: 'cronometro',
+  });
+  await preparar(page, {
+    extras: {
+      'sessoes/2026-09-20': {
+        semana: '2026-09-20',
+        itens: {
+          s1: base,
+          s2: cronometro('s2', '2026-09-26T23:00:00Z', '2026-09-27T00:30:00Z', [{ inicio: '2026-09-26T23:30:00Z', fim: '2026-09-27T00:00:00Z' }]),
+          s3: cronometro('s3', '2026-09-24T12:00:00Z', '2026-09-26T12:00:00Z', [{ inicio: '2026-09-24T12:00:30Z', fim: null }]),
+        },
+      },
+    },
+  });
+  await menu(page, 'Estatísticas');
+  const cartao = page.getByRole('heading', { name: 'Horas estudadas e pausadas' }).locator('..').locator('..');
+  const numero = (rotulo: string) => cartao.locator('dl > div').filter({ hasText: rotulo }).locator('dd').first();
+  await expect(numero('Estudadas')).toHaveText('4h00min');
+  await expect(numero('Pausadas')).toHaveText('0h30min');
+  await expect(numero('Sem as pausas')).toHaveText('4h30min');
+  await expect(numero('Em pausa')).toHaveText('33%');
+  await expect(cartao).toContainText('seriam 0h30min a mais (12% a mais do que você estudou)');
+  await expect(cartao.getByRole('listitem', { name: 'Sáb, 26/09/2026: estudou 1h00min e pausou 0h30min' })).toBeVisible();
+  await expect(cartao.getByRole('listitem', { name: 'Língua Portuguesa: estudou 3h00min e pausou 0h00min' })).toBeVisible();
+  await expect(cartao.getByRole('listitem', { name: 'Engenharia Elétrica: estudou 1h00min e pausou 0h30min' })).toBeVisible();
+});
+
 test('estatísticas: heatmap, planejado × realizado e melhor horário', async ({ page }, info) => {
   await preparar(page);
   await menu(page, 'Estatísticas');

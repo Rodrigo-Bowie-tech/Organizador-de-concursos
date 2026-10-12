@@ -6,6 +6,7 @@ import { acertoSemanal, agrupar, heatmapAno, minutosPorHora, planejadoRealizado,
 import { formatarData, formatarDuracao, nomeMes } from '../dominio/datas';
 import { hojeSP } from '../dominio/painel';
 import { useAgora, useApp } from '../estado';
+import { CartaoHorasEPausas } from '../componentes/HorasEPausas';
 import { GraficoTempoPeso } from './Balanco';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -81,6 +82,8 @@ export function Estatisticas() {
     <>
       <CabecalhoTela titulo="Estatísticas" subtitulo={concursoAtivo.nome} />
       <div className="grid grid-cols-1 gap-4">
+        <CartaoHorasEPausas sessoes={sessoes} disciplinas={disciplinas} agora={agora} hoje={hoje} />
+
         <Cartao titulo="Dias estudados no último ano" acao={<Etiqueta tom="verde">{totalAno} {totalAno === 1 ? 'dia' : 'dias'}</Etiqueta>}>
           <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Dias estudados no último ano (role para os lados)">
             <div className="inline-grid gap-[3px]" style={{ gridTemplateColumns: `2rem repeat(${mapa.length}, 11px)` }} role="img" aria-label={`Heatmap: ${totalAno} ${totalAno === 1 ? 'dia' : 'dias'} com estudo no último ano`}>

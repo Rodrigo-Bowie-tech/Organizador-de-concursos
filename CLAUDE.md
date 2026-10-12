@@ -96,7 +96,8 @@ src/
                  QuestoesProva (revisão de assunto/gabarito/anulada das questões de uma prova),
                  Sincronizacao (indicador no topo e cartão em Configurações),
                  FimDaTeoria (pergunta "terminou a teoria?", ajuste do assunto, cartão da Home),
-                 Gestao (lista de tarefas do bloco semanal de gestão)
+                 Gestao (lista de tarefas do bloco semanal de gestão),
+                 HorasEPausas (Estatísticas: horas estudadas e pausadas no total, por dia e por assunto)
   plataforma.ts  recursos do claude.ai (IA, arquivos, downloads), wake lock, bipes, localStorage,
                  app instalável (service worker, convite de instalação)
   globais.d.ts   __WEB__ (true só no build do app instalável)
@@ -143,7 +144,8 @@ tests/github-falso.ts  GitHub em memória (mesmos SHAs do git) para os testes da
   acessibilidade também falha se alguma tela ficar mais larga que o celular. O `lang="pt-BR"`
   é posto em `main.tsx` (a página do Artifact não tem `<html>` próprio).
 - **Gráficos**: tokens `--grafico-tempo`/`--grafico-peso` validados com o script do skill dataviz nos dois
-  temas (contraste, daltonismo). Barras ≤ 24 px, ponta arredondada, legenda sempre presente.
+  temas (contraste, daltonismo); `--grafico-pausa` (laranja, #eb6834 claro / #d95926 escuro) validado em par
+  com `--grafico-tempo`, que é o par empilhado. Barras ≤ 24 px, ponta arredondada, legenda sempre presente.
 
 ## Banco de dados (Artifact `db`)
 
@@ -342,6 +344,14 @@ seed sozinho.
   blocos feitos; os que pediram mais: a estimativa nova; tudo contra a original), o app oferece ajustar
   os tópicos que ainda não começaram para original × ritmo. Editar a estimativa no Edital zera a
   original e os pedidos.
+- **Horas estudadas e pausadas** (12/10/2026, a pedido do usuário, para ver quanto a procrastinação
+  custa): primeiro cartão das Estatísticas. Pausa = tempo com a sessão aberta e pausada
+  (`intervalosDePausa`, dividido por dia de SP como o estudo); pausa de mais de 2 h não conta
+  (`PAUSA_ESQUECIDA_SEG`: é o cronômetro esquecido em pausa). Totais de todo o período (estudadas,
+  pausadas, as duas somadas e a parte em pausa, esta só sobre as sessões do cronômetro, porque as
+  manuais e as da prática com IA não têm pausas), colunas empilhadas dos últimos 14 dias e barras por
+  assunto do concurso ativo (mais "Sem assunto" e "Outros concursos"). Menos de 1 min não aparece no
+  gráfico. O tempo planejado que nem começou continua em "Planejado × realizado".
 - **Gestão semanal dos concursos** (11/10/2026, a pedido do usuário): ligada por padrão (domingo, 19:00,
   1 h, fora da grade de estudo do Embu), configurável ou desligável na Disponibilidade. O bloco não vai
   para o cronômetro: traz as 5 tarefas (analisar editais, pesquisar outros concursos, verificar

@@ -5,8 +5,11 @@ import {
   finalizar,
   pausar,
   retomar,
+  intervalosDePausa,
+  pausaPorDia,
   segundosDePausa,
   segundosLiquidos,
+  segundosPausados,
   segundosPorDia,
 } from '../../src/dominio/cronometro';
 import type { ConfigPomodoro, Sessao } from '../../src/dominio/tipos';
@@ -110,6 +113,50 @@ describe('tempo por dia (fuso de SP)', () => {
     const rodando = sessao('2026-09-27T20:00:00Z');
     const porDia = segundosPorDia([feita, rodando], t('2026-09-27T20:15:00Z'));
     expect(porDia.get('2026-09-27')).toBe(75 * 60);
+  });
+});
+
+describe('pausas nas estatísticas', () => {
+  // 20:00 às 21:30 em SP, com pausas das 20:20 às 20:35 e das 21:00 às 21:10.
+  const comPausas = sessao('2026-09-28T23:00:00Z', {
+    fim: '2026-09-29T00:30:00Z',
+    pausas: [
+      { inicio: '2026-09-28T23:20:00Z', fim: '2026-09-28T23:35:00Z' },
+      { inicio: '2026-09-29T00:00:00Z', fim: '2026-09-29T00:10:00Z' },
+    ],
+  });
+
+  it('trechos e total em pausa dentro da sessão', () => {
+    expect(intervalosDePausa(comPausas, 0).map(([a, b]) => (b - a) / 60_000)).toEqual([15, 10]);
+    expect(segundosPausados(comPausas, 0)).toBe(25 * 60);
+    expect(segundosLiquidos(comPausas, 0) + segundosPausados(comPausas, 0)).toBe(90 * 60);
+  });
+
+  it('pausa esquecida (mais de 2 horas) não conta; as outras da mesma sessão contam', () => {
+    // Pausa de 5 min, volta, e uma pausa aberta por 3 dias até finalizar.
+    const esquecida = sessao('2026-09-28T13:00:00Z', {
+      fim: '2026-10-01T13:00:00Z',
+      pausas: [
+        { inicio: '2026-09-28T13:10:00Z', fim: '2026-09-28T13:15:00Z' },
+        { inicio: '2026-09-28T13:30:00Z', fim: null },
+      ],
+    });
+    expect(segundosPausados(esquecida, 0)).toBe(5 * 60);
+    expect(segundosDePausa(esquecida, 0)).toBeGreaterThan(70 * 3600);
+  });
+
+  it('sessão pausada agora conta a pausa até agora', () => {
+    const pausada = sessao('2026-09-27T20:00:00Z', { pausas: [{ inicio: '2026-09-27T20:30:00Z', fim: null }] });
+    expect(segundosPausados(pausada, t('2026-09-27T20:42:00Z'))).toBe(12 * 60);
+  });
+
+  it('pausa que atravessa a meia-noite de SP conta para os dois dias', () => {
+    // Sessão das 23:30 às 00:30 em SP com pausa das 23:50 às 00:10.
+    const s = sessao('2026-09-28T02:30:00Z', { fim: '2026-09-28T03:30:00Z', pausas: [{ inicio: '2026-09-28T02:50:00Z', fim: '2026-09-28T03:10:00Z' }] });
+    const porDia = pausaPorDia([s], 0);
+    expect(porDia.get('2026-09-27')).toBe(10 * 60);
+    expect(porDia.get('2026-09-28')).toBe(10 * 60);
+    expect(segundosPorDia([s], 0).get('2026-09-27')).toBe(20 * 60);
   });
 });
 

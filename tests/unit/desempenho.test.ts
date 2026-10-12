@@ -4,6 +4,8 @@ import {
   acharTopico,
   distanciaCorte,
   errosParaRevisar,
+  estudoEPausaPorDia,
+  estudoEPausaPorDisciplina,
   heatmapAno,
   lerCsvDesempenho,
   minutosPorHora,
@@ -12,6 +14,7 @@ import {
   rendimentoPorFaixa,
   revisarErro,
   todasAsQuestoes,
+  totaisEstudoEPausa,
 } from '../../src/dominio/desempenho';
 import type { BlocoPlanejado, Disciplina, ErroCaderno, RegistroQuestoes, Sessao, Topico } from '../../src/dominio/tipos';
 
@@ -90,6 +93,42 @@ describe('estatísticas', () => {
     const f = rendimentoPorFaixa(s, 0);
     expect(f.find((x) => x.nome === 'Manhã')).toMatchObject({ minutos: 60, taxa: 0.9 });
     expect(f.find((x) => x.nome === 'Noite')).toMatchObject({ minutos: 60, taxa: 0.5 });
+  });
+});
+
+describe('estudado × pausado', () => {
+  // Cronômetro: 20:00 às 21:30 em SP do dia 28/09 com 30 min de pausa (60 líquidos).
+  const cronometro = sessao('2026-09-28T23:00:00Z', 90, {
+    disciplinaId: 'bt',
+    origem: 'cronometro',
+    pausas: [{ inicio: '2026-09-28T23:30:00Z', fim: '2026-09-29T00:00:00Z' }],
+  });
+  // Registrada à mão: 2 h no dia 29/09, sem pausas anotadas.
+  const manual = sessao('2026-09-29T12:00:00Z', 120, { disciplinaId: 'lum' });
+  const semDisciplina = sessao('2026-09-29T15:00:00Z', 30, { disciplinaId: null, origem: 'cronometro' });
+
+  it('por dia, do mais antigo ao mais novo', () => {
+    expect(estudoEPausaPorDia([cronometro, manual, semDisciplina], 0, '2026-09-30', 3)).toEqual([
+      { dia: '2026-09-28', estudo: 60 * 60, pausa: 30 * 60 },
+      { dia: '2026-09-29', estudo: 150 * 60, pausa: 0 },
+      { dia: '2026-09-30', estudo: 0, pausa: 0 },
+    ]);
+  });
+
+  it('por disciplina, com as sessões sem disciplina em ""', () => {
+    const m = estudoEPausaPorDisciplina([cronometro, manual, semDisciplina], 0);
+    expect(m.get('bt')).toEqual({ estudo: 3600, pausa: 1800 });
+    expect(m.get('lum')).toEqual({ estudo: 7200, pausa: 0 });
+    expect(m.get('')).toEqual({ estudo: 1800, pausa: 0 });
+  });
+
+  it('totais: a parte em pausa conta só o tempo de cronômetro aberto', () => {
+    const t = totaisEstudoEPausa([cronometro, manual, semDisciplina], 0);
+    expect(t.estudo).toBe(3600 + 7200 + 1800);
+    expect(t.pausa).toBe(1800);
+    // 30 min de pausa em 90 + 30 min de cronômetro aberto; a sessão manual fica de fora.
+    expect(t.fracaoPausa).toBeCloseTo(1800 / (5400 + 1800));
+    expect(totaisEstudoEPausa([manual], 0).fracaoPausa).toBeNull();
   });
 });
 
