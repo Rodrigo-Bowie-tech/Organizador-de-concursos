@@ -3,11 +3,10 @@ import { todasAsQuestoes } from '../../src/dominio/desempenho';
 import {
   diagnosticoPorAssunto,
   minutosNoPlano,
-  necessidadePorDisciplina,
-  necessidadePorTopico,
-  notaDeAcerto,
+  relevanciaPorTopico,
   simuladosPorDisciplina,
   teoriaDoTopico,
+  ultimoSimuladoPorDisciplina,
 } from '../../src/dominio/diagnostico';
 import type { BlocoPlanejado, Disciplina, RegistroQuestoes, Sessao, Simulado, Topico } from '../../src/dominio/tipos';
 
@@ -38,15 +37,31 @@ const bloco = (dia: string, inicio: string, fim: string, extra: Partial<BlocoPla
   id: `${dia}-${inicio}`, dia, inicio, fim, concursoId: 'embu', disciplinaId: 'lum', topicoId: 'lum1', tipo: 'teoria', status: 'planejado', motivo: 'teoria', ...extra,
 });
 
-describe('notas do diagnóstico', () => {
-  it('o acerto é puxado para 50% quando há poucas questões', () => {
-    expect(notaDeAcerto({ feitas: 0, acertos: 0 }, 4)).toBe(0.5); // sem dados: "ainda não sei"
-    expect(notaDeAcerto({ feitas: 1, acertos: 1 }, 2)).toBeCloseTo(2 / 3); // uma de sorte não vira domínio
-    expect(notaDeAcerto({ feitas: 10, acertos: 10 }, 2)).toBeCloseTo(11 / 12);
-    expect(notaDeAcerto({ feitas: 10, acertos: 8 }, 4)).toBeCloseTo(10 / 14);
-    expect(notaDeAcerto({ feitas: 200, acertos: 150 }, 4)).toBeCloseTo(0.75, 2); // com muitas, vale o acerto
+describe('relevância: o quanto estudar segue a incidência na prova', () => {
+  it('divide as questões × peso da disciplina entre os tópicos-folha não cortados', () => {
+    const bt = disciplina('bt', [topico('a'), topico('b'), topico('c', { cortado: true }), topico('pai'), topico('filho', { paiId: 'pai' })], { numQuestoes: 4 });
+    const pt = disciplina('pt', [topico('crase', { status: 'dominado' }), topico('virgula')], { numQuestoes: 10, peso: 2 });
+    const r = relevanciaPorTopico([bt, pt]);
+    // bt: 4 questões em 3 folhas válidas (a, b, filho); o cortado e o pai ficam de fora.
+    expect(r.get('a')).toBeCloseTo(4 / 3);
+    expect(r.get('filho')).toBeCloseTo(4 / 3);
+    expect(r.has('c')).toBe(false);
+    expect(r.has('pai')).toBe(false);
+    // Dominado fica com a sua parte (o plano não a usa): ela não vai para o outro tópico.
+    expect(r.get('crase')).toBe(10);
+    expect(r.get('virgula')).toBe(10);
   });
 
+  it('com a incidência dos tópicos, o que mais caiu pesa até o dobro do que nunca caiu', () => {
+    const bt = disciplina('bt', [topico('a', { incidencia: 4 }), topico('b', { incidencia: 0 }), topico('c')], { numQuestoes: 4 });
+    const r = relevanciaPorTopico([bt]);
+    expect(r.get('a')).toBeCloseTo(2); // fatores 2, 1 e 1: 4 × 2/4
+    expect(r.get('b')).toBeCloseTo(1);
+    expect(r.get('c')).toBeCloseTo(1);
+  });
+});
+
+describe('desempenho e plano', () => {
   it('teoria: blocos feitos até o previsto; teoria concluída conta inteira', () => {
     expect(teoriaDoTopico(topico('a', { blocosTeoria: 3 }), 1.5)).toEqual({ previstos: 3, feitos: 1.5 });
     expect(teoriaDoTopico(topico('a', { blocosTeoria: 2 }), 5)).toEqual({ previstos: 2, feitos: 2 });
@@ -54,20 +69,19 @@ describe('notas do diagnóstico', () => {
     expect(teoriaDoTopico(topico('a', { status: 'revisado', blocosTeoria: 2 }), 0)).toEqual({ previstos: 2, feitos: 2 });
   });
 
-  it('simulados: soma as questões de cada disciplina em todos os simulados (nota ÷ peso)', () => {
+  it('simulados: soma de todos (nota ÷ peso) e o último em que a disciplina caiu', () => {
     const discs = [disciplina('lum', []), disciplina('pt', [], { peso: 2 })];
-    const s = simuladosPorDisciplina(
-      [simulado('2026-10-12', [['lum', 0, 2], ['pt', 16, 20], ['outra', 1, 1]]), simulado('2026-10-25', [['lum', 2, 2], ['pt', 0, 0]])],
-      discs,
-    );
+    const sims = [simulado('2026-10-12', [['lum', 0, 2], ['pt', 16, 20], ['outra', 1, 1]]), simulado('2026-10-25', [['lum', 2, 2], ['pt', 0, 0]])];
+    const s = simuladosPorDisciplina(sims, discs);
     expect(s.get('lum')).toEqual({ feitas: 4, acertos: 2 });
     expect(s.get('pt')).toEqual({ feitas: 10, acertos: 8 }); // peso 2: 20 pontos = 10 questões
     expect(s.has('outra')).toBe(false);
+    const u = ultimoSimuladoPorDisciplina(sims, discs);
+    expect(u.get('lum')).toEqual({ feitas: 2, acertos: 2 }); // 25/10
+    expect(u.get('pt')).toEqual({ feitas: 10, acertos: 8 }); // em 25/10 não caiu (máximo 0): vale 12/10
   });
-});
 
-describe('horas no plano', () => {
-  it('soma os blocos planejados que ainda não começaram; revisão com vários tópicos é dividida', () => {
+  it('horas no plano: blocos planejados que não começaram; revisão com vários tópicos é dividida', () => {
     const discs = [disciplina('lum', [topico('lum1'), topico('lum2')]), disciplina('rl', [topico('rl1')])];
     const m = minutosNoPlano(
       [
@@ -87,74 +101,53 @@ describe('horas no plano', () => {
   });
 });
 
-describe('diagnóstico por assunto', () => {
+describe('quanto estudar por assunto', () => {
   const lum = disciplina('lum', [topico('lum1', { blocosTeoria: 2, status: 'em_estudo' }), topico('lum2', { blocosTeoria: 2, ordem: 1 })], { nome: 'Luminotécnica' });
   const rl = disciplina(
     'rl',
     [topico('rl1', { status: 'revisado' }), topico('rl2', { status: 'revisado', ordem: 1 }), topico('rl3', { ordem: 2, cortado: true })],
-    { nome: 'Raciocínio Lógico', numQuestoes: 10 },
+    { nome: 'Raciocínio Lógico', numQuestoes: 9 },
   );
-  const sessoes = [sessao('lum', 'lum1', 30), sessao(null, 'lum1', 15, { tipo: 'questoes' }), sessao('rl', 'rl1', 60)];
+  const outro = { ...disciplina('cam', [topico('cam1')], { numQuestoes: 50 }), concursoId: 'camara' };
+  const sessoes = [sessao('lum', 'lum1', 30), sessao(null, 'lum1', 15, { tipo: 'questoes' }), sessao('rl', 'rl1', 60), sessao('lum', null, 60, { origem: 'manual' })];
   const registros = [registro('rl', 'rl1', 4, 4), registro('rl', 'rl2', 5, 3)];
-  const diag = diagnosticoPorAssunto({
-    disciplinas: [lum, rl],
+  const [dLum, dRl] = diagnosticoPorAssunto({
+    disciplinas: [lum, rl, outro],
     sessoes,
     questoes: todasAsQuestoes(sessoes, registros),
-    simulados: [simulado('2026-10-12', [['lum', 0, 2], ['rl', 10, 10]])],
-    blocos: [bloco('2026-10-12', '20:00', '21:00'), bloco('2026-10-12', '21:00', '22:00', { topicoId: 'lum2' })],
+    simulados: [simulado('2026-10-12', [['lum', 0, 2], ['rl', 9, 9]])],
+    blocos: [
+      bloco('2026-10-12', '20:00', '21:00'),
+      bloco('2026-10-13', '20:00', '21:00', { motivo: 'questoes', tipo: 'questoes', disciplinaId: 'rl', topicoId: 'rl1' }),
+      bloco('2026-10-14', '20:00', '21:00', { motivo: 'questoes', tipo: 'questoes', disciplinaId: 'rl', topicoId: 'rl2' }),
+      bloco('2026-10-15', '20:00', '21:00', { motivo: 'questoes', tipo: 'questoes', disciplinaId: 'rl', topicoId: 'rl2' }),
+    ],
     feitos: new Map([['lum1', 0.5]]),
+    blocoMin: 60,
     agora: AGORA,
   });
-  const [dLum, dRl] = diag;
 
-  it('compõe as três notas: teoria feita, acerto nas questões e acerto nos simulados', () => {
-    expect(dLum.segundos).toBe(45 * 60); // a sessão sem disciplina conta pelo tópico
-    expect(dLum.teoria).toEqual({ previstos: 4, feitos: 0.5 });
-    expect(dLum.notas.teoria).toBeCloseTo(0.125);
-    expect(dLum.notas.questoes).toBe(0.5); // nenhuma questão ainda
-    expect(dLum.notas.simulados).toBeCloseTo(0.25); // 0 de 2, puxado para o meio
-    expect(dLum.dominio).toBeCloseTo((0.125 + 0.5 + 0.25) / 3);
-    expect(dLum.emRisco).toBeCloseTo(1 - dLum.dominio); // 1 questão na prova
-    expect(dLum.minutosNoPlano).toBe(120);
+  it('parte da prova e parte do plano, dentro do concurso', () => {
+    expect(dLum.valor).toBe(1);
+    expect(dLum.fracaoProva).toBeCloseTo(1 / 10); // 1 de 10 questões de Embu (a Câmara é outro concurso)
+    expect(dRl.fracaoProva).toBeCloseTo(9 / 10);
+    expect(dLum.minutosNoPlano).toBe(60);
+    expect(dLum.fracaoPlano).toBeCloseTo(1 / 4);
+    expect(dRl.fracaoPlano).toBeCloseTo(3 / 4);
   });
 
-  it('teoria estudada na disciplina inteira (sem tópico) conta no assunto, até o previsto', () => {
-    const bt = disciplina('bt', [topico('bt1'), topico('bt2', { ordem: 1 })]);
-    const [d] = diagnosticoPorAssunto({
-      disciplinas: [bt],
-      sessoes: [sessao('bt', null, 60, { origem: 'manual' }), sessao('bt', null, 30, { tipo: 'questoes' })],
-      questoes: [],
-      simulados: [],
-      blocos: [],
-      feitos: new Map([['bt1', 0.5]]),
-      blocoMin: 60,
-      agora: AGORA,
-    });
-    expect(d.teoria).toEqual({ previstos: 4, feitos: 1.5 }); // 0,5 no tópico + 1 bloco sem tópico; questões não contam
-    expect(d.segundos).toBe(90 * 60);
-    expect(d.topicos[0].teoria.feitos).toBe(0.5);
-  });
-
-  it('tópico cortado fica no detalhe, mas fora da teoria prevista; questões por tópico', () => {
-    expect(dRl.teoria).toEqual({ previstos: 4, feitos: 4 });
+  it('o desempenho fica como informação: horas, teoria, questões e simulados', () => {
+    expect(dLum.segundos).toBe((30 + 15 + 60) * 60); // a sessão sem disciplina conta pelo tópico
+    expect(dLum.teoria).toEqual({ previstos: 4, feitos: 1.5 }); // 0,5 no tópico + 1 bloco na disciplina inteira
+    expect(dRl.teoria).toEqual({ previstos: 4, feitos: 4 }); // o cortado fica fora
     expect(dRl.questoes).toEqual({ feitas: 9, acertos: 7 });
     expect(dRl.topicos.map((t) => t.topico.id)).toEqual(['rl1', 'rl2', 'rl3']); // ordem do edital
     expect(dRl.topicos[0]).toMatchObject({ questoes: { feitas: 4, acertos: 4 }, segundos: 3600 });
-    expect(dRl.notas.questoes).toBeCloseTo((7 + 2) / 13);
-    expect(dRl.notas.simulados).toBeCloseTo(11 / 12);
   });
 
-  it('o que falta pesa as questões do assunto na prova', () => {
-    expect(dRl.dominio).toBeGreaterThan(dLum.dominio);
-    expect(dRl.emRisco).toBeCloseTo(10 * (1 - dRl.dominio)); // 10 questões na prova
-    expect(necessidadePorDisciplina(diag)).toEqual(new Map([['lum', dLum.emRisco], ['rl', dRl.emRisco]]));
-  });
-
-  it('para o planejador, o que falta da disciplina é dividido pelo erro de cada tópico', () => {
-    const n = necessidadePorTopico(diag);
-    expect((n.get('rl1') as number) + (n.get('rl2') as number)).toBeCloseTo(dRl.emRisco);
-    expect(n.has('rl3')).toBe(false); // cortado
-    expect(n.get('rl2') as number).toBeGreaterThan(n.get('rl1') as number); // 3 de 5 pesa mais que 4 de 4
-    expect(n.get('lum1')).toBeCloseTo(dLum.emRisco / 2); // sem questões: meio a meio
+  it('foi mal no último simulado em que caiu: estudar logo (sem mais horas por isso)', () => {
+    expect(dLum.ultimoSimulado).toEqual({ feitas: 2, acertos: 0 });
+    expect(dLum.urgente).toBe(true);
+    expect(dRl.urgente).toBe(false);
   });
 });

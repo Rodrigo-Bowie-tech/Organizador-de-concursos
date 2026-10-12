@@ -20,6 +20,8 @@ const MINIMO_BLOCO_MIN = 25;
 export const MINUTOS_POR_REVISAO = 20;
 /** A cota de revisão e questões vale para os últimos N blocos (não para o plano inteiro). */
 const JANELA_COTA = 10;
+/** No plano pela relevância, parte dos horários de um assunto com teoria pela frente que vai para questões. */
+const FRACAO_COM_TEORIA = 0.2;
 
 // ------------------------------------------------------------ horários
 
@@ -263,10 +265,17 @@ export interface EntradaPlano {
   /** Blocos de teoria já feitos por tópico (dominio/teoria.ts): o plano só põe o que falta. */
   feitos?: Map<Id, number>;
   /**
-   * O que falta de cada tópico (dominio/diagnostico.ts, `necessidadePorTopico`): os blocos de
-   * questões são repartidos nessa proporção. Sem ele, rodízio igual entre os tópicos.
+   * Relevância de cada tópico na prova (dominio/diagnostico.ts, `relevanciaPorTopico`: questões ×
+   * peso da disciplina, dividido entre os tópicos). Com ela, quanto cada assunto aparece no plano
+   * segue a incidência: cada horário vai para o assunto de maior relevância × tempo desde a última
+   * vez que foi estudado (ver "Plano pela relevância" abaixo). Sem ela, a fila por prioridade e a
+   * cota de revisão e questões de sempre.
    */
-  necessidade?: Map<Id, number>;
+  relevancia?: Map<Id, number>;
+  /** Último estudo de cada disciplina, de qualquer tipo (instante ISO): o plano continua de onde parou. */
+  ultimoDoAssunto?: Map<Id, string>;
+  /** Últimas questões de cada tópico (instante ISO): o rodízio das questões continua de onde parou. */
+  ultimaQuestao?: Map<Id, string>;
   novoId: () => Id;
 }
 
@@ -358,33 +367,34 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
     }
   }
   let questoesIdx = 0;
-  const credito = new Map<(typeof paraQuestoes)[number], number>();
+  const ultimaQuestao = new Map(e.ultimaQuestao ?? []);
+  /** Relevância de um tópico (mínimo simbólico, para nenhum sumir do rodízio). */
+  const relevancia = (t: Topico) => Math.max(0.001, e.relevancia?.get(t.id) ?? 0);
   /**
-   * Próximo tópico para questões, só de concursos cuja prova ainda não passou. Com a necessidade
-   * do diagnóstico, rodízio ponderado suave: cada tópico pronto ganha o seu peso de crédito a cada
-   * escolha e o escolhido paga o total, então os blocos saem na proporção do que falta, sem
-   * rajada quando um tópico novo fica pronto. Sem ela, rodízio igual.
+   * Próximo tópico para questões, só de concursos cuja prova ainda não passou. Com a relevância,
+   * vai o tópico pronto de maior relevância × tempo desde as últimas questões dele: os que mais caem
+   * voltam mais vezes, e depois de replanejar o rodízio continua de onde parou. Nunca praticado vem
+   * antes, na ordem da fila (pior acerto e simulado mais fraco primeiro). Sem ela, rodízio igual.
    */
-  const proximaQuestao = (dia: DiaISO) => {
-    const pronto = (q: (typeof paraQuestoes)[number]) => q.aPartirDe <= dia && valeEm([q.d.concursoId], dia);
-    if (!e.necessidade) {
+  const prontoEm = (q: (typeof paraQuestoes)[number], dia: DiaISO) => q.aPartirDe <= dia && valeEm([q.d.concursoId], dia);
+  const proximaQuestao = (dia: DiaISO, quando: number, disciplinaId?: Id) => {
+    const pronto = (q: (typeof paraQuestoes)[number]) => prontoEm(q, dia) && (!disciplinaId || q.d.id === disciplinaId);
+    if (!e.relevancia) {
       for (let k = 0; k < paraQuestoes.length; k++) {
         const q = paraQuestoes[questoesIdx++ % paraQuestoes.length];
         if (pronto(q)) return q;
       }
       return null;
     }
-    let total = 0;
     let escolhido: (typeof paraQuestoes)[number] | null = null;
+    let melhor = -1;
     for (const q of paraQuestoes) {
       if (!pronto(q)) continue;
-      const peso = Math.max(0.001, e.necessidade.get(q.t.id) ?? 0);
-      const c = (credito.get(q) ?? 0) + peso;
-      credito.set(q, c);
-      total += peso;
-      if (!escolhido || c > (credito.get(escolhido) as number) + 1e-9) escolhido = q;
+      const ultima = ultimaQuestao.get(q.t.id);
+      const nota = ultima ? Math.max(0, quando - Date.parse(ultima)) * relevancia(q.t) : Infinity;
+      if (nota > melhor) [escolhido, melhor] = [q, nota];
     }
-    if (escolhido) credito.set(escolhido, (credito.get(escolhido) as number) - total);
+    if (escolhido) ultimaQuestao.set(escolhido.t.id, new Date(quando).toISOString());
     return escolhido;
   };
 
@@ -400,6 +410,125 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
     status: 'planejado',
     motivo,
   });
+
+  /** Um bloco de teoria do item; quando a teoria dele acaba, já vêm as revisões de D+1 e D+7 e, a partir de D+7, questões. */
+  const blocoDeTeoria = (dia: DiaISO, s: BlocoHorario, item: (typeof restantes)[number]): BlocoPlanejado => {
+    const b = bloco(dia, s, item.disciplina, item.topico, item.concursoIds[0], 'teoria');
+    item.blocos--;
+    if (item.blocos <= 0) {
+      restantes.splice(restantes.indexOf(item), 1);
+      for (const k of [1, 7]) {
+        revisoes.push({ disciplina: item.disciplina, topico: item.topico, concursoId: item.concursoIds[0], devida: somarDias(dia, k), atrasada: false });
+      }
+      paraQuestoes.push({ d: item.disciplina, t: item.topico, aPartirDe: somarDias(dia, 7) });
+    }
+    return b;
+  };
+
+  // Plano pela relevância: cada horário vai para o assunto de maior relevância × tempo desde a
+  // última vez que foi estudado (nunca estudado vem antes, na ordem da prioridade, que é onde o
+  // desempenho entra: o que foi mal no simulado começa antes). Peso do assunto = a relevância dos
+  // tópicos dele que ainda recebem estudo (teoria pela frente ou questões; dominados e cortados não).
+  // Dentro do assunto, teoria primeiro, com 20% de questões dos tópicos já vistos; terminada a teoria,
+  // o tempo do assunto vai para questões. Assim o tempo de cada assunto segue a incidência na prova.
+  // Todos os assuntos entram ao mesmo tempo (o rodízio entre N, `intercalar`, fica para o caminho sem relevância).
+  const pesoDoAssunto = new Map<Id, number>();
+  if (e.relevancia) {
+    const recebem = new Set<Id>([...restantes.map((i) => i.topico.id), ...paraQuestoes.map((q) => q.t.id)]);
+    for (const d of e.disciplinas) {
+      const p = Object.values(d.topicos).reduce((t, x) => t + (recebem.has(x.id) ? relevancia(x) : 0), 0);
+      if (p > 0) pesoDoAssunto.set(d.id, p);
+    }
+  }
+  const ultimoDoAssunto = new Map(e.ultimoDoAssunto ?? []);
+  // Entre concursos, vale o peso de cada um (prioridade e proximidade da prova), como na fila de teoria.
+  const concursoDe = new Map(e.disciplinas.map((d) => [d.id, d.concursoId]));
+  const prioridadeDe = new Map(concursosAtivos.map((c) => [c.id, Math.max(1, c.prioridade) / 5]));
+  const pesoDoConcurso = (id: Id, dia: DiaISO) => {
+    const c = concursoDe.get(id) ?? '';
+    const prova = dataProva.get(c);
+    return (prioridadeDe.get(c) ?? 0.2) * (1 + proximidade(prova ? diasEntre(dia, prova) : null));
+  };
+  // Os blocos fixos que ficam (semana de foco, movidos) também contam como estudo do assunto.
+  const fixosNoTempo = fixosFuturos
+    .filter((b) => b.disciplinaId && b.motivo !== 'simulado')
+    .map((b) => ({ disciplinaId: b.disciplinaId as Id, quando: instanteSP(b.dia, b.inicio).getTime() }))
+    .sort((a, b) => a.quando - b.quando);
+  let proximoFixo = 0;
+  const feitosNoPlano = new Map<Id, { teoria: number; questoes: number }>();
+  const somaDosPesos = [...pesoDoAssunto.values()].reduce((a, b) => a + b, 0) || 1;
+  // Piso de cobertura: horários de estudo que restam até uma semana antes da prova de cada
+  // concurso. Um assunto que, no ritmo da incidência, não terminaria a teoria até lá ganha
+  // frequência na medida do que falta, para nenhum tópico ficar sem ser visto.
+  const horariosAte = new Map<DiaISO, number>();
+  if (e.relevancia) {
+    let soma = 0;
+    // Até o prazo da teoria (uma semana antes da última prova), mesmo que o plano pare antes.
+    const ultimaProva = [...dataProva.values()].filter((d): d is DiaISO => Boolean(d)).sort().pop();
+    const ate = Math.min(400, Math.max(horizonte, ultimaProva ? diasEntre(hoje, ultimaProva) + 1 : 0));
+    const dias = Array.from({ length: ate }, (_, n) => somarDias(hoje, n));
+    const porDia = dias.map((dia) => {
+      const livres = slotsDoDia(e.disponibilidade, dia).filter((x) => instanteSP(dia, x.inicio).getTime() >= agoraMs && !ficam.some((b) => b.dia === dia && sobrepoe(b, x)));
+      const cap = e.capacidadeMin?.[String(diaDaSemana(dia))];
+      return cap === undefined ? livres.length : Math.min(livres.length, Math.ceil(cap / Math.max(1, e.disponibilidade.blocoMin || 60)));
+    });
+    for (let i = dias.length - 1; i >= 0; i--) horariosAte.set(dias[i], (soma += porDia[i]));
+  }
+  /** Horários que restam de `dia` até `limite` (inclusive). */
+  const horariosEntre = (dia: DiaISO, limite: DiaISO) => (dia > limite ? 0 : (horariosAte.get(dia) ?? 0) - (horariosAte.get(somarDias(limite, 1)) ?? 0));
+  /** Parte dos horários que o assunto precisa a mais para terminar a teoria (1 = o ritmo da incidência basta). */
+  const atrasoDaTeoria = (id: Id, dia: DiaISO): number => {
+    const blocos = restantes.filter((i) => i.disciplina.id === id).reduce((t, i) => t + i.blocos, 0);
+    const prova = dataProva.get(e.disciplinas.find((d) => d.id === id)?.concursoId ?? '');
+    if (!blocos || !prova) return 1;
+    // Revisões levam cerca de 15% dos horários; com teoria pela frente, 80% dos do assunto são de teoria.
+    const ritmo = 0.85 * (1 - FRACAO_COM_TEORIA) * ((pesoDoAssunto.get(id) ?? 0) / somaDosPesos) * horariosEntre(dia, somarDias(prova, -7));
+    return Math.max(1, blocos / Math.max(0.5, ritmo));
+  };
+
+  const porRelevancia = (dia: DiaISO, s: BlocoHorario, quando: number, validos: typeof restantes, fracao: number): BlocoPlanejado | null => {
+    for (; proximoFixo < fixosNoTempo.length && fixosNoTempo[proximoFixo].quando < quando; proximoFixo++) {
+      const f = fixosNoTempo[proximoFixo];
+      const iso = new Date(f.quando).toISOString();
+      if ((ultimoDoAssunto.get(f.disciplinaId) ?? '') < iso) ultimoDoAssunto.set(f.disciplinaId, iso);
+    }
+    // Candidatos: todos os assuntos com teoria pela frente (na ordem da prioridade) e os que têm questões
+    // prontas. O rodízio entre N assuntos não vale aqui: limitar deixaria os que menos caem sem nenhum tempo.
+    const comTeoria: Id[] = [];
+    for (const i of validos) if (!comTeoria.includes(i.disciplina.id)) comTeoria.push(i.disciplina.id);
+    const candidatos = [...comTeoria];
+    for (const q of paraQuestoes) if (prontoEm(q, dia) && !candidatos.includes(q.d.id)) candidatos.push(q.d.id);
+    let alvo: Id | null = null;
+    let melhor = -1;
+    for (const id of candidatos) {
+      const u = ultimoDoAssunto.get(id);
+      const nota = u ? Math.max(0, quando - Date.parse(u)) * (pesoDoAssunto.get(id) ?? 0.001) * pesoDoConcurso(id, dia) * atrasoDaTeoria(id, dia) : Infinity;
+      if (nota > melhor) [alvo, melhor] = [id, nota];
+    }
+    if (!alvo) return null;
+    const c = feitosNoPlano.get(alvo) ?? { teoria: 0, questoes: 0 };
+    const item = comTeoria.includes(alvo) ? validos.find((i) => i.disciplina.id === alvo) : undefined;
+    const temQuestoes = paraQuestoes.some((q) => q.d.id === alvo && prontoEm(q, dia));
+    let b: BlocoPlanejado | null = null;
+    // Com teoria pela frente, as questões do assunto ficam em 20% dos horários dele (o resto vai para
+    // terminar a teoria, para nenhum tópico ficar sem ser visto); sem teoria, tudo vai para questões.
+    if (temQuestoes && (!item || c.questoes + 1 <= Math.min(fracao, FRACAO_COM_TEORIA) * (c.teoria + c.questoes + 1))) {
+      const q = proximaQuestao(dia, quando, alvo);
+      if (q) {
+        b = bloco(dia, s, q.d, q.t, q.d.concursoId, 'questoes');
+        c.questoes++;
+      }
+    }
+    if (!b && item) {
+      b = blocoDeTeoria(dia, s, item);
+      c.teoria++;
+    }
+    if (b) {
+      feitosNoPlano.set(alvo, c);
+      ultimoDoAssunto.set(alvo, new Date(quando).toISOString());
+    }
+    return b;
+  };
 
   /** Um bloco de revisão junta as revisões que couberem nele (atrasadas primeiro). */
   const blocoDeRevisao = (dia: DiaISO, s: BlocoHorario, devidas: ItemRevisao[]): BlocoPlanejado => {
@@ -446,6 +575,7 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
     const fracao = fracaoRevisao(diasAteProva);
 
     for (const s of slots) {
+      const quando = instanteSP(dia, s.inicio).getTime();
       // 1. Revisão atrasada ou vencida entra no próximo bloco livre.
       const devidas = revisoes.filter((r) => r.devida <= dia && valeEm([r.concursoId], dia)).sort((a, b) => a.devida.localeCompare(b.devida));
       const atrasadas = devidas.filter((r) => r.atrasada);
@@ -458,9 +588,12 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
       const cabem = Math.max(1, Math.floor(minutos(s) / MINUTOS_POR_REVISAO));
       const juntou = devidas.length >= cabem || devidas.some((r) => r.devida <= somarDias(dia, -2));
       const validos = restantes.filter((i) => valeEm(i.concursoIds, dia));
-      if (atrasadas.length || (querRevisao && devidas.length && juntou)) {
+      if (atrasadas.length || ((querRevisao || e.relevancia) && devidas.length && juntou)) {
+        // Pela relevância, a revisão espaçada não espera a cota: sai quando o bloco enche ou alguma espera 2 dias.
         escolhido = blocoDeRevisao(dia, s, devidas);
-      } else if (querRevisao && paraQuestoes.length && (q = proximaQuestao(dia))) {
+      } else if (e.relevancia) {
+        escolhido = porRelevancia(dia, s, quando, validos, fracao) ?? (devidas.length ? blocoDeRevisao(dia, s, devidas) : null);
+      } else if (querRevisao && paraQuestoes.length && (q = proximaQuestao(dia, quando))) {
         // 2. Parte do tempo vai para questões dos tópicos já vistos (pior acerto primeiro).
         escolhido = bloco(dia, s, q.d, q.t, q.d.concursoId, 'questoes');
       } else if (validos.length) {
@@ -486,21 +619,11 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
           const bloqueada = u1 && u2 && u1.disciplinaId === u2.disciplinaId ? u1.disciplinaId : null;
           item = validos.find((i) => i.disciplina.id !== bloqueada) ?? validos[0];
         }
-        const idx = restantes.indexOf(item);
-        escolhido = bloco(dia, s, item.disciplina, item.topico, item.concursoIds[0], 'teoria');
-        item.blocos--;
-        if (item.blocos <= 0) {
-          restantes.splice(idx, 1);
-          // Teoria planejada até aqui gera as revisões de D+1 e D+7 no plano e, a partir de D+7, questões.
-          for (const k of [1, 7]) {
-            revisoes.push({ disciplina: item.disciplina, topico: item.topico, concursoId: item.concursoIds[0], devida: somarDias(dia, k), atrasada: false });
-          }
-          paraQuestoes.push({ d: item.disciplina, t: item.topico, aPartirDe: somarDias(dia, 7) });
-        }
+        escolhido = blocoDeTeoria(dia, s, item);
       } else if (devidas.length) {
         // Sem teoria pela frente: as revisões vencidas não esperam a cota.
         escolhido = blocoDeRevisao(dia, s, devidas);
-      } else if (paraQuestoes.length && (q = proximaQuestao(dia))) {
+      } else if (paraQuestoes.length && (q = proximaQuestao(dia, quando))) {
         escolhido = bloco(dia, s, q.d, q.t, q.d.concursoId, 'questoes');
       }
       if (!escolhido) continue;

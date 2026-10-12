@@ -2,101 +2,81 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { formatarDuracao } from '../dominio/datas';
 import { todasAsQuestoes } from '../dominio/desempenho';
-import { diagnosticoPorAssunto, PRIORI_QUESTOES, PRIORI_SIMULADOS } from '../dominio/diagnostico';
-import type { DiagnosticoAssunto } from '../dominio/diagnostico';
+import { diagnosticoPorAssunto, URGENTE_ABAIXO } from '../dominio/diagnostico';
+import type { Acerto, DiagnosticoAssunto } from '../dominio/diagnostico';
 import { STATUS_TOPICO } from '../dominio/rotulos';
 import { blocosDeTeoriaFeitos } from '../dominio/teoria';
 import type { BlocoPlanejado, Disciplina, RegistroQuestoes, Sessao, Simulado } from '../dominio/tipos';
-import { Botao, Cartao, cx } from './ui';
+import { Botao, Cartao, Etiqueta } from './ui';
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
-/** Quantos assuntos aparecem antes de "mostrar todos" (os de mais falta). */
-const PRIMEIROS = 6;
 const numero = (x: number) => x.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
-const COLUNAS = 'grid grid-cols-[5.25rem_minmax(0,1fr)_2.75rem] items-center gap-x-2';
+/** Quantos assuntos aparecem antes de "mostrar todos" (os que mais caem). */
+const PRIMEIROS = 6;
 
-/** Barra de 0 a 100%. Hachurada quando a nota é só a estimativa de 50% (ainda sem dados). */
-function Barra({ valor, grossa, estimada }: { valor: number; grossa?: boolean; estimada?: boolean }) {
-  return (
-    <span className={cx('block w-full overflow-hidden rounded-full bg-superficie-2', grossa ? 'h-3' : 'h-2')} aria-hidden>
-      <span
-        className={cx('block h-full rounded-full', !estimada && 'bg-grafico-tempo')}
-        style={{
-          width: `${Math.max(0, Math.min(1, valor)) * 100}%`,
-          ...(estimada && { backgroundImage: 'repeating-linear-gradient(135deg, var(--grafico-tempo) 0 2px, transparent 2px 5px)' }),
-        }}
-      />
-    </span>
-  );
-}
+const acerto = (a: Acerto, vazio: string) => (a.feitas ? `${numero(a.acertos)} de ${numero(a.feitas)}` : vazio);
+const juntarNomes = (nomes: string[]) => (nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}` : nomes[0]);
 
-function Nota({ rotulo, valor, detalhe, estimada }: { rotulo: string; valor: number; detalhe: string; estimada?: boolean }) {
+function Legenda() {
   return (
-    <div className={cx(COLUNAS, 'gap-y-0.5 text-sm')}>
-      <span className="text-suave">{rotulo}</span>
-      <Barra valor={valor} estimada={estimada} />
-      <span className="numeros text-right">{pct(valor)}</span>
-      <span className="col-start-2 col-end-4 text-xs text-suave">{detalhe}</span>
+    <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-suave" aria-hidden>
+      <span className="flex items-center gap-2">
+        <span className="h-2.5 w-4 rounded-sm bg-grafico-peso" /> Parte da prova
+      </span>
+      <span className="flex items-center gap-2">
+        <span className="h-2.5 w-4 rounded-sm bg-grafico-tempo" /> Parte das horas do plano até a prova
+      </span>
     </div>
   );
 }
 
-function Assunto({ a }: { a: DiagnosticoAssunto }) {
+function Assunto({ a, escala }: { a: DiagnosticoAssunto; escala: number }) {
   const [aberto, setAberto] = useState(false);
   const nq = a.disciplina.numQuestoes;
-  const { teoria, questoes, simulados } = a;
+  const largura = (f: number) => `${(Math.min(f, escala) / escala) * 100}%`;
   return (
     <li className="grid grid-cols-1 gap-2 rounded-lg border border-borda p-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <span className="min-w-0 font-extrabold">{a.disciplina.nome}</span>
-        {nq ? (
-          <span className="numeros text-sm text-suave">
-            falta ≈ {numero(nq * (1 - a.dominio))} de {nq} {nq === 1 ? 'questão' : 'questões'}
-          </span>
-        ) : null}
-      </div>
-      <div className={COLUNAS}>
-        <span className="text-sm font-bold">Domínio</span>
-        <Barra valor={a.dominio} grossa />
-        <span className="numeros text-right font-extrabold">{pct(a.dominio)}</span>
-      </div>
-      <Nota
-        rotulo="Teoria"
-        valor={a.notas.teoria}
-        detalhe={`${numero(teoria.feitos)} de ${numero(teoria.previstos)} blocos · ${a.segundos >= 60 ? `${formatarDuracao(a.segundos)} estudadas` : 'sem estudo ainda'}`}
-      />
-      <Nota
-        rotulo="Questões"
-        valor={a.notas.questoes}
-        estimada={!questoes.feitas}
-        detalhe={questoes.feitas ? `${questoes.acertos} de ${questoes.feitas} certas (${pct(questoes.acertos / questoes.feitas)})` : 'nenhuma ainda: conta 50%'}
-      />
-      <Nota
-        rotulo="Simulados"
-        valor={a.notas.simulados}
-        estimada={!simulados.feitas}
-        detalhe={simulados.feitas ? `${numero(simulados.acertos)} de ${numero(simulados.feitas)} certas` : 'não caiu em simulado: conta 50%'}
-      />
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-        <span>
-          No plano até a prova: <strong className="numeros">{formatarDuracao(a.minutosNoPlano * 60)}</strong>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <span className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="font-extrabold">{a.disciplina.nome}</span>
+          {a.urgente && <Etiqueta tom="alerta">Estudar logo</Etiqueta>}
         </span>
-        {a.topicos.length > 0 && (
-          <Botao tamanho="pequeno" variante="fantasma" aria-expanded={aberto} onClick={() => setAberto(!aberto)}>
-            {aberto ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />} Tópicos ({a.topicos.length})
-          </Botao>
-        )}
+        <span className="numeros text-sm text-suave">
+          {nq ? `${nq} ${nq === 1 ? 'questão' : 'questões'} · ` : ''}
+          {pct(a.fracaoProva)} da prova
+        </span>
       </div>
+      <div className="grid grid-cols-1 gap-0.5 border-l border-borda" aria-hidden>
+        <div className="h-3 rounded-r bg-grafico-peso" style={{ width: largura(a.fracaoProva) }} />
+        <div className="h-3 rounded-r bg-grafico-tempo" style={{ width: largura(a.fracaoPlano) }} />
+      </div>
+      <p className="text-sm">
+        No plano até a prova: <strong className="numeros">{formatarDuracao(a.minutosNoPlano * 60)}</strong>{' '}
+        <span className="numeros text-suave">({pct(a.fracaoPlano)} das horas)</span>
+      </p>
+      <p className="text-xs text-suave">
+        {[
+          a.segundos >= 60 ? `estudou ${formatarDuracao(a.segundos)}` : 'sem estudo ainda',
+          `teoria ${numero(a.teoria.feitos)} de ${numero(a.teoria.previstos)} blocos`,
+          `questões ${acerto(a.questoes, 'nenhuma ainda')}`,
+          `simulados ${acerto(a.simulados, 'não caiu')}`,
+        ].join(' · ')}
+      </p>
+      {a.topicos.length > 0 && (
+        <Botao tamanho="pequeno" variante="fantasma" className="justify-self-start" aria-expanded={aberto} onClick={() => setAberto(!aberto)}>
+          {aberto ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />} Tópicos ({a.topicos.length})
+        </Botao>
+      )}
       {aberto && (
         <ul className="grid grid-cols-1 gap-1.5 border-t border-borda pt-2" aria-label={`Tópicos de ${a.disciplina.nome}`}>
-          {a.topicos.map(({ topico: t, teoria: tt, questoes: q, segundos }) => (
+          {a.topicos.map(({ topico: t, teoria, questoes, segundos }) => (
             <li key={t.id} className="text-sm">
               <span className="block font-bold">{t.titulo}</span>
               <span className="block text-xs text-suave">
                 {[
                   STATUS_TOPICO[t.status],
-                  `teoria ${numero(tt.feitos)} de ${numero(tt.previstos)}`,
-                  q.feitas ? `questões ${q.acertos} de ${q.feitas}` : 'sem questões',
+                  `teoria ${numero(teoria.feitos)} de ${numero(teoria.previstos)}`,
+                  questoes.feitas ? `questões ${questoes.acertos} de ${questoes.feitas}` : 'sem questões',
                   segundos >= 60 && formatarDuracao(segundos),
                   t.cortado && 'cortado do plano',
                 ]
@@ -112,8 +92,9 @@ function Assunto({ a }: { a: DiagnosticoAssunto }) {
 }
 
 /**
- * Quanto falta em cada assunto do concurso: o domínio (média da teoria feita, do acerto nas
- * questões e do acerto nos simulados), as horas que o plano ainda reserva e o detalhe por tópico.
+ * Quanto estudar de cada assunto: a parte dele na prova (incidência, questões × peso) ao lado da
+ * parte das horas que o plano reserva até a prova. O desempenho fica como informação e marca o que
+ * estudar logo (foi mal no último simulado), sem mudar as horas.
  */
 export function CartaoDiagnostico({
   disciplinas,
@@ -147,19 +128,20 @@ export function CartaoDiagnostico({
       registros,
     );
     return diagnosticoPorAssunto({ disciplinas, sessoes, questoes, simulados, blocos, feitos, blocoMin, agora }).sort(
-      (a, b) => b.emRisco - a.emRisco || a.disciplina.ordem - b.disciplina.ordem,
+      (a, b) => b.valor - a.valor || a.disciplina.ordem - b.disciplina.ordem,
     );
   }, [disciplinas, todasDisciplinas, sessoes, registros, simulados, blocos, blocoMin, agora]);
-
   const [todos, setTodos] = useState(false);
+
   if (!lista.length) return null;
   const visiveis = todos ? lista : lista.slice(0, PRIMEIROS);
-  const nomes = lista.slice(0, 3).map((a) => a.disciplina.nome);
-  const onde = nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}` : nomes[0];
+  const maximo = Math.max(0.1, ...lista.flatMap((a) => [a.fracaoProva, a.fracaoPlano]));
+  const escala = Math.min(1, Math.ceil(maximo * 10) / 10);
+  const urgentes = lista.filter((a) => a.urgente).map((a) => a.disciplina.nome);
 
   return (
     <Cartao
-      titulo="Quanto falta por assunto"
+      titulo="Quanto estudar por assunto"
       acao={
         aoAbrirCadernos && (
           <Botao tamanho="pequeno" variante="secundario" onClick={aoAbrirCadernos}>
@@ -170,24 +152,30 @@ export function CartaoDiagnostico({
     >
       <div className="grid grid-cols-1 gap-4">
         <p>
-          Onde mais falta: <strong>{onde}</strong>. O domínio de cada assunto é a média de três notas: a teoria feita (horas estudadas sobre as previstas), o
-          acerto nas questões e o acerto nos simulados.
+          O tempo de cada assunto segue a incidência dele na prova (questões × peso): o que mais cai aparece mais no plano. O desempenho não muda as horas,
+          só diz o que estudar primeiro.
         </p>
-        <ol className="grid grid-cols-1 gap-3 lg:grid-cols-2" aria-label="Domínio por assunto, de onde mais falta para onde menos falta">
+        {urgentes.length > 0 && (
+          <p>
+            Estudar logo: <strong>{juntarNomes(urgentes)}</strong> (acertou menos da metade no último simulado em que caiu).
+          </p>
+        )}
+        <Legenda />
+        <ol className="grid grid-cols-1 gap-3 lg:grid-cols-2" aria-label="Assuntos, do que mais cai para o que menos cai">
           {visiveis.map((a) => (
-            <Assunto key={a.disciplina.id} a={a} />
+            <Assunto key={a.disciplina.id} a={a} escala={escala} />
           ))}
         </ol>
         {lista.length > PRIMEIROS && (
           <Botao variante="secundario" className="justify-self-start" aria-expanded={todos} onClick={() => setTodos(!todos)}>
-            {todos ? `Mostrar só os ${PRIMEIROS} de mais falta` : `Mostrar os outros ${lista.length - PRIMEIROS} assuntos`}
+            {todos ? `Mostrar só os ${PRIMEIROS} que mais caem` : `Mostrar os outros ${lista.length - PRIMEIROS} assuntos`}
           </Botao>
         )}
         <p className="text-xs text-suave">
-          Falta = questões do assunto na prova × (1 − domínio); o plano divide os blocos de questões nessa proporção, tópico a tópico pelo erro de cada um. Com
-          poucas questões, o acerto é puxado para 50%, como se houvesse mais {PRIORI_QUESTOES} questões meio a meio ({PRIORI_SIMULADOS} nos simulados); a
-          barra hachurada é essa estimativa, enquanto não há dados. Questões dos cadernos, das sessões e de Questões contam; a teoria vem das sessões de
-          teoria e dos blocos marcados.
+          Escala de 0 a {pct(escala)}. As horas do plano passam da parte da prova quando a teoria do assunto é longa para a incidência (toda a teoria
+          precisa caber até uma semana antes da prova) ou quando há blocos fixos, e ficam abaixo quando há tópicos dominados ou revisões de outros
+          assuntos. Estudar logo = menos de {pct(URGENTE_ABAIXO)} de acerto no último simulado em que o assunto caiu: o plano o põe antes, sem mais horas.
+          Questões dos cadernos, das sessões e de Questões contam no desempenho.
         </p>
       </div>
     </Cartao>

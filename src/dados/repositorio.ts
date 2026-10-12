@@ -30,7 +30,7 @@ import type { ItensPorUf } from '../radar/radar';
 import { chavePar, topicosDaImportacao } from '../dominio/edital';
 import { capacidadeParaPlano, capacidadeReal } from '../dominio/adaptacao';
 import { revisarErro, todasAsQuestoes } from '../dominio/desempenho';
-import { diagnosticoPorAssunto, necessidadePorTopico } from '../dominio/diagnostico';
+import { diagnosticoPorAssunto, relevanciaPorTopico } from '../dominio/diagnostico';
 import { acertoRecente, DISPONIBILIDADE_VAZIA, gerarPlano, minutos } from '../dominio/planejador';
 import type { DisciplinaImportada } from '../dominio/edital';
 import { lerLote, topicosDoLote } from '../dominio/lote';
@@ -754,11 +754,11 @@ export class Repositorio {
    */
   async replanejar(): Promise<number> {
     const agora = this.relogio();
-    const feitos = this.blocosFeitos();
+    const disciplinas = comIncidenciaDasProvas(this.dados.disciplinas, this.dados.concursos, this.dados.provas);
     const novos = gerarPlano({
       agora,
       concursos: this.dados.concursos,
-      disciplinas: comIncidenciaDasProvas(this.dados.disciplinas, this.dados.concursos, this.dados.provas),
+      disciplinas,
       disponibilidade: this.dados.disponibilidade,
       existentes: this.dados.blocos,
       acertos: acertoRecente(this.registrosDeQuestoes(), diaSP(agora)),
@@ -766,13 +766,47 @@ export class Repositorio {
       intercalar: this.dados.config.intercalarAssuntos,
       ultimoEstudo: this.ultimoEstudoDeTeoria(),
       simulados: this.dados.simulados,
-      feitos,
-      necessidade: necessidadePorTopico(this.diagnostico(feitos)),
+      feitos: this.blocosFeitos(),
+      // Quanto cada assunto aparece segue a incidência na prova; o desempenho só ordena.
+      relevancia: relevanciaPorTopico(disciplinas),
+      ultimoDoAssunto: this.ultimoEstudoDoAssunto(),
+      ultimaQuestao: this.ultimaQuestaoPorTopico(),
       novoId,
     });
     await this.substituirFuturos(novos);
     await this.store.definir('estado/planejamento', { ultimoReplanejamento: diaSP(agora) });
     return novos.length;
+  }
+
+  /** Último estudo de qualquer tipo de cada disciplina (sessões e blocos feitos), para o plano continuar de onde parou. */
+  private ultimoEstudoDoAssunto(): Map<Id, string> {
+    const disciplinaDo = new Map<Id, Id>();
+    for (const d of this.dados.disciplinas) for (const id of Object.keys(d.topicos)) disciplinaDo.set(id, d.id);
+    const m = new Map<Id, string>();
+    const marcar = (disciplinaId: Id | null, topicoId: Id | null, quando: string) => {
+      const id = disciplinaId ?? (topicoId ? disciplinaDo.get(topicoId) : undefined);
+      if (id && (m.get(id) ?? '') < quando) m.set(id, quando);
+    };
+    for (const s of this.dados.ativa ? [...this.dados.sessoes, this.dados.ativa] : this.dados.sessoes) marcar(s.disciplinaId, s.topicoId, s.inicio);
+    for (const r of this.dados.registrosQuestoes) if (r.feitas > 0) marcar(r.disciplinaId, r.topicoId, instanteSP(r.dia, '12:00').toISOString());
+    for (const b of this.dados.blocos) {
+      if (b.status === 'feito' || b.status === 'parcial') marcar(b.disciplinaId, b.topicoId, instanteSP(b.dia, b.inicio).toISOString());
+    }
+    return m;
+  }
+
+  /** Últimas questões de cada tópico (sessões, lançamentos e blocos de questões feitos), para o rodízio. */
+  private ultimaQuestaoPorTopico(): Map<Id, string> {
+    const m = new Map<Id, string>();
+    const marcar = (id: Id | null, quando: string) => {
+      if (id && (m.get(id) ?? '') < quando) m.set(id, quando);
+    };
+    for (const s of this.dados.sessoes) if (s.questoesFeitas > 0 || s.tipo === 'questoes') marcar(s.topicoId, s.inicio);
+    for (const r of this.dados.registrosQuestoes) if (r.feitas > 0) marcar(r.topicoId, instanteSP(r.dia, '12:00').toISOString());
+    for (const b of this.dados.blocos) {
+      if (b.motivo === 'questoes' && (b.status === 'feito' || b.status === 'parcial')) marcar(b.topicoId, instanteSP(b.dia, b.inicio).toISOString());
+    }
+    return m;
   }
 
   /** Último estudo de teoria de cada disciplina (sessões e blocos de teoria feitos), para o rodízio. */
@@ -806,8 +840,8 @@ export class Repositorio {
   }
 
   /**
-   * Diagnóstico por assunto de todas as disciplinas (dominio/diagnostico.ts): teoria feita, acerto
-   * nas questões e nos simulados. O planejador reparte os blocos de questões pelo que falta.
+   * Quanto estudar por assunto, de todas as disciplinas (dominio/diagnostico.ts): parte da prova,
+   * parte das horas do plano e o desempenho (teoria feita, questões, simulados).
    */
   diagnostico(feitos = this.blocosFeitos()) {
     return diagnosticoPorAssunto({

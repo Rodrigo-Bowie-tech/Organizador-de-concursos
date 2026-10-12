@@ -73,8 +73,8 @@ src/
     gestao.ts      gestão semanal dos concursos: padrão, as 5 tarefas e o que pede atenção em cada uma
     adaptacao.ts   capacidade real (média de 14 dias por dia da semana) e viabilidade do edital com cortes
     desempenho.ts  questões (sessões + avulsas), CSV, caderno de erros (D+3/D+14), simulados, séries das estatísticas
-    diagnostico.ts quanto falta por assunto: teoria feita + acerto nas questões + acerto nos simulados, e o peso
-                   de cada tópico nos blocos de questões do planejador
+    diagnostico.ts quanto estudar por assunto: relevância (incidência: questões × peso, por tópico), parte da
+                   prova × parte do plano, desempenho como informação e "estudar logo"
     provas.ts      provas anteriores: dividir para a IA, pedido/validação, gabarito colado, incidência por tópico e banca
     exportacao.ts  planilhas CSV (sessões, questões) e regra do lembrete de backup
   radar/         radar de concursos, sem React (roda também no Node pelo coletor)
@@ -100,7 +100,7 @@ src/
                  FimDaTeoria (pergunta "terminou a teoria?", ajuste do assunto, cartão da Home),
                  Gestao (lista de tarefas do bloco semanal de gestão),
                  HorasEPausas (Estatísticas: horas estudadas e pausadas no total, por dia e por assunto),
-                 Diagnostico (Estatísticas: quanto falta por assunto, com as três notas e o detalhe por tópico)
+                 Diagnostico (Estatísticas: quanto estudar por assunto, parte da prova × parte do plano, tópicos)
   plataforma.ts  recursos do claude.ai (IA, arquivos, downloads), wake lock, bipes, localStorage,
                  app instalável (service worker, convite de instalação)
   globais.d.ts   __WEB__ (true só no build do app instalável)
@@ -249,10 +249,18 @@ seed sozinho.
   - simulados dão o tom (`ajusteDosSimulados`): o último simulado em que a disciplina apareceu multiplica o
     peso dela por 1,7 − acerto (entre 0,5 e 1,5; 70% é neutro), com efeito proporcional a até 5 questões.
     Tópico "dominado" não ganha blocos de questões, a não ser que a disciplina tenha ficado abaixo de 70%;
-  - blocos de questões: rodízio ponderado suave entre os tópicos prontos, pelo peso `necessidade` de cada um
-    (`necessidadePorTopico` do diagnóstico; ver "Diagnóstico por assunto"): cada tópico ganha o seu peso de
-    crédito a cada escolha e o escolhido paga o total, então os blocos saem na proporção do que falta, sem
-    rajada quando um tópico fica pronto. Sem a necessidade (testes antigos), rodízio igual, pior acerto primeiro;
+  - **plano pela relevância** (o app sempre passa `relevancia`; sem ela vale o resto desta lista, que os
+    testes antigos cobrem): o tempo de cada assunto segue a incidência na prova, a pedido do usuário. Cada
+    horário vai para o assunto de maior relevância × tempo desde o último estudo dele (`ultimoDoAssunto`:
+    sessões, lançamentos e blocos feitos; os blocos fixos contam quando passam); nunca estudado vem antes, na
+    ordem da prioridade, que é onde o desempenho entra (o que foi mal no simulado começa antes). Peso do
+    assunto = relevância dos tópicos que ainda recebem estudo (`relevanciaPorTopico`; dominados e cortados
+    não) × peso do concurso (prioridade ÷ 5 × (1 + proximidade da prova), como na fila de teoria: um concurso
+    distante com muitas questões não toma o tempo do mais próximo). Dentro do assunto: teoria com 20% de questões enquanto houver teoria, depois só questões (tópico de
+    maior relevância × tempo desde as últimas questões, `ultimaQuestao`). Todos os assuntos entram ao mesmo
+    tempo (o rodízio entre N, `intercalar`, não vale aqui: deixava os que menos caem sem tempo). Revisões
+    saem quando o bloco enche ou alguma espera 2 dias, sem cota. Piso de cobertura: assunto que, no ritmo da
+    incidência, não terminaria a teoria até uma semana antes da prova ganha frequência na medida do atraso;
   - blocos `fixo` (movidos por você ou simulados marcados, `motivo: 'simulado'`, sem disciplina) ficam;
   - gestão semanal (`disponibilidade.gestao`): um bloco `motivo: 'gestao'` por semana no horário escolhido,
     se a semana ainda não tem um que fica (marcado, movido ou passado); o estudo não cai no horário, a
@@ -360,17 +368,18 @@ seed sozinho.
   manuais e as da prática com IA não têm pausas), colunas empilhadas dos últimos 14 dias e barras por
   assunto do concurso ativo (mais "Sem assunto" e "Outros concursos"). Menos de 1 min não aparece no
   gráfico. O tempo planejado que nem começou continua em "Planejado × realizado".
-- **Diagnóstico por assunto e cadernos de questões** (12/10/2026, a pedido do usuário: "quanto devo ainda
-  estudar" num composto de horas, questões e simulados). Primeiro cartão das Estatísticas
-  (`componentes/Diagnostico.tsx`, `dominio/diagnostico.ts`). Domínio do assunto = média de três notas de 0 a 1:
-  teoria feita (blocos feitos ÷ previstos nos tópicos não cortados; concluído conta inteiro; teoria estudada na
-  disciplina inteira, sem tópico, também conta), acerto nas questões (sessões, lançamentos e provas/cadernos
-  refeitos) e acerto nos simulados (todos, nota ÷ peso). O acerto é puxado para 50% com poucos dados:
-  (acertos + k/2) ÷ (feitas + k), k = 4 nas questões e 2 nos simulados; sem dados, 50% e barra hachurada.
-  Falta = questões × peso × (1 − domínio) (`emRisco`); a tela mostra "falta ≈ x de N questões", as horas que o
-  plano ainda reserva (`minutosNoPlano`) e o detalhe por tópico; mostra os 6 de mais falta e o resto num botão.
-  O planejador divide a falta de cada disciplina entre os tópicos dela pelo erro nas questões de cada um
-  (`necessidadePorTopico`, sem questões = meio a meio) e reparte os blocos de questões por esse peso.
+- **Quanto estudar por assunto e cadernos de questões** (12/10/2026, a pedido do usuário). O usuário
+  corrigiu o primeiro desenho (um domínio composto de horas, questões e simulados decidia o tempo): **quanto
+  estudar é a relevância, a incidência na prova, e só isso**; o desempenho só diz o que estudar primeiro.
+  Relevância de um tópico (`relevanciaPorTopico`) = questões × peso da disciplina dividido entre os
+  tópicos-folha não cortados (com a incidência de algum tópico conhecida, cada um pesa de 1 a 2, como na
+  prioridade); dominado fica com a sua parte, que o plano não usa. O planejador usa isso no "plano pela
+  relevância" (acima). Primeiro cartão das Estatísticas (`componentes/Diagnostico.tsx`): por assunto, do que
+  mais cai para o que menos cai, a parte da prova ao lado da parte das horas do plano até a prova (duas
+  barras, tokens `--grafico-peso` e `--grafico-tempo`), as horas no plano e, como informação, horas
+  estudadas, teoria feita (inclusive a estudada na disciplina inteira, sem tópico), questões e simulados;
+  "Estudar logo" = menos de 50% no último simulado em que o assunto caiu. Mostra os 6 que mais caem e o resto
+  num botão. Lançar ou importar questões e salvar simulado replanejam.
   Cadernos (Provas anteriores, seção própria): `caderno: true` fica fora da incidência (`provasDoConcurso`);
   Refazer por parte (`grupo`), começando pela primeira não feita, com o número do caderno e o comentário do
   gabarito depois de responder (aberto se errou); os registros levam `fonte` = "título · parte", e é por ela

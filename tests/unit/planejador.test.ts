@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { diaDaSemana } from '../../src/dominio/datas';
 import { ajusteDosSimulados, dominio, filaDeTeoria, fracaoRevisao, gerarPlano, janelasDoDia, slotsDoDia, statusSugerido } from '../../src/dominio/planejador';
 import type { EntradaPlano } from '../../src/dominio/planejador';
+import { relevanciaPorTopico } from '../../src/dominio/diagnostico';
 import { iniciarRevisao } from '../../src/dominio/revisoes';
 import type { BlocoPlanejado, Concurso, Disciplina, Disponibilidade, Simulado, Topico } from '../../src/dominio/tipos';
 
@@ -297,25 +298,66 @@ describe('cronograma por assuntos: rodízio, simulados e horizonte', () => {
     expect(questoes[0] >= '2026-10-07').toBe(true); // a partir de D+7
   });
 
-  it('com o diagnóstico, os blocos de questões saem na proporção do que falta, sem rajadas', () => {
-    // Teoria toda feita: o plano é só de questões.
-    const pronto = (id: string, ordem: number) => ({
-      ...disciplina(id, 'embu', 1, 2, [topico(`${id}1`, { status: 'teoria_concluida' }), topico(`${id}2`, { status: 'teoria_concluida', ordem: 1 })]),
+  it('os assuntos que mais caem têm mais blocos de questões; o rodízio continua de onde parou', () => {
+    // Teoria toda feita: o plano é só de questões. BT vale 4 questões na prova; Luminotécnica, 1.
+    const pronto = (id: string, questoes: number, ordem: number) => ({
+      ...disciplina(id, 'embu', 1, questoes, [topico(`${id}1`, { status: 'teoria_concluida' }), topico(`${id}2`, { status: 'teoria_concluida', ordem: 1 })]),
       ordem,
     });
-    const discs = [pronto('lum', 0), pronto('rl', 1)];
-    const necessidade = new Map([['lum1', 3], ['lum2', 1], ['rl1', 1], ['rl2', 1]]);
-    const p = gerarPlano(base({ disciplinas: discs, horizonteDias: 30, necessidade }));
-    const questoes = p.filter((b) => b.motivo === 'questoes').map((b) => b.topicoId);
-    expect(questoes).toHaveLength(30);
-    const conta = (id: string) => questoes.filter((t) => t === id).length;
-    expect(conta('lum1')).toBe(15); // 3 de 6
-    expect([conta('lum2'), conta('rl1'), conta('rl2')]).toEqual([5, 5, 5]);
-    // O mais necessitado se espalha: nunca três blocos seguidos do mesmo tópico.
-    expect(questoes.some((t, i) => i >= 2 && t === questoes[i - 1] && t === questoes[i - 2])).toBe(false);
-    // Sem o diagnóstico, rodízio igual.
-    const igual = gerarPlano(base({ disciplinas: discs, horizonteDias: 8 })).filter((b) => b.motivo === 'questoes');
-    expect(new Set(igual.slice(0, 4).map((b) => b.topicoId)).size).toBe(4);
+    const discs = [pronto('lum', 1, 0), pronto('bt', 4, 1)];
+    const relevancia = relevanciaPorTopico(discs);
+    expect(Object.fromEntries(relevancia)).toEqual({ lum1: 0.5, lum2: 0.5, bt1: 2, bt2: 2 });
+    const p = gerarPlano(base({ disciplinas: discs, horizonteDias: 40, relevancia }));
+    const questoes = p.filter((b) => b.motivo === 'questoes').map((b) => b.disciplinaId);
+    expect(questoes).toHaveLength(40);
+    const bt = questoes.filter((d) => d === 'bt').length;
+    expect(bt).toBeGreaterThanOrEqual(30); // perto de 4 de cada 5
+    expect(bt).toBeLessThanOrEqual(34);
+    // Nunca praticado vem antes; depois de replanejar, quem acabou de ter questões vai para o fim.
+    const ontem = new Map([['bt1', '2026-09-27T23:00:00.000Z'], ['lum1', '2026-09-27T22:00:00.000Z']]);
+    const depois = gerarPlano(base({ disciplinas: discs, horizonteDias: 3, relevancia, ultimaQuestao: ontem })).map((b) => b.topicoId);
+    expect(depois.slice(0, 2).sort()).toEqual(['bt2', 'lum2']);
+    expect(depois[2]).toBe('bt1'); // 4 vezes mais relevante que lum1
+  });
+
+  it('pela relevância, o que mais cai tem mais tempo, mas toda a teoria cabe antes da última semana', () => {
+    // Prova em 08/11 (6 semanas): RL vale 10 questões e já tem a teoria feita; MT vale 2 e tem 6 blocos
+    // de teoria; Manutenção vale 1, com 1 bloco, e é a última na prioridade (no rodízio de 2 nunca entraria).
+    const rl = { ...disciplina('rl', 'embu', 1, 10, [topico('rl1', { status: 'revisado' }), topico('rl2', { status: 'revisado', ordem: 1 })]), ordem: 0 };
+    const mt = { ...disciplina('mt', 'embu', 1, 2, [topico('mt1', { blocosTeoria: 3 }), topico('mt2', { blocosTeoria: 3, ordem: 1 })]), ordem: 1 };
+    const man = { ...disciplina('man', 'embu', 1, 1, [topico('man1', { blocosTeoria: 1 })]), ordem: 2 };
+    const discs = [rl, mt, man];
+    const p = gerarPlano(base({ concursos: [concurso('embu', '2026-11-08', 5)], disciplinas: discs, intercalar: 2, relevancia: relevanciaPorTopico(discs) }));
+    const teoriaAte = (id: string) => p.filter((b) => b.motivo === 'teoria' && b.disciplinaId === id && b.dia <= '2026-11-01').length;
+    expect(teoriaAte('mt')).toBe(6); // toda a teoria de MT antes da última semana
+    expect(teoriaAte('man')).toBe(1); // a de Manutenção também
+    const horas = (id: string) => p.filter((b) => b.disciplinaId === id && (b.motivo === 'teoria' || b.motivo === 'questoes')).length;
+    expect(horas('rl')).toBeGreaterThan(horas('mt'));
+    expect(horas('mt')).toBeGreaterThan(horas('man'));
+  });
+
+  it('entre concursos, a prova mais próxima e de maior prioridade não perde o tempo para a que tem mais questões', () => {
+    // Embu (prova em 06/12, prioridade 5) com 20 questões; Câmara (prova em 2027, prioridade 1) com 80.
+    const embu = { ...disciplina('emb', 'embu', 1, 20, [topico('e1', { status: 'revisado' }), topico('e2', { status: 'revisado', ordem: 1 })]), ordem: 0 };
+    const cam = { ...disciplina('cam', 'camara', 1, 80, [topico('c1', { status: 'revisado' }), topico('c2', { status: 'revisado', ordem: 1 })]), ordem: 1 };
+    const discs = [embu, cam];
+    const p = gerarPlano(
+      base({ concursos: [concurso('embu', '2026-12-06', 5), concurso('camara', '2027-03-20', 1)], disciplinas: discs, horizonteDias: 28, relevancia: relevanciaPorTopico(discs) }),
+    );
+    const conta = (id: string) => p.filter((b) => b.disciplinaId === id).length;
+    expect(conta('emb')).toBeGreaterThan(conta('cam'));
+    expect(conta('cam')).toBeGreaterThan(0);
+  });
+
+  it('no rodízio de teoria, o assunto que mais cai volta mais vezes', () => {
+    const discs = base().disciplinas.filter((d) => ['bt', 'fp', 'mt'].includes(d.id)); // bt: 4 questões; fp e mt: 2
+    const p = gerarPlano(base({ disciplinas: discs, intercalar: 3, horizonteDias: 7, relevancia: relevanciaPorTopico(discs) }));
+    const primeiros = teoria(p).slice(0, 6);
+    expect(primeiros.slice(0, 3)).toEqual(['bt', 'fp', 'mt']); // nunca estudados: pela ordem
+    const conta = (id: string) => primeiros.filter((d) => d === id).length;
+    expect(conta('bt')).toBe(3);
+    expect(conta('bt')).toBeGreaterThan(conta('fp'));
+    expect(conta('bt')).toBeGreaterThan(conta('mt'));
   });
 
   it('assunto "dominado" não ganha blocos de questões, a não ser que caia no simulado', () => {

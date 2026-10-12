@@ -3,7 +3,7 @@ import { menu, preparar } from './apoio';
 
 const noite = [{ inicio: '20:00', fim: '21:00' }];
 
-test('cronograma: rodízio de assuntos, simulado marcado e plano até a prova', async ({ page }) => {
+test('cronograma: o assunto que mais cai aparece mais, simulado marcado e plano até a prova', async ({ page }) => {
   // Domingo, 27/09/2026, 20:00 em SP. Prova em 08/11 (mais de 4 semanas).
   await preparar(page, {
     extras: {
@@ -21,21 +21,19 @@ test('cronograma: rodízio de assuntos, simulado marcado e plano até a prova', 
     },
   });
 
-  await menu(page, 'Configurações');
-  await page.getByLabel('Intercalar assuntos').selectOption('2');
-  await expect(page.getByText('Planejamento atualizado.')).toBeVisible();
-
   await menu(page, 'Planejamento');
   await page.getByRole('button', { name: 'Replanejar' }).click();
   await expect(page.getByText(/Plano refeito: \d+ blocos\./)).toBeVisible();
   await page.getByLabel('Visão').selectOption('semana');
 
-  // Rodízio: as duas disciplinas se alternam noite a noite. Português foi estudado em 25/09, então
-  // Elétrica abre o rodízio hoje.
+  // Pela incidência: Elétrica (40 questões × peso 2) vale 4 vezes Português (20 × 1) e aparece mais. Ela
+  // nunca foi estudada e abre a semana; Português, estudado em 25/09, também entra na semana.
   const cartoes = page.getByRole('region', { name: /Semana/ }).getByRole('button', { name: /^20:00 / });
   await expect(cartoes.nth(0)).toHaveAccessibleName(/^20:00 Engenharia Elétrica/);
-  await expect(cartoes.nth(1)).toHaveAccessibleName(/^20:00 Língua Portuguesa/);
-  await expect(cartoes.nth(2)).toHaveAccessibleName(/^20:00 Engenharia Elétrica/);
+  const nomes = await cartoes.evaluateAll((els) => els.map((el) => el.getAttribute('aria-label') ?? el.textContent ?? ''));
+  const conta = (nome: string) => nomes.filter((n) => n.includes(nome)).length;
+  expect(conta('Língua Portuguesa')).toBeGreaterThan(0);
+  expect(conta('Engenharia Elétrica')).toBeGreaterThan(conta('Língua Portuguesa'));
   // O simulado fixo do sábado aparece com o nome certo e o planejador não pôs nada por cima.
   await expect(page.getByRole('button', { name: /^20:00 Simulado/ })).toBeVisible();
 

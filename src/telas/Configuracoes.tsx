@@ -1,7 +1,7 @@
 import { Download, FileSpreadsheet, MonitorSmartphone, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { CartaoSincronizacao, useSinc } from '../componentes/Sincronizacao';
-import { Botao, CabecalhoTela, Campo, Cartao, Confirmar, Entrada, Progresso, Selecao, cx } from '../componentes/ui';
+import { Botao, CabecalhoTela, Campo, Cartao, Confirmar, Entrada, Progresso, cx } from '../componentes/ui';
 import type { Backup } from '../dados/repositorio';
 import { diaSP, formatarData } from '../dominio/datas';
 import { csvQuestoes, csvSessoes } from '../dominio/exportacao';
@@ -144,27 +144,10 @@ export function Configuracoes() {
         </Cartao>
 
         <Cartao titulo="Planejamento">
-          <div className="mb-4 grid grid-cols-1 gap-1">
-            <Campo
-              rotulo="Intercalar assuntos"
-              dica="Teoria em rodízio entre os assuntos (disciplinas) de maior prioridade: cada bloco vai para o que você estudou há mais tempo."
-            >
-              {(id) => (
-                <Selecao
-                  id={id}
-                  value={dados.config.intercalarAssuntos ?? 0}
-                  onChange={(e) => salvar({ ...dados.config, intercalarAssuntos: Number(e.target.value) }, 'Planejamento atualizado.')}
-                >
-                  <option value={0}>Desligado (até 2 blocos seguidos do mesmo assunto)</option>
-                  {[2, 3, 4, 5, 6].map((n) => (
-                    <option key={n} value={n}>
-                      {n} assuntos em rodízio
-                    </option>
-                  ))}
-                </Selecao>
-              )}
-            </Campo>
-          </div>
+          <p className="mb-4 text-sm text-suave">
+            O plano divide o tempo pela incidência de cada assunto na prova (questões × peso): os que mais caem aparecem mais, e todos entram juntos. O
+            desempenho nos simulados só decide o que vem primeiro.
+          </p>
           <label className="flex items-start gap-2">
             <input
               type="checkbox"

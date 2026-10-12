@@ -1,16 +1,16 @@
 import { expect, test } from '@playwright/test';
 import { menu, preparar } from './apoio';
 
-// Engenharia Elétrica (peso 2, 40 questões): nenhuma teoria, 7 de 10 em Transformadores e 6 de
-// 10 questões no simulado (12 de 20 pontos). Português (20 questões): 3 h de teoria em Crase.
+// Engenharia Elétrica (peso 2, 40 questões): nenhuma teoria, 7 de 10 em Transformadores e 2 de 10
+// questões no simulado (4 de 20 pontos). Português (20 questões): 3 h de teoria em Crase.
 const EXTRAS = {
   'questoes/2026-09-20': {
     semana: '2026-09-20',
     itens: { r1: { id: 'r1', concursoId: 'ff', disciplinaId: 'ee', topicoId: 't3', dia: '2026-09-26', feitas: 10, acertos: 7, fonte: 'QConcursos' } },
   },
   'simulados/s1': {
-    id: 's1', concursoId: 'ff', titulo: 'Simulado 1', dia: '2026-09-26', duracaoMin: 180, observacoes: '', notaTotal: 12, notaMaxima: 20,
-    notas: [{ disciplinaId: 'ee', nome: 'Engenharia Elétrica', nota: 12, maximo: 20 }],
+    id: 's1', concursoId: 'ff', titulo: 'Simulado 1', dia: '2026-09-26', duracaoMin: 180, observacoes: '', notaTotal: 4, notaMaxima: 20,
+    notas: [{ disciplinaId: 'ee', nome: 'Engenharia Elétrica', nota: 4, maximo: 20 }],
   },
 };
 
@@ -30,23 +30,22 @@ const CADERNO = {
   },
 };
 
-test('diagnóstico por assunto: teoria, questões e simulados viram o domínio de cada assunto', async ({ page }) => {
+test('quanto estudar por assunto: o tempo segue a incidência; o desempenho só marca o que estudar logo', async ({ page }) => {
   await preparar(page, { extras: EXTRAS });
   await menu(page, 'Estatísticas');
-  const cartao = page.getByRole('heading', { name: 'Quanto falta por assunto' }).locator('xpath=ancestor::section[1]');
-  await expect(cartao).toContainText('Onde mais falta: Engenharia Elétrica e Língua Portuguesa.');
-  const [ee, pt] = [cartao.getByRole('listitem').filter({ hasText: 'Engenharia Elétrica' }).first(), cartao.getByRole('listitem').filter({ hasText: 'Língua Portuguesa' }).first()];
-  // (0 + 9/14 + 7/12) ÷ 3 = 41%; falta 40 × 59% ≈ 23,7 questões.
-  await expect(ee).toContainText('falta ≈ 23,7 de 40 questões');
-  await expect(ee).toContainText('Domínio41%');
-  await expect(ee).toContainText('0 de 4 blocos · sem estudo ainda');
-  await expect(ee).toContainText('7 de 10 certas (70%)');
-  await expect(ee).toContainText('6 de 10 certas');
-  // Português: teoria completa (3 h em 2 blocos previstos), sem questões nem simulado: (1 + 0,5 + 0,5) ÷ 3.
-  await expect(pt).toContainText('Domínio67%');
-  await expect(pt).toContainText('2 de 2 blocos · 3h00min estudadas');
-  await expect(pt).toContainText('nenhuma ainda: conta 50%');
-  await expect(pt).toContainText('não caiu em simulado: conta 50%');
+  const cartao = page.getByRole('heading', { name: 'Quanto estudar por assunto' }).locator('xpath=ancestor::section[1]');
+  await expect(cartao).toContainText('Estudar logo: Engenharia Elétrica (acertou menos da metade no último simulado em que caiu).');
+  const itens = cartao.getByRole('list', { name: 'Assuntos, do que mais cai para o que menos cai' }).locator(':scope > li');
+  // Do que mais cai para o que menos cai: 40 × 2 = 80 de 100 pontos; 20 × 1 = 20.
+  await expect(itens.nth(0)).toContainText('Engenharia Elétrica');
+  const [ee, pt] = [itens.nth(0), itens.nth(1)];
+  await expect(ee).toContainText('Estudar logo');
+  await expect(ee).toContainText('40 questões · 80% da prova');
+  await expect(ee).toContainText('No plano até a prova: 0h00min (0% das horas)');
+  await expect(ee).toContainText('sem estudo ainda · teoria 0 de 4 blocos · questões 7 de 10 · simulados 2 de 10');
+  await expect(pt).toContainText('20 questões · 20% da prova');
+  await expect(pt).toContainText('estudou 3h00min · teoria 2 de 2 blocos · questões nenhuma ainda · simulados não caiu');
+  await expect(pt.getByText('Estudar logo')).toHaveCount(0);
   await ee.getByRole('button', { name: 'Tópicos (2)' }).click();
   await expect(ee.getByRole('list', { name: 'Tópicos de Engenharia Elétrica' })).toContainText('Transformadores');
   await expect(ee.getByRole('list', { name: 'Tópicos de Engenharia Elétrica' })).toContainText('Não iniciado · teoria 0 de 2 · questões 7 de 10');
@@ -86,6 +85,6 @@ test('cadernos: refazer por partes, com o número do caderno e o comentário; o 
   await page.keyboard.press('Escape');
 
   await menu(page, 'Estatísticas');
-  const ee = page.getByRole('heading', { name: 'Quanto falta por assunto' }).locator('xpath=ancestor::section[1]').getByRole('listitem').filter({ hasText: 'Engenharia Elétrica' }).first();
-  await expect(ee).toContainText('1 de 2 certas (50%)');
+  const ee = page.getByRole('heading', { name: 'Quanto estudar por assunto' }).locator('xpath=ancestor::section[1]').getByRole('listitem').filter({ hasText: 'Engenharia Elétrica' }).first();
+  await expect(ee).toContainText('questões 1 de 2');
 });
