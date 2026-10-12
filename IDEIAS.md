@@ -15,6 +15,11 @@ Coisas que ficaram de fora para manter as fases simples. Não são compromisso.
 - Ajuste do assunto para baixo: quando os tópicos andam bem mais rápido que o previsto, sugerir
   diminuir a estimativa dos que faltam (hoje só sugere aumentar).
 - Gestão semanal: guardar data de fim das inscrições e do boleto no concurso, para a lista avisar o prazo.
+- Capacidade real: não ajustar enquanto a janela de 14 dias tiver dias de antes da disponibilidade atual
+  (em 11/10 o plano de Embu encolheu para 1 bloco por dia e levou a 14 cortes logo depois de criado).
+  Também perguntar antes de cortar, mostrando quantas horas a mais por semana fechariam o edital.
+- Simulados dentro do app: fazer a prova cronometrada e lançar o resultado por assunto direto na tela
+  Simulados (hoje é uma página separada no claude.ai e o resultado volta pela conversa).
 
 ## Painel e histórico
 - Escolher se a semana começa no domingo ou na segunda.

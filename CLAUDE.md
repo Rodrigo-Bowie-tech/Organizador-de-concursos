@@ -291,6 +291,24 @@ seed sozinho.
   abaixo de 70%). `blocosTeoria` calibrado para caber em 1h nos dias úteis (20h) e 3h nos fins de semana
   (9h–12h), rodízio de 5 assuntos, simulados fixos em 11/10, 08/11 e 29/11. Documentos em
   `seed/embu-2026.json` (reaplicar com ArtifactData batch).
+- **Replanejamento de Embu** (12/10/2026, depois do simulado diagnóstico: 32/40, RL 10/10, PT 8/10,
+  específica 14/20 com luminotécnica, incêndio e BDI em branco): o app instalável vinha encolhendo o
+  plano pela capacidade real (14 dias com pouco estudo) e o usuário aceitou 14 cortes em 11/10. Feito no
+  repositório de dados (commit `01c13e4` do `organizador-dados`): `usarCapacidadeReal: false`, metas de
+  2h/dia, dias úteis 20h–22h, fins de semana e feriados (02/11, 20/11) 9h–12h30, nenhum corte, mais
+  blocos nos assuntos fracos (novo tópico de redes/ar/elevadores em sistemas prediais), RL `revisado`
+  (só questões), PT classes de palavras e figuras em estudo, interpretação `revisado`, Simulado 1
+  registrado em `simulados/embu-s1` (em questões, para o peso do planejador), simulados fixos em 25/10,
+  15/11 e 29/11 e uma semana de foco (blocos fixos) em luminotécnica, BDI e incêndio. Teoria até 06/11,
+  depois questões e revisões. O seed continua com a versão de 07/10. Simulados (página separada):
+  https://claude.ai/artifact/TQMkszgP2AvubbvoKBvB1r (Embu 1 e 2, Câmara).
+- **Mexer nos dados do app instalável** (o Claude, a pedido do usuário): clonar
+  `Rodrigo-Bowie-tech/organizador-dados`, carregar `dados/**` num `MemoriaStore` com `caminhoDe` e
+  `lerArquivoDados`, aplicar as mudanças pelo `Repositorio` (as mesmas regras do app), chamar
+  `replanejar()` e gravar só os documentos mudados com `serializar({ em: agora, dado })` em
+  `arquivoDe(caminho)`; commit e push normal (sem force) no `main`. Os aparelhos recebem na próxima
+  sincronização; documento mudado também no aparelho é juntado e o app replaneja. Rodar o script como
+  teste temporário do Vitest e não versioná-lo.
 - **App instalável no GitHub Pages** (Fase 9, etapas 1 e 2, a pedido do usuário em 07/10/2026): o
   repositório já existia e é público. Banco no aparelho (IndexedDB) com a mesma semântica do Artifact;
   na primeira abertura traz o que houver no localStorage do modo local. Abas abertas se avisam pelo
