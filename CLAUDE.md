@@ -73,6 +73,8 @@ src/
     gestao.ts      gestão semanal dos concursos: padrão, as 5 tarefas e o que pede atenção em cada uma
     adaptacao.ts   capacidade real (média de 14 dias por dia da semana) e viabilidade do edital com cortes
     desempenho.ts  questões (sessões + avulsas), CSV, caderno de erros (D+3/D+14), simulados, séries das estatísticas
+    diagnostico.ts quanto falta por assunto: teoria feita + acerto nas questões + acerto nos simulados, e o peso
+                   de cada tópico nos blocos de questões do planejador
     provas.ts      provas anteriores: dividir para a IA, pedido/validação, gabarito colado, incidência por tópico e banca
     exportacao.ts  planilhas CSV (sessões, questões) e regra do lembrete de backup
   radar/         radar de concursos, sem React (roda também no Node pelo coletor)
@@ -97,7 +99,8 @@ src/
                  Sincronizacao (indicador no topo e cartão em Configurações),
                  FimDaTeoria (pergunta "terminou a teoria?", ajuste do assunto, cartão da Home),
                  Gestao (lista de tarefas do bloco semanal de gestão),
-                 HorasEPausas (Estatísticas: horas estudadas e pausadas no total, por dia e por assunto)
+                 HorasEPausas (Estatísticas: horas estudadas e pausadas no total, por dia e por assunto),
+                 Diagnostico (Estatísticas: quanto falta por assunto, com as três notas e o detalhe por tópico)
   plataforma.ts  recursos do claude.ai (IA, arquivos, downloads), wake lock, bipes, localStorage,
                  app instalável (service worker, convite de instalação)
   globais.d.ts   __WEB__ (true só no build do app instalável)
@@ -174,7 +177,7 @@ Limites: **5.000 documentos** no total e 256 KiB por documento. Por isso os regi
 | `plano/<semana>` (fixos) | simulados marcados no cronograma: `tipo`/`motivo` `simulado`, sem disciplina, `fixo: true` |
 | `plano/<semana>` (gestão) | gestão semanal: `tipo`/`motivo` `gestao`, sem disciplina; `tarefas` marcadas (com alguma marcada, `fixo: true`) |
 | `estado/backup` | `{ ultimoEm }`: último backup exportado (lembrete na Home depois de 30 dias, com ≥ 10 sessões) |
-| `provas/<id>` | ProvaAnterior com as questões dentro (`questoes: { <id>: QuestaoProva }`); PDF em `arquivoId` |
+| `provas/<id>` | ProvaAnterior com as questões dentro (`questoes: { <id>: QuestaoProva }`); PDF em `arquivoId`. Com `caderno: true`, caderno de estudo (questões com `rotulo` "01.D2", `grupo` "Bloco 01 · Diagnóstico" e `comentario` do gabarito) |
 
 - O estado da revisão de cada tópico fica no próprio tópico (`topico.revisao`), junto com `concluidoEm`.
   `atualizarTopico` agenda D+1 ao concluir e limpa ao voltar para "em estudo".
@@ -233,7 +236,7 @@ seed sozinho.
   - teoria: estimativa total em `topico.blocosTeoria` (campo do Edital; vazio = 2) e o plano reserva só o
     que falta pelos blocos feitos (`dominio/teoria.ts`); estimativa acabada sem a teoria concluída guarda
     1 bloco até a resposta; ao fim, o plano já agenda D+1 e D+7 e, a partir de D+7, o tópico entra nos
-    blocos de questões;
+    blocos de questões (também quando a teoria acaba num bloco fixo, como os da semana de foco);
   - revisão atrasada entra no primeiro bloco livre; revisões juntam-se num bloco (20 min cada, até 3 por
     bloco de 60 min) e só viram bloco quando enchem ou quando alguma espera 2 dias; revisão/questões ocupam
     20% dos últimos 10 blocos, subindo até 60% nas últimas 3 semanas e 100% na última (sem conteúdo novo,
@@ -246,6 +249,10 @@ seed sozinho.
   - simulados dão o tom (`ajusteDosSimulados`): o último simulado em que a disciplina apareceu multiplica o
     peso dela por 1,7 − acerto (entre 0,5 e 1,5; 70% é neutro), com efeito proporcional a até 5 questões.
     Tópico "dominado" não ganha blocos de questões, a não ser que a disciplina tenha ficado abaixo de 70%;
+  - blocos de questões: rodízio ponderado suave entre os tópicos prontos, pelo peso `necessidade` de cada um
+    (`necessidadePorTopico` do diagnóstico; ver "Diagnóstico por assunto"): cada tópico ganha o seu peso de
+    crédito a cada escolha e o escolhido paga o total, então os blocos saem na proporção do que falta, sem
+    rajada quando um tópico fica pronto. Sem a necessidade (testes antigos), rodízio igual, pior acerto primeiro;
   - blocos `fixo` (movidos por você ou simulados marcados, `motivo: 'simulado'`, sem disciplina) ficam;
   - gestão semanal (`disponibilidade.gestao`): um bloco `motivo: 'gestao'` por semana no horário escolhido,
     se a semana ainda não tem um que fica (marcado, movido ou passado); o estudo não cai no horário, a
@@ -254,8 +261,9 @@ seed sozinho.
     com disciplinas (máximo 120 dias) ou 28 dias se faltar alguma data;
   - replanejar troca só os blocos `planejado` que ainda não começaram e não foram movidos (`fixo`);
     marcados ficam para sempre.
-- **Adaptação** (Fase 4, `dominio/adaptacao.ts`): replaneja ao finalizar/registrar sessão, ao marcar bloco e
-  na primeira abertura do dia (`replanejarDoDia` em `main.tsx`). Capacidade real = média dos últimos 14 dias
+- **Adaptação** (Fase 4, `dominio/adaptacao.ts`): replaneja ao finalizar/registrar sessão, ao marcar bloco, ao
+  lançar ou importar questões (inclusive prova ou caderno refeito), ao salvar ou excluir simulado e na primeira
+  abertura do dia (`replanejarDoDia` em `main.tsx`). Capacidade real = média dos últimos 14 dias
   por dia da semana; com ≥ 14 dias de uso e real < 80% do declarado, o plano usa a média (mínimo 1 bloco) e
   avisa. Viabilidade: blocos de teoria necessários × os que cabem até a prova (descontada a cota de
   revisão); se não fecha, sugere cortar os de menor prioridade (`topico.cortado`, reversível no Edital).
@@ -352,6 +360,24 @@ seed sozinho.
   manuais e as da prática com IA não têm pausas), colunas empilhadas dos últimos 14 dias e barras por
   assunto do concurso ativo (mais "Sem assunto" e "Outros concursos"). Menos de 1 min não aparece no
   gráfico. O tempo planejado que nem começou continua em "Planejado × realizado".
+- **Diagnóstico por assunto e cadernos de questões** (12/10/2026, a pedido do usuário: "quanto devo ainda
+  estudar" num composto de horas, questões e simulados). Primeiro cartão das Estatísticas
+  (`componentes/Diagnostico.tsx`, `dominio/diagnostico.ts`). Domínio do assunto = média de três notas de 0 a 1:
+  teoria feita (blocos feitos ÷ previstos nos tópicos não cortados; concluído conta inteiro; teoria estudada na
+  disciplina inteira, sem tópico, também conta), acerto nas questões (sessões, lançamentos e provas/cadernos
+  refeitos) e acerto nos simulados (todos, nota ÷ peso). O acerto é puxado para 50% com poucos dados:
+  (acertos + k/2) ÷ (feitas + k), k = 4 nas questões e 2 nos simulados; sem dados, 50% e barra hachurada.
+  Falta = questões × peso × (1 − domínio) (`emRisco`); a tela mostra "falta ≈ x de N questões", as horas que o
+  plano ainda reserva (`minutosNoPlano`) e o detalhe por tópico; mostra os 6 de mais falta e o resto num botão.
+  O planejador divide a falta de cada disciplina entre os tópicos dela pelo erro nas questões de cada um
+  (`necessidadePorTopico`, sem questões = meio a meio) e reparte os blocos de questões por esse peso.
+  Cadernos (Provas anteriores, seção própria): `caderno: true` fica fora da incidência (`provasDoConcurso`);
+  Refazer por parte (`grupo`), começando pela primeira não feita, com o número do caderno e o comentário do
+  gabarito depois de responder (aberto se errou); os registros levam `fonte` = "título · parte", e é por ela
+  que a tela sabe as partes feitas. O caderno de RL (72 questões, 8 blocos, 4 de diagnóstico e 5 de questões
+  cada) foi gravado em `provas/caderno-rl-embu` do `organizador-dados`, ligado aos tópicos `embu-rl-*`
+  (01 → rl-1; 02, 03, 04 → rl-2; 05 → rl-4; 06 → rl-3; 07, 08 → rl-5), a partir dos PDFs do usuário
+  (texto pelo pdf.js, gabarito rápido conferido com o comentado). O de Elétrica espera os PDFs.
 - **Gestão semanal dos concursos** (11/10/2026, a pedido do usuário): ligada por padrão (domingo, 19:00,
   1 h, fora da grade de estudo do Embu), configurável ou desligável na Disponibilidade. O bloco não vai
   para o cronômetro: traz as 5 tarefas (analisar editais, pesquisar outros concursos, verificar

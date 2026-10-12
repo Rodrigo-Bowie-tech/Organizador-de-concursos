@@ -9,6 +9,10 @@ const TELAS = ['Home', 'Concursos', 'Disciplinas', 'Edital', 'Planejamento', 'Re
 const questao = (n: number, topicoId: string) => ({ id: `q${n}`, numero: n, enunciado: `Questão ${n}`, alternativas: ['a', 'b', 'c', 'd'], correta: 0, disciplinaId: 'ee', topicoId, anulada: false });
 const EXTRAS = {
   'provas/p1': { id: 'p1', concursoId: 'ff', titulo: 'FCC · 2023', banca: 'FCC', orgao: '', ano: 2023, cargo: '', arquivoId: null, arquivoNome: null, importadaEm: '2026-09-20T12:00:00Z', questoes: { q1: questao(1, 't3'), q2: questao(2, 't2') } },
+  'provas/cad': {
+    id: 'cad', concursoId: 'ff', caderno: true, titulo: 'Caderno de elétrica', banca: 'Várias (caderno de estudo)', orgao: '', ano: 2026, cargo: '', arquivoId: null, arquivoNome: null, importadaEm: '2026-09-20T12:00:00Z',
+    questoes: { c1: { ...questao(1, 't3'), id: 'c1', rotulo: '01.D1', grupo: 'Bloco 01 · Diagnóstico', comentario: 'A relação de espiras dá a de tensões.' } },
+  },
   'radar_filtros/padrao': { id: 'padrao', nome: 'Elétrica SP/RJ', areas: ['Engenharia Elétrica'], ufs: ['SP', 'RJ'], bancas: [], salarioMinimo: null },
   'oportunidades/SP': { uf: 'SP', itens: { sabesp: { id: 'sabesp', titulo: 'Sabesp', orgao: 'Sabesp', banca: 'FCC', cargos: ['Engenheiro Eletricista'], salario: 11874.15, vagas: 12, uf: 'SP', inscricoesAte: '2026-10-20', link: 'https://exemplo.gov.br/sabesp', fonte: 'PCI Concursos', coletadoEm: '2026-09-27T12:00:00.000Z' } } },
 };
@@ -36,6 +40,15 @@ for (const tema of ['claro', 'escuro'] as const) {
     await page.getByRole('button', { name: /Registrar/ }).first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
     achadas.push(...(await violacoes(page, 'Modal de registro')));
+    await page.keyboard.press('Escape');
+    // O caderno refeito, com o comentário do gabarito aberto depois de errar.
+    await menu(page, 'Provas anteriores');
+    await page.getByRole('list', { name: 'Cadernos de questões' }).getByRole('button', { name: 'Refazer' }).click();
+    const modal = page.getByRole('dialog');
+    await modal.getByRole('button', { name: 'Começar' }).click();
+    await modal.getByRole('button', { name: /^B\)/ }).click();
+    await expect(modal.getByText('A relação de espiras dá a de tensões.')).toBeVisible();
+    achadas.push(...(await violacoes(page, 'Modal do caderno')));
     expect(achadas).toEqual([]);
   });
 }

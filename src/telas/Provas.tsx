@@ -9,11 +9,31 @@ import { hojeSP } from '../dominio/painel';
 import { LETRAS } from '../dominio/pratica';
 import { incidenciaPorTopico, provasDoConcurso } from '../dominio/provas';
 import { caminhoDoTopico } from '../dominio/topicos';
-import type { Id, ProvaAnterior, QuestaoProva } from '../dominio/tipos';
+import type { Id, ProvaAnterior, QuestaoProva, RegistroQuestoes } from '../dominio/tipos';
 import { useApp } from '../estado';
 
 const questoesEmOrdem = (p: ProvaAnterior) => Object.values(p.questoes).sort((a, b) => a.numero - b.numero);
 const valeRefazer = (q: QuestaoProva) => !q.anulada && q.correta !== null && q.alternativas.length > 0;
+const numeroDa = (q: Pick<QuestaoProva, 'numero' | 'rotulo'>) => q.rotulo || String(q.numero);
+/** Partes do caderno (blocos e etapas), na ordem das questões. */
+const partesDa = (p: ProvaAnterior) => [...new Set(questoesEmOrdem(p).map((q) => q.grupo).filter((g): g is string => Boolean(g)))];
+const fonteDaParte = (p: ProvaAnterior, parte: string) => (parte ? `${p.titulo} · ${parte}` : p.titulo);
+
+/** Partes já refeitas e o acerto delas, pelos registros de questões que elas geraram. */
+function partesFeitas(p: ProvaAnterior, registros: RegistroQuestoes[]): Map<string, { feitas: number; acertos: number }> {
+  const saida = new Map<string, { feitas: number; acertos: number }>();
+  for (const parte of partesDa(p)) {
+    const fonte = fonteDaParte(p, parte);
+    for (const r of registros) {
+      if (r.fonte !== fonte) continue;
+      const t = saida.get(parte) ?? { feitas: 0, acertos: 0 };
+      t.feitas += r.feitas;
+      t.acertos += r.acertos;
+      saida.set(parte, t);
+    }
+  }
+  return saida;
+}
 
 function ModalRevisar({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () => void }) {
   const { dados, repo, executar } = useApp();
@@ -65,8 +85,13 @@ function ModalRefazer({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () 
   const { dados, repo, executar, avisar } = useApp();
   const todas = useMemo(() => questoesEmOrdem(prova).filter(valeRefazer), [prova]);
   const disciplinas = dados.disciplinas.filter((d) => todas.some((q) => q.disciplinaId === d.id));
+  const partes = useMemo(() => partesDa(prova), [prova]);
+  const feitas = useMemo(() => partesFeitas(prova, dados.registrosQuestoes), [prova, dados.registrosQuestoes]);
   const [etapa, setEtapa] = useState<EtapaRefazer>('configurar');
   const [filtro, setFiltro] = useState('');
+  // Num caderno, começa pela primeira parte que ainda não foi feita.
+  const [parte, setParte] = useState(() => partes.find((g) => !feitas.has(g)) ?? '');
+  const [parteFeita, setParteFeita] = useState('');
   const [questoes, setQuestoes] = useState<QuestaoProva[]>([]);
   const [respostas, setRespostas] = useState<Record<Id, number>>({});
   const [atual, setAtual] = useState(0);
@@ -84,8 +109,11 @@ function ModalRefazer({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () 
     return x.topicoId && d.topicos[x.topicoId] ? [d.nome, ...caminhoDoTopico(d.topicos, x.topicoId)].join(' › ') : d.nome;
   };
 
+  const escolhidas = todas.filter((x) => (!filtro || x.disciplinaId === filtro) && (!parte || x.grupo === parte));
+
   function comecar() {
-    setQuestoes(filtro ? todas.filter((x) => x.disciplinaId === filtro) : todas);
+    setQuestoes(escolhidas);
+    setParteFeita(parte);
     setRespostas({});
     setAtual(0);
     setSalvo(false);
@@ -95,7 +123,7 @@ function ModalRefazer({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () 
   }
 
   async function salvar() {
-    const r = await executar(() => repo.registrarProvaRefeita(prova, respostas));
+    const r = await executar(() => repo.registrarProvaRefeita(prova, respostas, fonteDaParte(prova, parteFeita)));
     if (r) {
       setSalvo(true);
       avisar(`${r.acertos} de ${r.feitas} registradas em Questões.`);
@@ -116,8 +144,8 @@ function ModalRefazer({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () 
           minhaResposta: respostas[x.id] === undefined ? '' : texto(respostas[x.id]),
           respostaCerta: texto(x.correta as number),
           motivo: 'falta_conteudo',
-          comentario: '',
-          fonte: `${prova.titulo}, questão ${x.numero}`,
+          comentario: x.comentario ?? '',
+          fonte: `${prova.titulo}, questão ${numeroDa(x)}`,
           criadoEm: hoje,
           revisoesFeitas: [],
           proximaRevisao: proximaRevisaoErro(hoje, []),
@@ -140,7 +168,7 @@ function ModalRefazer({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () 
             <Botao variante="secundario" onClick={aoFechar}>
               Cancelar
             </Botao>
-            <Botao disabled={!todas.length} onClick={comecar}>
+            <Botao disabled={!escolhidas.length} onClick={comecar}>
               <Play size={16} /> Começar
             </Botao>
           </>
@@ -170,18 +198,38 @@ function ModalRefazer({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () 
           <p className="text-sm text-suave">
             {todas.length} questões com gabarito (anuladas e sem gabarito ficam de fora). O resultado entra no acerto por tópico e no planejamento.
           </p>
-          <Campo rotulo="Questões de">
-            {(id) => (
-              <Selecao id={id} value={filtro} onChange={(e) => setFiltro(e.target.value)}>
-                <option value="">Todas as disciplinas ({todas.length})</option>
-                {disciplinas.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.nome} ({todas.filter((x) => x.disciplinaId === d.id).length})
-                  </option>
-                ))}
-              </Selecao>
-            )}
-          </Campo>
+          {partes.length > 0 && (
+            <Campo rotulo="Parte do caderno" dica="Faça o diagnóstico de um bloco antes de ler a teoria dele; as questões, depois.">
+              {(id) => (
+                <Selecao id={id} value={parte} onChange={(e) => setParte(e.target.value)}>
+                  <option value="">Todas as partes ({todas.length})</option>
+                  {partes.map((g) => {
+                    const n = todas.filter((x) => x.grupo === g).length;
+                    const f = feitas.get(g);
+                    return (
+                      <option key={g} value={g}>
+                        {g} ({n}){f ? ` · feita: ${f.acertos} de ${f.feitas}` : ''}
+                      </option>
+                    );
+                  })}
+                </Selecao>
+              )}
+            </Campo>
+          )}
+          {disciplinas.length > 1 && (
+            <Campo rotulo="Questões de">
+              {(id) => (
+                <Selecao id={id} value={filtro} onChange={(e) => setFiltro(e.target.value)}>
+                  <option value="">Todas as disciplinas ({todas.length})</option>
+                  {disciplinas.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.nome} ({todas.filter((x) => x.disciplinaId === d.id).length})
+                    </option>
+                  ))}
+                </Selecao>
+              )}
+            </Campo>
+          )}
         </div>
       )}
 
@@ -189,7 +237,7 @@ function ModalRefazer({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () 
         <div className="grid grid-cols-1 gap-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <Etiqueta tom="roxo">
-              Questão {q.numero} · {atual + 1} de {questoes.length}
+              Questão {numeroDa(q)} · {atual + 1} de {questoes.length}
             </Etiqueta>
             <span className="text-xs text-suave">{onde(q)}</span>
           </div>
@@ -205,6 +253,12 @@ function ModalRefazer({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () 
             <p className={cx('rounded-lg bg-superficie-2 px-3 py-2.5 font-extrabold', escolhida === q.correta ? 'text-ok' : 'text-perigo')}>
               {escolhida === q.correta ? 'Acertou!' : `Errou. Gabarito: ${letraDaResposta(q, q.correta as number)}`}
             </p>
+          )}
+          {escolhida !== null && q.comentario && (
+            <details key={q.id} className="rounded-lg border border-borda px-3 py-2" open={escolhida !== q.correta}>
+              <summary className="cursor-pointer font-bold">Comentário do gabarito</summary>
+              <p className="mt-2 text-sm whitespace-pre-line">{q.comentario}</p>
+            </details>
           )}
         </div>
       )}
@@ -226,7 +280,7 @@ function ModalRefazer({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () 
                   .map((x) => (
                     <li key={x.id} className="rounded-lg bg-superficie-2 px-3 py-2 text-sm">
                       <p className="text-xs text-suave">
-                        Questão {x.numero} · {onde(x)}
+                        Questão {numeroDa(x)} · {onde(x)}
                       </p>
                       <p className="line-clamp-3 font-bold">{x.enunciado}</p>
                       <p className="mt-1 text-ok">
@@ -246,6 +300,66 @@ function ModalRefazer({ prova, aoFechar }: { prova: ProvaAnterior; aoFechar: () 
         </div>
       )}
     </Modal>
+  );
+}
+
+/** Um caderno de estudo: questões, partes já refeitas (com o acerto) e as ações. */
+function ItemCaderno({
+  prova,
+  registros,
+  aoRefazer,
+  aoRevisar,
+  aoExcluir,
+}: {
+  prova: ProvaAnterior;
+  registros: RegistroQuestoes[];
+  aoRefazer: () => void;
+  aoRevisar: () => void;
+  aoExcluir: () => void;
+}) {
+  const qs = Object.values(prova.questoes);
+  const partes = partesDa(prova);
+  const feitas = partesFeitas(prova, registros);
+  const comGabarito = qs.filter(valeRefazer).length;
+  return (
+    <li className="rounded-lg bg-superficie-2 p-3">
+      <p className="font-extrabold">{prova.titulo}</p>
+      <p className="numeros mt-1 flex flex-wrap gap-2 text-sm">
+        <Etiqueta tom="verde">{qs.length} questões</Etiqueta>
+        {partes.length > 0 && (
+          <Etiqueta>
+            {feitas.size} de {partes.length} partes feitas
+          </Etiqueta>
+        )}
+      </p>
+      {feitas.size > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={`Partes feitas de ${prova.titulo}`}>
+          {partes
+            .filter((g) => feitas.has(g))
+            .map((g) => {
+              const f = feitas.get(g) as { feitas: number; acertos: number };
+              return (
+                <li key={g}>
+                  <Etiqueta tom={f.acertos / f.feitas < 0.6 ? 'alerta' : 'neutro'}>
+                    {g}: {f.acertos} de {f.feitas}
+                  </Etiqueta>
+                </li>
+              );
+            })}
+        </ul>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Botao tamanho="pequeno" disabled={!comGabarito} onClick={aoRefazer}>
+          <ListChecks size={16} /> Refazer
+        </Botao>
+        <Botao tamanho="pequeno" variante="secundario" onClick={aoRevisar}>
+          <Pencil size={16} /> Revisar questões
+        </Botao>
+        <BotaoIcone rotulo={`Excluir ${prova.titulo}`} className="ml-auto" onClick={aoExcluir}>
+          <Trash2 size={16} />
+        </BotaoIcone>
+      </div>
+    </li>
   );
 }
 
@@ -286,6 +400,8 @@ export function Provas() {
   const [outras, setOutras] = useState(false);
 
   const daBanca = useMemo(() => (concursoAtivo ? provasDoConcurso(dados.provas, concursoAtivo) : []), [dados.provas, concursoAtivo]);
+  const cadernos = useMemo(() => (concursoAtivo ? dados.provas.filter((p) => p.caderno && p.concursoId === concursoAtivo.id) : []), [dados.provas, concursoAtivo]);
+  const provas = useMemo(() => dados.provas.filter((p) => !p.caderno), [dados.provas]);
   const ranking = useMemo(() => {
     if (!concursoAtivo) return [];
     const inc = incidenciaPorTopico(dados.provas, concursoAtivo, dados.disciplinas);
@@ -309,7 +425,7 @@ export function Provas() {
   }
 
   const banca = concursoAtivo.banca.trim();
-  const lista = outras ? dados.provas : daBanca;
+  const lista = outras ? provas : daBanca;
   const nQuestoes = daBanca.reduce((t, p) => t + Object.values(p.questoes).filter((q) => !q.anulada).length, 0);
 
   return (
@@ -338,10 +454,24 @@ export function Provas() {
           </Cartao>
         )}
 
-        {dados.provas.length > daBanca.length && (
+        {cadernos.length > 0 && (
+          <Cartao titulo="Cadernos de questões">
+            <p className="mb-3 text-sm text-suave">
+              Refaça por partes (diagnóstico e questões de cada bloco): o acerto entra no tópico, no diagnóstico das Estatísticas e no plano. Não contam como
+              provas da banca.
+            </p>
+            <ul className="grid grid-cols-1 gap-3" aria-label="Cadernos de questões">
+              {cadernos.map((p) => (
+                <ItemCaderno key={p.id} prova={p} registros={dados.registrosQuestoes} aoRefazer={() => setRefazer(p)} aoRevisar={() => setRevisar(p)} aoExcluir={() => setExcluir(p)} />
+              ))}
+            </ul>
+          </Cartao>
+        )}
+
+        {provas.length > daBanca.length && (
           <label className="flex items-center gap-2 text-sm font-bold">
             <input type="checkbox" className="h-4 w-4 accent-[var(--verde)]" checked={outras} onChange={(e) => setOutras(e.target.checked)} />
-            Mostrar provas de outras bancas ({dados.provas.length - daBanca.length})
+            Mostrar provas de outras bancas ({provas.length - daBanca.length})
           </label>
         )}
 
@@ -398,8 +528,12 @@ export function Provas() {
       {refazer && <ModalRefazer prova={refazer} aoFechar={() => setRefazer(null)} />}
       <Confirmar
         aberto={Boolean(excluir)}
-        titulo="Excluir prova"
-        texto={`Excluir “${excluir?.titulo}” e as questões dela? A incidência dos tópicos é recalculada. O que você já registrou em Questões fica.`}
+        titulo={excluir?.caderno ? 'Excluir caderno' : 'Excluir prova'}
+        texto={
+          excluir?.caderno
+            ? `Excluir o caderno “${excluir.titulo}”? O que você já registrou em Questões fica.`
+            : `Excluir “${excluir?.titulo}” e as questões dela? A incidência dos tópicos é recalculada. O que você já registrou em Questões fica.`
+        }
         rotuloAcao="Excluir"
         aoConfirmar={() => excluir && void executar(() => repo.excluirProva(excluir), 'Prova excluída.')}
         aoFechar={() => setExcluir(null)}

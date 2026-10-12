@@ -29,7 +29,8 @@ import { mesclarOportunidades } from '../radar/radar';
 import type { ItensPorUf } from '../radar/radar';
 import { chavePar, topicosDaImportacao } from '../dominio/edital';
 import { capacidadeParaPlano, capacidadeReal } from '../dominio/adaptacao';
-import { revisarErro } from '../dominio/desempenho';
+import { revisarErro, todasAsQuestoes } from '../dominio/desempenho';
+import { diagnosticoPorAssunto, necessidadePorTopico } from '../dominio/diagnostico';
 import { acertoRecente, DISPONIBILIDADE_VAZIA, gerarPlano, minutos } from '../dominio/planejador';
 import type { DisciplinaImportada } from '../dominio/edital';
 import { lerLote, topicosDoLote } from '../dominio/lote';
@@ -753,6 +754,7 @@ export class Repositorio {
    */
   async replanejar(): Promise<number> {
     const agora = this.relogio();
+    const feitos = this.blocosFeitos();
     const novos = gerarPlano({
       agora,
       concursos: this.dados.concursos,
@@ -764,7 +766,8 @@ export class Repositorio {
       intercalar: this.dados.config.intercalarAssuntos,
       ultimoEstudo: this.ultimoEstudoDeTeoria(),
       simulados: this.dados.simulados,
-      feitos: this.blocosFeitos(),
+      feitos,
+      necessidade: necessidadePorTopico(this.diagnostico(feitos)),
       novoId,
     });
     await this.substituirFuturos(novos);
@@ -800,6 +803,23 @@ export class Repositorio {
     const desde = this.relogio().getTime() - minutos * 60_000;
     const ids = t.grupoEquivalenciaId ? [t.id, ...this.membrosDoGrupo(t.grupoEquivalenciaId).map((m) => m.topicoId)] : [t.id];
     return ids.some((id) => (this.teoriaTocada.get(id) ?? 0) >= desde);
+  }
+
+  /**
+   * Diagnóstico por assunto de todas as disciplinas (dominio/diagnostico.ts): teoria feita, acerto
+   * nas questões e nos simulados. O planejador reparte os blocos de questões pelo que falta.
+   */
+  diagnostico(feitos = this.blocosFeitos()) {
+    return diagnosticoPorAssunto({
+      disciplinas: this.dados.disciplinas,
+      sessoes: this.dados.ativa ? [...this.dados.sessoes, this.dados.ativa] : this.dados.sessoes,
+      questoes: todasAsQuestoes(this.dados.sessoes, this.dados.registrosQuestoes),
+      simulados: this.dados.simulados,
+      blocos: this.dados.blocos,
+      feitos,
+      blocoMin: this.dados.disponibilidade.blocoMin,
+      agora: this.relogio(),
+    });
   }
 
   /** Blocos de teoria já feitos por tópico: tempo de teoria ou blocos marcados (dominio/teoria.ts). */
@@ -942,15 +962,17 @@ export class Repositorio {
   async salvarRegistroQuestoes(r: Omit<RegistroQuestoes, 'id'> & { id?: Id }): Promise<Id> {
     const reg: RegistroQuestoes = { ...r, id: r.id ?? novoId(), acertos: Math.min(r.acertos, r.feitas) };
     await this.gravarItemSemanal('questoes', inicioDaSemana(reg.dia), reg);
+    await this.replanejarSePuder();
     return reg.id;
   }
 
   async excluirRegistroQuestoes(id: Id): Promise<void> {
     const semana = this.semanaDoItem('questoes', id);
     if (semana) await this.tirarItemSemanal('questoes', semana, id);
+    await this.replanejarSePuder();
   }
 
-  /** Vários registros de uma vez (importação de CSV): uma gravação por semana. */
+  /** Vários registros de uma vez (CSV, prova ou caderno refeito): uma gravação por semana e o plano refeito. */
   async importarQuestoes(registros: Omit<RegistroQuestoes, 'id'>[]): Promise<number> {
     const porSemana = new Map<string, Record<Id, Json>>();
     for (const r of registros) {
@@ -962,6 +984,8 @@ export class Repositorio {
       if (this.col('questoes').has(semana)) await this.store.mesclar(`questoes/${semana}`, { itens });
       else await this.store.definir(`questoes/${semana}`, { semana, itens });
     }
+    // O acerto mexe no domínio dos tópicos e na divisão dos blocos de questões.
+    if (registros.length) await this.replanejarSePuder();
     return registros.length;
   }
 
@@ -998,11 +1022,13 @@ export class Repositorio {
   async salvarSimulado(s: Omit<Simulado, 'id'> & { id?: Id }): Promise<Id> {
     const id = s.id ?? novoId();
     await this.store.definir(`simulados/${id}`, { ...s, id } as unknown as Json);
+    await this.replanejarSePuder();
     return id;
   }
 
   async excluirSimulado(id: Id): Promise<void> {
     await this.store.remover(`simulados/${id}`);
+    await this.replanejarSePuder();
   }
 
   // ----------------------------------------------------------------- radar
@@ -1099,7 +1125,8 @@ export class Repositorio {
   }
 
   /** Resultado de refazer a prova: um registro de questões por tópico, com a prova como fonte. */
-  async registrarProvaRefeita(p: ProvaAnterior, respostas: Record<Id, number>): Promise<{ feitas: number; acertos: number }> {
+  /** Uma prova ou parte de caderno refeita vira um registro de questões por tópico (`fonte` = de onde veio). */
+  async registrarProvaRefeita(p: ProvaAnterior, respostas: Record<Id, number>, fonte = p.titulo): Promise<{ feitas: number; acertos: number }> {
     const dia = diaSP(this.relogio());
     const grupos = new Map<string, Omit<RegistroQuestoes, 'id'>>();
     let feitas = 0;
@@ -1108,7 +1135,7 @@ export class Repositorio {
       const q = p.questoes[qid];
       if (!q || q.anulada || q.correta === null) continue;
       const chave = `${q.disciplinaId}|${q.topicoId}`;
-      const g = grupos.get(chave) ?? { concursoId: p.concursoId, disciplinaId: q.disciplinaId, topicoId: q.topicoId, dia, feitas: 0, acertos: 0, fonte: p.titulo };
+      const g = grupos.get(chave) ?? { concursoId: p.concursoId, disciplinaId: q.disciplinaId, topicoId: q.topicoId, dia, feitas: 0, acertos: 0, fonte };
       g.feitas++;
       feitas++;
       if (r === q.correta) {

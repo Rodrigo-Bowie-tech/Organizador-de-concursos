@@ -361,6 +361,12 @@ export interface QuestaoProva {
   disciplinaId: Id | null;
   topicoId: Id | null;
   anulada: boolean;
+  /** Número como aparece no caderno ("01.D2"); sem ele, vale `numero`. */
+  rotulo?: string;
+  /** Parte do caderno para refazer por partes ("Bloco 01 · Diagnóstico"). */
+  grupo?: string;
+  /** Comentário do gabarito, mostrado depois de responder. */
+  comentario?: string;
 }
 
 /** Fase 7: prova anterior importada, em `provas/<id>` (questões dentro). */
@@ -368,6 +374,11 @@ export interface ProvaAnterior {
   id: Id;
   /** Concurso cujo edital foi usado para ligar as questões aos tópicos. */
   concursoId: Id;
+  /**
+   * Caderno de estudo (questões de várias bancas e autorais, por bloco): refaz-se como uma prova,
+   * mas fica fora da incidência, que mede só as provas da banca.
+   */
+  caderno?: boolean;
   titulo: string;
   banca: string;
   orgao: string;

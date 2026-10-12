@@ -449,6 +449,24 @@ describe('adaptação no repositório (Fase 4)', () => {
     expect(await repo.replanejarDoDia()).toBe(true);
   });
 
+  it('lançar questões ou salvar um simulado replaneja; o diagnóstico junta horas, questões e simulados', async () => {
+    const { repo, concursoId, disciplinaId } = await comPlano();
+    const planejados = () => repo.atual.blocos.filter((b) => b.status === 'planejado').map((b) => b.id);
+    const ohm = Object.values(repo.atual.disciplinas[0].topicos).find((t) => t.titulo === 'Lei de Ohm')!;
+    const antes = planejados();
+    await repo.importarQuestoes([{ concursoId, disciplinaId, topicoId: ohm.id, dia: '2026-09-27', feitas: 4, acertos: 1, fonte: 'Caderno · Bloco 01' }]);
+    expect(planejados().some((id) => antes.includes(id))).toBe(false); // blocos novos
+    const meio = planejados();
+    await repo.salvarSimulado({
+      concursoId, titulo: 'Simulado 1', dia: '2026-09-27', duracaoMin: 180, observacoes: '',
+      notas: [{ disciplinaId, nome: 'Engenharia Elétrica', nota: 6, maximo: 10 }], notaTotal: 6, notaMaxima: 10,
+    });
+    expect(planejados().some((id) => meio.includes(id))).toBe(false);
+    const [d] = repo.diagnostico();
+    expect(d).toMatchObject({ questoes: { feitas: 4, acertos: 1 }, simulados: { feitas: 5, acertos: 3 } }); // peso 2: 10 pontos = 5 questões
+    expect(d.minutosNoPlano).toBeGreaterThan(0);
+  });
+
   it('cortar tópicos tira do plano; devolver traz de volta', async () => {
     const { repo, disciplinaId } = await comPlano();
     const ohm = Object.values(repo.atual.disciplinas[0].topicos).find((t) => t.titulo === 'Lei de Ohm')!;

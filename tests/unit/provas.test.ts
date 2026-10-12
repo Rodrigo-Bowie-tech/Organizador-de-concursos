@@ -129,6 +129,12 @@ describe('incidência por assunto da banca', () => {
     expect(Object.fromEntries(incidenciaPorTopico(provas, ff, [ee, pt]))).toEqual({ trafo: 3, ohm: 1 });
   });
 
+  it('caderno de estudo não conta, nem com a banca do concurso nem sem banca', () => {
+    const caderno = { ...prova('rl', 'FCC', [q(1, 'kir'), q(2, 'kir')]), caderno: true };
+    expect(incidenciaPorTopico([caderno], ff, [ee, pt]).size).toBe(0);
+    expect(incidenciaPorTopico([{ ...caderno, banca: '' }], concurso('ff', ''), [ee, pt]).size).toBe(0);
+  });
+
   it('questão ligada a tópico de outro concurso conta no tópico vinculado', () => {
     const outra = disciplina('ee2', 'sabesp', [topico('trafo2', 'Transformadores', 0, null, { grupoEquivalenciaId: 'g1' })]);
     const eeVinc = { ...ee, topicos: { ...ee.topicos, trafo: { ...ee.topicos.trafo, grupoEquivalenciaId: 'g1' } } };

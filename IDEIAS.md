@@ -20,6 +20,10 @@ Coisas que ficaram de fora para manter as fases simples. Não são compromisso.
   Também perguntar antes de cortar, mostrando quantas horas a mais por semana fechariam o edital.
 - Simulados dentro do app: fazer a prova cronometrada e lançar o resultado por assunto direto na tela
   Simulados (hoje é uma página separada no claude.ai e o resultado volta pela conversa).
+- Diagnóstico: escolher os pesos das três notas (hoje 1/3 cada) e uma meta de domínio por assunto para o
+  1º lugar; dar mais peso aos acertos recentes, como o planejador já faz no domínio do tópico.
+- Cadernos: importar um caderno novo pela tela (PDF de questões + PDF de gabaritos), sem passar pela conversa;
+  folha de respostas rápida (todas as letras de uma parte numa tela só) para quem resolve no papel.
 
 ## Painel e histórico
 - Escolher se a semana começa no domingo ou na segunda.

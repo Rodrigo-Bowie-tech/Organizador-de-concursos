@@ -200,7 +200,8 @@ const mesmaBanca = (a: string, b: string) => Boolean(normalizar(a)) && normaliza
 
 /** Provas que contam para o concurso: as da mesma banca (ou, sem banca, as importadas para ele). */
 export function provasDoConcurso(provas: ProvaAnterior[], concurso: Concurso): ProvaAnterior[] {
-  return provas.filter((p) => (concurso.banca.trim() ? mesmaBanca(p.banca, concurso.banca) : p.concursoId === concurso.id));
+  // Cadernos de estudo misturam bancas e questões autorais: não dizem o que a banca cobra.
+  return provas.filter((p) => !p.caderno && (concurso.banca.trim() ? mesmaBanca(p.banca, concurso.banca) : p.concursoId === concurso.id));
 }
 
 /**

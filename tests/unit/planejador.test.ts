@@ -281,6 +281,43 @@ describe('cronograma por assuntos: rodízio, simulados e horizonte', () => {
     expect(teoria(p)).toEqual(['bt', 'fp', 'mt', 'spda']); // spda entra no rodízio no lugar de prot
   });
 
+  it('teoria feita toda em blocos fixos (semana de foco) também gera revisões e questões depois', () => {
+    const lum = { ...disciplina('lum', 'embu', 1, 1, [topico('lum1', { blocosTeoria: 2 }), topico('lum2', { ordem: 1 })]), ordem: 0 };
+    const fixo = (id: string, dia: string): BlocoPlanejado => ({
+      id, dia, inicio: '09:00', fim: '10:00', concursoId: 'embu', disciplinaId: 'lum', topicoId: 'lum1', tipo: 'teoria', status: 'planejado', motivo: 'teoria', fixo: true,
+    });
+    // O segundo bloco (30/09) fecha a teoria; vêm na ordem errada de propósito.
+    const p = gerarPlano(base({ disciplinas: [lum], horizonteDias: 20, existentes: [fixo('f2', '2026-09-30'), fixo('f1', '2026-09-29')] }));
+    expect(p.filter((b) => b.topicoId === 'lum1' && b.motivo === 'teoria')).toHaveLength(0); // nada além dos fixos
+    const revisoes = p.filter((b) => b.motivo.startsWith('revisao') && (b.topicoId === 'lum1' || b.revisoes?.includes('lum1'))).map((b) => b.dia);
+    expect(revisoes[0] >= '2026-10-01').toBe(true);
+    expect(revisoes.length).toBeGreaterThanOrEqual(2); // D+1 e D+7
+    const questoes = p.filter((b) => b.motivo === 'questoes' && b.topicoId === 'lum1').map((b) => b.dia);
+    expect(questoes.length).toBeGreaterThan(0);
+    expect(questoes[0] >= '2026-10-07').toBe(true); // a partir de D+7
+  });
+
+  it('com o diagnóstico, os blocos de questões saem na proporção do que falta, sem rajadas', () => {
+    // Teoria toda feita: o plano é só de questões.
+    const pronto = (id: string, ordem: number) => ({
+      ...disciplina(id, 'embu', 1, 2, [topico(`${id}1`, { status: 'teoria_concluida' }), topico(`${id}2`, { status: 'teoria_concluida', ordem: 1 })]),
+      ordem,
+    });
+    const discs = [pronto('lum', 0), pronto('rl', 1)];
+    const necessidade = new Map([['lum1', 3], ['lum2', 1], ['rl1', 1], ['rl2', 1]]);
+    const p = gerarPlano(base({ disciplinas: discs, horizonteDias: 30, necessidade }));
+    const questoes = p.filter((b) => b.motivo === 'questoes').map((b) => b.topicoId);
+    expect(questoes).toHaveLength(30);
+    const conta = (id: string) => questoes.filter((t) => t === id).length;
+    expect(conta('lum1')).toBe(15); // 3 de 6
+    expect([conta('lum2'), conta('rl1'), conta('rl2')]).toEqual([5, 5, 5]);
+    // O mais necessitado se espalha: nunca três blocos seguidos do mesmo tópico.
+    expect(questoes.some((t, i) => i >= 2 && t === questoes[i - 1] && t === questoes[i - 2])).toBe(false);
+    // Sem o diagnóstico, rodízio igual.
+    const igual = gerarPlano(base({ disciplinas: discs, horizonteDias: 8 })).filter((b) => b.motivo === 'questoes');
+    expect(new Set(igual.slice(0, 4).map((b) => b.topicoId)).size).toBe(4);
+  });
+
   it('assunto "dominado" não ganha blocos de questões, a não ser que caia no simulado', () => {
     const pt = { ...disciplina('pt', 'embu', 1, 10, [topico('crase', { status: 'dominado' }), topico('virgula', { status: 'dominado' })]), ordem: 9 };
     const discs = [...base().disciplinas, pt];

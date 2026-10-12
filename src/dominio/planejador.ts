@@ -262,6 +262,11 @@ export interface EntradaPlano {
   simulados?: Simulado[];
   /** Blocos de teoria já feitos por tópico (dominio/teoria.ts): o plano só põe o que falta. */
   feitos?: Map<Id, number>;
+  /**
+   * O que falta de cada tópico (dominio/diagnostico.ts, `necessidadePorTopico`): os blocos de
+   * questões são repartidos nessa proporção. Sem ele, rodízio igual entre os tópicos.
+   */
+  necessidade?: Map<Id, number>;
   novoId: () => Id;
 }
 
@@ -334,10 +339,17 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
   const plano: BlocoPlanejado[] = [];
   const restantes = fila.map((i) => ({ ...i }));
   // O que os blocos fixos já cobrem não entra de novo.
-  for (const b of fixosFuturos) {
+  for (const b of [...fixosFuturos].sort((x, y) => `${x.dia}${x.inicio}`.localeCompare(`${y.dia}${y.inicio}`))) {
     if (b.motivo === 'teoria') {
       const i = restantes.findIndex((x) => x.topico.id === b.topicoId);
-      if (i >= 0 && --restantes[i].blocos <= 0) restantes.splice(i, 1);
+      if (i >= 0 && --restantes[i].blocos <= 0) {
+        // A teoria acaba neste bloco fixo: as revisões de D+1 e D+7 e as questões vêm depois dele.
+        const [item] = restantes.splice(i, 1);
+        for (const k of [1, 7]) {
+          revisoes.push({ disciplina: item.disciplina, topico: item.topico, concursoId: item.concursoIds[0], devida: somarDias(b.dia, k), atrasada: false });
+        }
+        paraQuestoes.push({ d: item.disciplina, t: item.topico, aPartirDe: somarDias(b.dia, 7) });
+      }
     } else {
       for (const id of [b.topicoId, ...(b.revisoes ?? [])]) {
         const r = revisoes.findIndex((x) => x.topico.id === id);
@@ -346,13 +358,34 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
     }
   }
   let questoesIdx = 0;
-  /** Próximo tópico para questões (em rodízio), só de concursos cuja prova ainda não passou. */
+  const credito = new Map<(typeof paraQuestoes)[number], number>();
+  /**
+   * Próximo tópico para questões, só de concursos cuja prova ainda não passou. Com a necessidade
+   * do diagnóstico, rodízio ponderado suave: cada tópico pronto ganha o seu peso de crédito a cada
+   * escolha e o escolhido paga o total, então os blocos saem na proporção do que falta, sem
+   * rajada quando um tópico novo fica pronto. Sem ela, rodízio igual.
+   */
   const proximaQuestao = (dia: DiaISO) => {
-    for (let k = 0; k < paraQuestoes.length; k++) {
-      const q = paraQuestoes[questoesIdx++ % paraQuestoes.length];
-      if (q.aPartirDe <= dia && valeEm([q.d.concursoId], dia)) return q;
+    const pronto = (q: (typeof paraQuestoes)[number]) => q.aPartirDe <= dia && valeEm([q.d.concursoId], dia);
+    if (!e.necessidade) {
+      for (let k = 0; k < paraQuestoes.length; k++) {
+        const q = paraQuestoes[questoesIdx++ % paraQuestoes.length];
+        if (pronto(q)) return q;
+      }
+      return null;
     }
-    return null;
+    let total = 0;
+    let escolhido: (typeof paraQuestoes)[number] | null = null;
+    for (const q of paraQuestoes) {
+      if (!pronto(q)) continue;
+      const peso = Math.max(0.001, e.necessidade.get(q.t.id) ?? 0);
+      const c = (credito.get(q) ?? 0) + peso;
+      credito.set(q, c);
+      total += peso;
+      if (!escolhido || c > (credito.get(escolhido) as number) + 1e-9) escolhido = q;
+    }
+    if (escolhido) credito.set(escolhido, (credito.get(escolhido) as number) - total);
+    return escolhido;
   };
 
   const bloco = (dia: DiaISO, s: BlocoHorario, d: Disciplina, t: Topico, concursoId: Id, motivo: BlocoPlanejado['motivo']): BlocoPlanejado => ({

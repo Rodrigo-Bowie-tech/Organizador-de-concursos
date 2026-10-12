@@ -6,6 +6,7 @@ import { acertoSemanal, agrupar, heatmapAno, minutosPorHora, planejadoRealizado,
 import { formatarData, formatarDuracao, nomeMes } from '../dominio/datas';
 import { hojeSP } from '../dominio/painel';
 import { useAgora, useApp } from '../estado';
+import { CartaoDiagnostico } from '../componentes/Diagnostico';
 import { CartaoHorasEPausas } from '../componentes/HorasEPausas';
 import { GraficoTempoPeso } from './Balanco';
 
@@ -82,6 +83,17 @@ export function Estatisticas() {
     <>
       <CabecalhoTela titulo="Estatísticas" subtitulo={concursoAtivo.nome} />
       <div className="grid grid-cols-1 gap-4">
+        <CartaoDiagnostico
+          disciplinas={disciplinas}
+          todasDisciplinas={dados.disciplinas}
+          sessoes={sessoes}
+          registros={dados.registrosQuestoes}
+          simulados={dados.simulados}
+          blocos={dados.blocos}
+          blocoMin={dados.disponibilidade.blocoMin}
+          agora={agora}
+          aoAbrirCadernos={dados.provas.some((p) => p.caderno && p.concursoId === concursoAtivo.id) ? () => irPara('provas') : undefined}
+        />
         <CartaoHorasEPausas sessoes={sessoes} disciplinas={disciplinas} agora={agora} hoje={hoje} />
 
         <Cartao titulo="Dias estudados no último ano" acao={<Etiqueta tom="verde">{totalAno} {totalAno === 1 ? 'dia' : 'dias'}</Etiqueta>}>
