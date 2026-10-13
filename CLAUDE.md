@@ -253,9 +253,11 @@ seed sozinho.
     testes antigos cobrem): o tempo de cada assunto segue a incidência na prova, a pedido do usuário. Cada
     horário vai para o assunto com menos estudo em relação ao peso: minutos dos últimos 14 dias
     (`usoRecente`; por dia, o maior entre cronômetro e blocos marcados) + o que o plano já pôs, contando
-    revisões (divididas entre os assuntos do bloco) e blocos fixos (a semana de foco não vira horas a mais),
-    ÷ peso. Empate (sem estudo) vai na ordem da prioridade, que é onde o desempenho entra (o que foi mal no
-    simulado começa antes). Até 2 blocos seguidos do mesmo assunto quando há outro (mais só para quem merece
+    revisões (divididas entre os assuntos do bloco) e blocos fixos futuros (contam desde o começo: a semana de
+    foco não vira horas a mais nem fura a fila), ÷ peso. Empate (sem estudo recente): primeiro o "estudar logo"
+    (menos de 50% no último simulado em que caiu, `URGENTE_ABAIXO`), depois o que mais cai, depois a ordem da
+    prioridade (a pedido do usuário em 13/10: RL, só com questões, ficava para o fim da fila e começava dias
+    depois de Português). Até 2 blocos seguidos do mesmo assunto quando há outro (mais só para quem merece
     mais de 2/3 do tempo: 80% → 4). Peso = relevância dos tópicos que ainda recebem estudo
     (`relevanciaPorTopico`; dominados e cortados não) × peso do concurso (prioridade ÷ 5 × (1 + proximidade
     da prova): um concurso distante com muitas questões não toma o tempo do mais próximo) × atraso da teoria

@@ -356,6 +356,24 @@ describe('cronograma por assuntos: rodízio, simulados e horizonte', () => {
     expect(contaQ('a')).toBe(contaQ('b') + 4);
   });
 
+  it('sem estudo recente, começa o que foi mal no simulado e depois o que mais cai, mesmo só com questões', () => {
+    // RL (10 questões) só tem questões pela frente; BT (4) e LUM (1) têm teoria; LUM zerou no simulado.
+    const rl = { ...disciplina('rl', 'embu', 1, 10, [topico('rl1', { status: 'revisado' }), topico('rl2', { status: 'revisado', ordem: 1 })]), ordem: 9 };
+    const discs = [assunto('bt', 0, 4), assunto('lum', 1, 1), rl];
+    const sim: Simulado = {
+      id: 's', concursoId: 'embu', titulo: 's', dia: '2026-09-27', duracaoMin: 180, observacoes: '', notaTotal: 14, notaMaxima: 15,
+      notas: [{ disciplinaId: 'rl', nome: 'rl', nota: 10, maximo: 10 }, { disciplinaId: 'lum', nome: 'lum', nota: 0, maximo: 1 }, { disciplinaId: 'bt', nome: 'bt', nota: 4, maximo: 4 }],
+    };
+    const p = gerarPlano(base({ disciplinas: discs, horizonteDias: 7, relevancia: relevanciaPorTopico(discs), simulados: [sim] }));
+    expect(p.slice(0, 3).map((b) => b.disciplinaId)).toEqual(['lum', 'rl', 'bt']);
+    // Um bloco fixo já reservado conta desde o começo: com LUM marcado para sábado, RL abre o plano.
+    const fixo: BlocoPlanejado = {
+      id: 'f', dia: '2026-10-03', inicio: '20:00', fim: '21:00', concursoId: 'embu', disciplinaId: 'lum', topicoId: 'lum1', tipo: 'teoria', status: 'planejado', motivo: 'teoria', fixo: true,
+    };
+    const q = gerarPlano(base({ disciplinas: discs, horizonteDias: 7, relevancia: relevanciaPorTopico(discs), simulados: [sim], existentes: [fixo] }));
+    expect(q[0].disciplinaId).toBe('rl');
+  });
+
   it('entre concursos, a prova mais próxima e de maior prioridade não perde o tempo para a que tem mais questões', () => {
     // Embu (prova em 06/12, prioridade 5) com 20 questões; Câmara (prova em 2027, prioridade 1) com 80.
     const embu = { ...disciplina('emb', 'embu', 1, 20, [topico('e1', { status: 'revisado' }), topico('e2', { status: 'revisado', ordem: 1 })]), ordem: 0 };

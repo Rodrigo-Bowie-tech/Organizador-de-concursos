@@ -142,6 +142,9 @@ export interface AjusteSimulado {
  * abaixo disso ela sobe de prioridade (até 1,5×), acima desce (até 0,5×). Com menos de
  * 5 questões dela no simulado o efeito é proporcionalmente menor (1 questão = 1/5 do efeito).
  */
+/** Abaixo desse acerto no último simulado em que caiu, o assunto é para estudar logo. */
+export const URGENTE_ABAIXO = 0.5;
+
 export function ajusteDosSimulados(simulados: Simulado[], disciplinas: Disciplina[]): Map<Id, AjusteSimulado> {
   const peso = new Map(disciplinas.map((d) => [d.id, Math.max(0.01, d.peso)]));
   const saida = new Map<Id, AjusteSimulado>();
@@ -428,9 +431,10 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
   // o assunto com menos estudo em relação ao seu peso: os minutos dos últimos 14 dias mais o que o
   // plano já pôs (revisões e blocos fixos contam, divididos entre os assuntos do bloco) ÷ peso. Assim
   // os que mais caem ficam com mais horas, e depois de replanejar o plano continua de onde parou.
-  // Empate (no começo, sem estudo) vai na ordem da prioridade, que é onde o desempenho entra: o que
-  // foi mal no simulado começa antes. Até 2 blocos seguidos do mesmo assunto quando há outro (mais,
-  // só para quem merece mais de 2/3 do tempo).
+  // Empate (sem estudo recente): primeiro o que foi mal no último simulado (estudar logo), depois o
+  // que mais cai, depois a ordem da prioridade; assim um assunto só de questões (RL, por exemplo) não
+  // fica para o fim da fila. Até 2 blocos seguidos do mesmo assunto quando há outro (mais, só para
+  // quem merece mais de 2/3 do tempo).
   // Peso = relevância dos tópicos que ainda recebem estudo (teoria pela frente ou questões; dominados
   // e cortados não) × peso do concurso × atraso da teoria (piso de cobertura, abaixo). Dentro do
   // assunto, teoria primeiro, com 20% de questões dos tópicos já vistos; terminada a teoria, questões.
@@ -464,12 +468,9 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
     const prova = dataProva.get(c);
     return (prioridadeDe.get(c) ?? 0.2) * (1 + proximidade(prova ? diasEntre(dia, prova) : null));
   };
-  // Os blocos fixos que ficam (semana de foco, movidos) também contam como estudo do assunto.
-  const fixosNoTempo = fixosFuturos
-    .filter((b) => b.motivo !== 'simulado' && b.motivo !== 'gestao')
-    .map((b) => ({ b, quando: instanteSP(b.dia, b.inicio).getTime() }))
-    .sort((a, b) => a.quando - b.quando);
-  let proximoFixo = 0;
+  // Os blocos fixos que ficam (semana de foco, movidos) contam desde já como estudo do assunto: o
+  // assunto que já tem horário reservado não passa na frente dos outros.
+  if (e.relevancia) for (const b of fixosFuturos) if (b.motivo !== 'simulado' && b.motivo !== 'gestao') contarUso(b);
   const feitosNoPlano = new Map<Id, { teoria: number; questoes: number }>();
   const somaDosPesos = [...pesoDoAssunto.values()].reduce((a, b) => a + b, 0) || 1;
   // Piso de cobertura: horários de estudo que restam até uma semana antes da prova de cada
@@ -502,7 +503,6 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
   };
 
   const porRelevancia = (dia: DiaISO, s: BlocoHorario, quando: number, validos: typeof restantes, fracao: number): BlocoPlanejado | null => {
-    for (; proximoFixo < fixosNoTempo.length && fixosNoTempo[proximoFixo].quando < quando; proximoFixo++) contarUso(fixosNoTempo[proximoFixo].b);
     // Candidatos: todos os assuntos com teoria pela frente (na ordem da prioridade) e os que têm questões
     // prontas. O rodízio entre N assuntos não vale aqui: limitar deixaria os que menos caem sem nenhum tempo.
     const comTeoria: Id[] = [];
@@ -523,11 +523,15 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
       return Math.max(2, Math.ceil(parte / Math.max(0.01, 1 - parte)));
     };
     const livres = candidatos.filter((id) => seguidos(id) < limite(id));
+    // Desempate: estudar logo (foi mal no último simulado), depois o que mais cai; igual nos dois, a prioridade.
+    const urgente = (id: Id) => (ajustes.get(id)?.taxa ?? 1) < URGENTE_ABAIXO;
+    const vemAntes = (a: Id, b: Id) => urgente(a) !== urgente(b) ? urgente(a) : (peso.get(a) as number) > (peso.get(b) as number) * (1 + 1e-9);
     let alvo: Id | null = null;
     let menor = Infinity;
     for (const id of livres.length ? livres : candidatos) {
       const nota = (uso.get(id) ?? 0) / (peso.get(id) as number);
-      if (nota < menor) [alvo, menor] = [id, nota];
+      const empate = alvo !== null && Math.abs(nota - menor) <= 1e-9 * Math.max(1, menor);
+      if (alvo === null || (!empate && nota < menor) || (empate && vemAntes(id, alvo))) [alvo, menor] = [id, nota];
     }
     if (!alvo) return null;
     const c = feitosNoPlano.get(alvo) ?? { teoria: 0, questoes: 0 };

@@ -9,13 +9,12 @@ import { segundosLiquidos } from './cronometro';
 import { instanteSP } from './datas';
 import type { Questoes } from './desempenho';
 import { topicoConcluido } from './painel';
-import { minutos } from './planejador';
+import { minutos, URGENTE_ABAIXO } from './planejador';
 import { estimativaTeoria } from './teoria';
 import { achatar } from './topicos';
 import type { BlocoPlanejado, Disciplina, Id, Sessao, Simulado, Topico } from './tipos';
 
-/** Abaixo desse acerto no último simulado em que caiu, o assunto é para estudar logo. */
-export const URGENTE_ABAIXO = 0.5;
+export { URGENTE_ABAIXO };
 
 export interface Acerto {
   feitas: number;
