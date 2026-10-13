@@ -323,6 +323,9 @@ seed sozinho.
   15/11 e 29/11 e uma semana de foco (blocos fixos) em luminotécnica, BDI e incêndio. Teoria até 06/11,
   depois questões e revisões. O seed continua com a versão de 07/10. Simulados (página separada):
   https://claude.ai/artifact/TQMkszgP2AvubbvoKBvB1r (Embu 1 e 2, Câmara).
+  Em 13/10 (commit `ebefe92` do `organizador-dados`), com o plano pela relevância (o tempo segue só a
+  incidência), as estimativas de teoria voltaram às de 07/10 (o tópico novo de sistemas prediais ficou
+  com 1) e a semana de foco ficou só com 13/10 (orçamento) e 14/10 (incêndio); a teoria vai até 23/11.
 - **Mexer nos dados do app instalável** (o Claude, a pedido do usuário): clonar
   `Rodrigo-Bowie-tech/organizador-dados`, carregar `dados/**` num `MemoriaStore` com `caminhoDe` e
   `lerArquivoDados`, aplicar as mudanças pelo `Repositorio` (as mesmas regras do app), chamar
