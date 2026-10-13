@@ -251,16 +251,19 @@ seed sozinho.
     Tópico "dominado" não ganha blocos de questões, a não ser que a disciplina tenha ficado abaixo de 70%;
   - **plano pela relevância** (o app sempre passa `relevancia`; sem ela vale o resto desta lista, que os
     testes antigos cobrem): o tempo de cada assunto segue a incidência na prova, a pedido do usuário. Cada
-    horário vai para o assunto de maior relevância × tempo desde o último estudo dele (`ultimoDoAssunto`:
-    sessões, lançamentos e blocos feitos; os blocos fixos contam quando passam); nunca estudado vem antes, na
-    ordem da prioridade, que é onde o desempenho entra (o que foi mal no simulado começa antes). Peso do
-    assunto = relevância dos tópicos que ainda recebem estudo (`relevanciaPorTopico`; dominados e cortados
-    não) × peso do concurso (prioridade ÷ 5 × (1 + proximidade da prova), como na fila de teoria: um concurso
-    distante com muitas questões não toma o tempo do mais próximo). Dentro do assunto: teoria com 20% de questões enquanto houver teoria, depois só questões (tópico de
-    maior relevância × tempo desde as últimas questões, `ultimaQuestao`). Todos os assuntos entram ao mesmo
-    tempo (o rodízio entre N, `intercalar`, não vale aqui: deixava os que menos caem sem tempo). Revisões
-    saem quando o bloco enche ou alguma espera 2 dias, sem cota. Piso de cobertura: assunto que, no ritmo da
-    incidência, não terminaria a teoria até uma semana antes da prova ganha frequência na medida do atraso;
+    horário vai para o assunto com menos estudo em relação ao peso: minutos dos últimos 14 dias
+    (`usoRecente`; por dia, o maior entre cronômetro e blocos marcados) + o que o plano já pôs, contando
+    revisões (divididas entre os assuntos do bloco) e blocos fixos (a semana de foco não vira horas a mais),
+    ÷ peso. Empate (sem estudo) vai na ordem da prioridade, que é onde o desempenho entra (o que foi mal no
+    simulado começa antes). Até 2 blocos seguidos do mesmo assunto quando há outro (mais só para quem merece
+    mais de 2/3 do tempo: 80% → 4). Peso = relevância dos tópicos que ainda recebem estudo
+    (`relevanciaPorTopico`; dominados e cortados não) × peso do concurso (prioridade ÷ 5 × (1 + proximidade
+    da prova): um concurso distante com muitas questões não toma o tempo do mais próximo) × atraso da teoria
+    (piso de cobertura: o assunto que não terminaria a teoria até uma semana antes da prova ganha peso na
+    medida do atraso). Dentro do assunto: teoria com 20% de questões enquanto houver teoria, depois só
+    questões (tópico de maior relevância × tempo desde as últimas questões, `ultimaQuestao`). Todos os
+    assuntos entram ao mesmo tempo (o rodízio entre N, `intercalar`, não vale aqui; saiu de Configurações).
+    Revisões saem quando o bloco enche ou alguma espera 2 dias, sem cota;
   - blocos `fixo` (movidos por você ou simulados marcados, `motivo: 'simulado'`, sem disciplina) ficam;
   - gestão semanal (`disponibilidade.gestao`): um bloco `motivo: 'gestao'` por semana no horário escolhido,
     se a semana ainda não tem um que fica (marcado, movido ou passado); o estudo não cai no horário, a

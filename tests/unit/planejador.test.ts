@@ -336,6 +336,26 @@ describe('cronograma por assuntos: rodízio, simulados e horizonte', () => {
     expect(horas('mt')).toBeGreaterThan(horas('man'));
   });
 
+  it('blocos fixos e o estudo recente contam no tempo do assunto: a semana de foco não vira horas a mais', () => {
+    // Dois assuntos de 2 questões, só questões pela frente; A tem 4 blocos fixos na primeira semana.
+    const pronto = (id: string, ordem: number) => ({
+      ...disciplina(id, 'embu', 1, 2, [topico(`${id}1`, { status: 'teoria_concluida' }), topico(`${id}2`, { status: 'teoria_concluida', ordem: 1 })]),
+      ordem,
+    });
+    const discs = [pronto('a', 0), pronto('b', 1)];
+    const fixo = (dia: string): BlocoPlanejado => ({
+      id: `f${dia}`, dia, inicio: '09:00', fim: '10:00', concursoId: 'embu', disciplinaId: 'a', topicoId: 'a1', tipo: 'questoes', status: 'planejado', motivo: 'questoes', fixo: true,
+    });
+    const existentes = ['2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02'].map(fixo);
+    const p = gerarPlano(base({ disciplinas: discs, horizonteDias: 28, relevancia: relevanciaPorTopico(discs), existentes }));
+    const conta = (id: string) => p.filter((b) => b.disciplinaId === id).length;
+    expect(conta('a') + 4).toBe(conta('b')); // com os fixos, os dois ficam iguais
+    // O estudo dos últimos 14 dias também conta: quem estudou 4 h a mais fica com 4 blocos a menos.
+    const q = gerarPlano(base({ disciplinas: discs, horizonteDias: 28, relevancia: relevanciaPorTopico(discs), usoRecente: new Map([['b', 240]]) }));
+    const contaQ = (id: string) => q.filter((b) => b.disciplinaId === id).length;
+    expect(contaQ('a')).toBe(contaQ('b') + 4);
+  });
+
   it('entre concursos, a prova mais próxima e de maior prioridade não perde o tempo para a que tem mais questões', () => {
     // Embu (prova em 06/12, prioridade 5) com 20 questões; Câmara (prova em 2027, prioridade 1) com 80.
     const embu = { ...disciplina('emb', 'embu', 1, 20, [topico('e1', { status: 'revisado' }), topico('e2', { status: 'revisado', ordem: 1 })]), ordem: 0 };

@@ -24,7 +24,7 @@
 //   provas/<id>               ProvaAnterior (questões dentro, PDF no armazenamento de arquivos)
 
 import * as crono from '../dominio/cronometro';
-import { diaSP, inicioDaSemana, instanteSP } from '../dominio/datas';
+import { diaSP, inicioDaSemana, instanteSP, somarDias } from '../dominio/datas';
 import { mesclarOportunidades } from '../radar/radar';
 import type { ItensPorUf } from '../radar/radar';
 import { chavePar, topicosDaImportacao } from '../dominio/edital';
@@ -769,7 +769,7 @@ export class Repositorio {
       feitos: this.blocosFeitos(),
       // Quanto cada assunto aparece segue a incidência na prova; o desempenho só ordena.
       relevancia: relevanciaPorTopico(disciplinas),
-      ultimoDoAssunto: this.ultimoEstudoDoAssunto(),
+      usoRecente: this.usoRecenteDoAssunto(),
       ultimaQuestao: this.ultimaQuestaoPorTopico(),
       novoId,
     });
@@ -778,21 +778,34 @@ export class Repositorio {
     return novos.length;
   }
 
-  /** Último estudo de qualquer tipo de cada disciplina (sessões e blocos feitos), para o plano continuar de onde parou. */
-  private ultimoEstudoDoAssunto(): Map<Id, string> {
+  /**
+   * Minutos estudados em cada disciplina nos últimos `dias` dias, para o plano continuar de onde parou.
+   * Por dia vale o maior entre o cronômetro (sessões) e os blocos marcados, sem somar os dois.
+   */
+  private usoRecenteDoAssunto(dias = 14): Map<Id, number> {
+    const desde = somarDias(diaSP(this.relogio()), -dias);
     const disciplinaDo = new Map<Id, Id>();
     for (const d of this.dados.disciplinas) for (const id of Object.keys(d.topicos)) disciplinaDo.set(id, d.id);
-    const m = new Map<Id, string>();
-    const marcar = (disciplinaId: Id | null, topicoId: Id | null, quando: string) => {
+    const porSessoes = new Map<string, number>();
+    const porBlocos = new Map<string, number>();
+    const somar = (m: Map<string, number>, disciplinaId: Id | null, topicoId: Id | null, dia: string, min: number) => {
       const id = disciplinaId ?? (topicoId ? disciplinaDo.get(topicoId) : undefined);
-      if (id && (m.get(id) ?? '') < quando) m.set(id, quando);
+      if (id && dia >= desde && min > 0) m.set(`${id}|${dia}`, (m.get(`${id}|${dia}`) ?? 0) + min);
     };
-    for (const s of this.dados.ativa ? [...this.dados.sessoes, this.dados.ativa] : this.dados.sessoes) marcar(s.disciplinaId, s.topicoId, s.inicio);
-    for (const r of this.dados.registrosQuestoes) if (r.feitas > 0) marcar(r.disciplinaId, r.topicoId, instanteSP(r.dia, '12:00').toISOString());
-    for (const b of this.dados.blocos) {
-      if (b.status === 'feito' || b.status === 'parcial') marcar(b.disciplinaId, b.topicoId, instanteSP(b.dia, b.inicio).toISOString());
+    const agora = this.relogio();
+    for (const s of this.dados.ativa ? [...this.dados.sessoes, this.dados.ativa] : this.dados.sessoes) {
+      somar(porSessoes, s.disciplinaId, s.topicoId, diaSP(s.inicio), crono.segundosLiquidos(s, agora) / 60);
     }
-    return m;
+    for (const b of this.dados.blocos) {
+      const parte = b.status === 'feito' ? 1 : b.status === 'parcial' ? 0.5 : 0;
+      if (parte) somar(porBlocos, b.disciplinaId, b.topicoId, b.dia, minutos(b) * parte);
+    }
+    const uso = new Map<Id, number>();
+    for (const chave of new Set([...porSessoes.keys(), ...porBlocos.keys()])) {
+      const id = chave.split('|')[0];
+      uso.set(id, (uso.get(id) ?? 0) + Math.max(porSessoes.get(chave) ?? 0, porBlocos.get(chave) ?? 0));
+    }
+    return uso;
   }
 
   /** Últimas questões de cada tópico (sessões, lançamentos e blocos de questões feitos), para o rodízio. */

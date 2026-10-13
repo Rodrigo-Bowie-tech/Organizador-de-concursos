@@ -172,10 +172,11 @@ export function CartaoDiagnostico({
           </Botao>
         )}
         <p className="text-xs text-suave">
-          Escala de 0 a {pct(escala)}. As horas do plano passam da parte da prova quando a teoria do assunto é longa para a incidência (toda a teoria
-          precisa caber até uma semana antes da prova) ou quando há blocos fixos, e ficam abaixo quando há tópicos dominados ou revisões de outros
-          assuntos. Estudar logo = menos de {pct(URGENTE_ABAIXO)} de acerto no último simulado em que o assunto caiu: o plano o põe antes, sem mais horas.
-          Questões dos cadernos, das sessões e de Questões contam no desempenho.
+          Escala de 0 a {pct(escala)}. O plano conta o que você estudou nos últimos 14 dias, as revisões e os blocos fixos no tempo de cada
+          assunto. As horas passam da parte da prova quando a teoria do assunto é longa para a incidência (toda a teoria precisa caber até uma semana
+          antes da prova) e ficam abaixo quando há tópicos dominados; a sobra vai para os outros. Estudar logo = menos de {pct(URGENTE_ABAIXO)} de acerto
+          no último simulado em que o assunto caiu: o plano o põe antes, sem mais horas. Questões dos cadernos, das sessões e de Questões contam no
+          desempenho.
         </p>
       </div>
     </Cartao>

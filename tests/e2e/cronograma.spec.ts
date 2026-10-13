@@ -27,19 +27,27 @@ test('cronograma: o assunto que mais cai aparece mais, simulado marcado e plano 
   await page.getByLabel('Visão').selectOption('semana');
 
   // Pela incidência: Elétrica (40 questões × peso 2) vale 4 vezes Português (20 × 1) e aparece mais. Ela
-  // nunca foi estudada e abre a semana; Português, estudado em 25/09, também entra na semana.
+  // nunca foi estudada e abre a semana; Português, com 3 h em 25/09 (o estudo dos últimos 14 dias conta),
+  // espera a Elétrica chegar perto da parte dela e volta na semana seguinte.
   const cartoes = page.getByRole('region', { name: /Semana/ }).getByRole('button', { name: /^20:00 / });
+  const nomesDaSemana = () => cartoes.evaluateAll((els) => els.map((el) => el.getAttribute('aria-label') ?? el.textContent ?? ''));
   await expect(cartoes.nth(0)).toHaveAccessibleName(/^20:00 Engenharia Elétrica/);
-  const nomes = await cartoes.evaluateAll((els) => els.map((el) => el.getAttribute('aria-label') ?? el.textContent ?? ''));
-  const conta = (nome: string) => nomes.filter((n) => n.includes(nome)).length;
-  expect(conta('Língua Portuguesa')).toBeGreaterThan(0);
-  expect(conta('Engenharia Elétrica')).toBeGreaterThan(conta('Língua Portuguesa'));
+  const semana1 = await nomesDaSemana();
+  const conta = (nomes: string[], nome: string) => nomes.filter((n) => n.includes(nome)).length;
+  expect(conta(semana1, 'Engenharia Elétrica')).toBeGreaterThanOrEqual(4);
+  expect(conta(semana1, 'Língua Portuguesa')).toBe(0);
   // O simulado fixo do sábado aparece com o nome certo e o planejador não pôs nada por cima.
   await expect(page.getByRole('button', { name: /^20:00 Simulado/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Próximo' }).first().click();
+  await expect(page.getByRole('heading', { name: '04/10 a 10/10/2026' })).toBeVisible();
+  const semana2 = await nomesDaSemana();
+  expect(conta(semana2, 'Língua Portuguesa')).toBeGreaterThan(0);
+  const duas = [...semana1, ...semana2];
+  expect(conta(duas, 'Engenharia Elétrica')).toBeGreaterThan(conta(duas, 'Língua Portuguesa'));
 
   // O plano vai até a semana da prova, além das 4 semanas.
   await page.getByLabel('Visão').selectOption('mes');
-  await page.getByRole('button', { name: 'Próximo' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Outubro, 2026' })).toBeVisible();
   await page.getByRole('button', { name: 'Próximo' }).first().click();
   await expect(page.getByRole('heading', { name: 'Novembro, 2026' })).toBeVisible();
   await expect(page.getByRole('button', { name: /^02\/11\/2026: [1-9]\d* blocos/ })).toBeVisible();

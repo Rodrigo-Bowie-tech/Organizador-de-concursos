@@ -266,14 +266,13 @@ export interface EntradaPlano {
   feitos?: Map<Id, number>;
   /**
    * Relevância de cada tópico na prova (dominio/diagnostico.ts, `relevanciaPorTopico`: questões ×
-   * peso da disciplina, dividido entre os tópicos). Com ela, quanto cada assunto aparece no plano
-   * segue a incidência: cada horário vai para o assunto de maior relevância × tempo desde a última
-   * vez que foi estudado (ver "Plano pela relevância" abaixo). Sem ela, a fila por prioridade e a
-   * cota de revisão e questões de sempre.
+   * peso da disciplina, dividido entre os tópicos). Com ela, o tempo de cada assunto no plano segue
+   * a incidência (ver "Plano pela relevância" abaixo). Sem ela, a fila por prioridade e a cota de
+   * revisão e questões de sempre.
    */
   relevancia?: Map<Id, number>;
-  /** Último estudo de cada disciplina, de qualquer tipo (instante ISO): o plano continua de onde parou. */
-  ultimoDoAssunto?: Map<Id, string>;
+  /** Minutos estudados em cada disciplina nos últimos 14 dias: o plano continua de onde parou. */
+  usoRecente?: Map<Id, number>;
   /** Últimas questões de cada tópico (instante ISO): o rodízio das questões continua de onde parou. */
   ultimaQuestao?: Map<Id, string>;
   novoId: () => Id;
@@ -425,12 +424,16 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
     return b;
   };
 
-  // Plano pela relevância: cada horário vai para o assunto de maior relevância × tempo desde a
-  // última vez que foi estudado (nunca estudado vem antes, na ordem da prioridade, que é onde o
-  // desempenho entra: o que foi mal no simulado começa antes). Peso do assunto = a relevância dos
-  // tópicos dele que ainda recebem estudo (teoria pela frente ou questões; dominados e cortados não).
-  // Dentro do assunto, teoria primeiro, com 20% de questões dos tópicos já vistos; terminada a teoria,
-  // o tempo do assunto vai para questões. Assim o tempo de cada assunto segue a incidência na prova.
+  // Plano pela relevância: o tempo de cada assunto segue a incidência na prova. Cada horário vai para
+  // o assunto com menos estudo em relação ao seu peso: os minutos dos últimos 14 dias mais o que o
+  // plano já pôs (revisões e blocos fixos contam, divididos entre os assuntos do bloco) ÷ peso. Assim
+  // os que mais caem ficam com mais horas, e depois de replanejar o plano continua de onde parou.
+  // Empate (no começo, sem estudo) vai na ordem da prioridade, que é onde o desempenho entra: o que
+  // foi mal no simulado começa antes. Até 2 blocos seguidos do mesmo assunto quando há outro (mais,
+  // só para quem merece mais de 2/3 do tempo).
+  // Peso = relevância dos tópicos que ainda recebem estudo (teoria pela frente ou questões; dominados
+  // e cortados não) × peso do concurso × atraso da teoria (piso de cobertura, abaixo). Dentro do
+  // assunto, teoria primeiro, com 20% de questões dos tópicos já vistos; terminada a teoria, questões.
   // Todos os assuntos entram ao mesmo tempo (o rodízio entre N, `intercalar`, fica para o caminho sem relevância).
   const pesoDoAssunto = new Map<Id, number>();
   if (e.relevancia) {
@@ -440,7 +443,19 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
       if (p > 0) pesoDoAssunto.set(d.id, p);
     }
   }
-  const ultimoDoAssunto = new Map(e.ultimoDoAssunto ?? []);
+  const uso = new Map(e.usoRecente ?? []);
+  const disciplinaDoTopico = new Map<Id, Id>();
+  for (const d of e.disciplinas) for (const id of Object.keys(d.topicos)) disciplinaDoTopico.set(id, d.id);
+  /** Soma o bloco ao estudo do assunto (revisão com vários tópicos é dividida entre eles). */
+  const contarUso = (b: BlocoPlanejado) => {
+    const m = minutos(b);
+    const topicos = b.revisoes?.length ? b.revisoes : b.topicoId ? [b.topicoId] : [];
+    const somar = (id: Id | null | undefined, x: number) => {
+      if (id) uso.set(id, (uso.get(id) ?? 0) + x);
+    };
+    if (topicos.length) for (const t of topicos) somar(disciplinaDoTopico.get(t), m / topicos.length);
+    else somar(b.disciplinaId, m);
+  };
   // Entre concursos, vale o peso de cada um (prioridade e proximidade da prova), como na fila de teoria.
   const concursoDe = new Map(e.disciplinas.map((d) => [d.id, d.concursoId]));
   const prioridadeDe = new Map(concursosAtivos.map((c) => [c.id, Math.max(1, c.prioridade) / 5]));
@@ -451,8 +466,8 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
   };
   // Os blocos fixos que ficam (semana de foco, movidos) também contam como estudo do assunto.
   const fixosNoTempo = fixosFuturos
-    .filter((b) => b.disciplinaId && b.motivo !== 'simulado')
-    .map((b) => ({ disciplinaId: b.disciplinaId as Id, quando: instanteSP(b.dia, b.inicio).getTime() }))
+    .filter((b) => b.motivo !== 'simulado' && b.motivo !== 'gestao')
+    .map((b) => ({ b, quando: instanteSP(b.dia, b.inicio).getTime() }))
     .sort((a, b) => a.quando - b.quando);
   let proximoFixo = 0;
   const feitosNoPlano = new Map<Id, { teoria: number; questoes: number }>();
@@ -487,23 +502,32 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
   };
 
   const porRelevancia = (dia: DiaISO, s: BlocoHorario, quando: number, validos: typeof restantes, fracao: number): BlocoPlanejado | null => {
-    for (; proximoFixo < fixosNoTempo.length && fixosNoTempo[proximoFixo].quando < quando; proximoFixo++) {
-      const f = fixosNoTempo[proximoFixo];
-      const iso = new Date(f.quando).toISOString();
-      if ((ultimoDoAssunto.get(f.disciplinaId) ?? '') < iso) ultimoDoAssunto.set(f.disciplinaId, iso);
-    }
+    for (; proximoFixo < fixosNoTempo.length && fixosNoTempo[proximoFixo].quando < quando; proximoFixo++) contarUso(fixosNoTempo[proximoFixo].b);
     // Candidatos: todos os assuntos com teoria pela frente (na ordem da prioridade) e os que têm questões
     // prontas. O rodízio entre N assuntos não vale aqui: limitar deixaria os que menos caem sem nenhum tempo.
     const comTeoria: Id[] = [];
     for (const i of validos) if (!comTeoria.includes(i.disciplina.id)) comTeoria.push(i.disciplina.id);
     const candidatos = [...comTeoria];
     for (const q of paraQuestoes) if (prontoEm(q, dia) && !candidatos.includes(q.d.id)) candidatos.push(q.d.id);
+    const peso = new Map(candidatos.map((id) => [id, (pesoDoAssunto.get(id) ?? 0.001) * pesoDoConcurso(id, dia) * atrasoDaTeoria(id, dia)]));
+    const somaPeso = [...peso.values()].reduce((a, b) => a + b, 0);
+    // Blocos seguidos do mesmo assunto: até 2, ou mais para quem merece mais de 2/3 do tempo
+    // (80% → 4 seguidos), para não virar uma fila do mesmo assunto quando ele está atrasado.
+    const seguidos = (id: Id) => {
+      let n = 0;
+      for (let i = plano.length - 1; i >= 0 && plano[i].disciplinaId === id; i--) n++;
+      return n;
+    };
+    const limite = (id: Id) => {
+      const parte = (peso.get(id) as number) / somaPeso;
+      return Math.max(2, Math.ceil(parte / Math.max(0.01, 1 - parte)));
+    };
+    const livres = candidatos.filter((id) => seguidos(id) < limite(id));
     let alvo: Id | null = null;
-    let melhor = -1;
-    for (const id of candidatos) {
-      const u = ultimoDoAssunto.get(id);
-      const nota = u ? Math.max(0, quando - Date.parse(u)) * (pesoDoAssunto.get(id) ?? 0.001) * pesoDoConcurso(id, dia) * atrasoDaTeoria(id, dia) : Infinity;
-      if (nota > melhor) [alvo, melhor] = [id, nota];
+    let menor = Infinity;
+    for (const id of livres.length ? livres : candidatos) {
+      const nota = (uso.get(id) ?? 0) / (peso.get(id) as number);
+      if (nota < menor) [alvo, menor] = [id, nota];
     }
     if (!alvo) return null;
     const c = feitosNoPlano.get(alvo) ?? { teoria: 0, questoes: 0 };
@@ -523,10 +547,7 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
       b = blocoDeTeoria(dia, s, item);
       c.teoria++;
     }
-    if (b) {
-      feitosNoPlano.set(alvo, c);
-      ultimoDoAssunto.set(alvo, new Date(quando).toISOString());
-    }
+    if (b) feitosNoPlano.set(alvo, c);
     return b;
   };
 
@@ -628,6 +649,7 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
       }
       if (!escolhido) continue;
       plano.push(escolhido);
+      if (e.relevancia) contarUso(escolhido);
     }
   }
   return [...plano, ...gestao];
