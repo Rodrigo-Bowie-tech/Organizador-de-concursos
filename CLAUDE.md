@@ -272,8 +272,20 @@ seed sozinho.
     viabilidade não o conta e ele fica fora da cota de revisão, do rodízio e do planejado × realizado;
   - tópicos vinculados entram uma vez só (prioridades somadas); horizonte até a última prova dos concursos
     com disciplinas (máximo 120 dias) ou 28 dias se faltar alguma data;
-  - replanejar troca só os blocos `planejado` que ainda não começaram e não foram movidos (`fixo`);
-    marcados ficam para sempre.
+  - replanejar troca os blocos `planejado` que ainda não começaram e não foram movidos (`fixo`) e tira os de
+    estudo que já acabaram sem ser marcados, movidos ou não (17/10, a pedido do usuário: o que não foi feito
+    volta em dias novos, porque o plano conta só o estudo de verdade; simulado e gestão ficam); o do assunto
+    em andamento no cronômetro espera a sessão terminar. Marcados ficam para sempre. O planejado × realizado
+    das semanas passadas passa a contar só os blocos que ficaram (IDEIAS.md);
+  - cada bloco no seu horário (`horarioLivre`): mover (arrastar para outro dia ou "Mover" no modal) para um
+    horário que já tem um bloco que fica põe logo depois dele (o aviso diz o horário usado), nunca antes de
+    agora nem num dia que já passou, e replaneja em seguida. Na tela, os blocos mostram início–fim e o dia
+    lista blocos e sessões na ordem do relógio (revisões do dia, sem horário, no topo); o bloco de revisões
+    mostra o horário de cada uma;
+  - terminar uma sessão (cronômetro ou registro manual) risca os blocos planejados do mesmo assunto no dia
+    dela (`blocosDaSessao`): os que caem no horário da sessão primeiro, depois o mesmo tópico, depois o mais
+    perto; o tempo cobre um bloco por vez (≥ 75% feito, ≥ 25% parcial) e o bloco que estava em outro horário
+    vai para o horário da sessão. O horário que ele liberou volta para o plano.
 - **Adaptação** (Fase 4, `dominio/adaptacao.ts`): replaneja ao finalizar/registrar sessão, ao marcar bloco, ao
   lançar ou importar questões (inclusive prova ou caderno refeito), ao salvar ou excluir simulado e na primeira
   abertura do dia (`replanejarDoDia` em `main.tsx`). Capacidade real = média dos últimos 14 dias

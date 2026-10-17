@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { diaDaSemana } from '../../src/dominio/datas';
-import { ajusteDosSimulados, dominio, filaDeTeoria, fracaoRevisao, gerarPlano, janelasDoDia, slotsDoDia, statusSugerido } from '../../src/dominio/planejador';
+import { ajusteDosSimulados, blocosDaSessao, dominio, filaDeTeoria, fracaoRevisao, gerarPlano, horarioLivre, janelasDoDia, slotsDoDia, statusSugerido } from '../../src/dominio/planejador';
 import type { EntradaPlano } from '../../src/dominio/planejador';
 import { relevanciaPorTopico } from '../../src/dominio/diagnostico';
 import { iniciarRevisao } from '../../src/dominio/revisoes';
-import type { BlocoPlanejado, Concurso, Disciplina, Disponibilidade, Simulado, Topico } from '../../src/dominio/tipos';
+import type { BlocoPlanejado, Concurso, Disciplina, Disponibilidade, Sessao, Simulado, Topico } from '../../src/dominio/tipos';
 
 // Segunda-feira, 28/09/2026, 05:00 em São Paulo.
 const AGORA = new Date('2026-09-28T08:00:00Z');
@@ -209,6 +209,61 @@ describe('realizado × planejado', () => {
     expect(statusSugerido(b, 50 * 60)).toBe('feito');
     expect(statusSugerido(b, 20 * 60)).toBe('parcial');
     expect(statusSugerido(b, 5 * 60)).toBeNull();
+  });
+
+  it('cada bloco no seu horário: se já há outro, logo depois dele; sem lugar até a meia-noite, antes', () => {
+    const ocupados = [{ inicio: '20:00', fim: '21:00' }, { inicio: '21:00', fim: '22:00' }];
+    expect(horarioLivre(ocupados, '18:00', 60)).toBe('18:00'); // livre
+    expect(horarioLivre(ocupados, '20:00', 60)).toBe('22:00'); // 20h e 21h ocupados
+    expect(horarioLivre(ocupados, '20:30', 60)).toBe('22:00');
+    expect(horarioLivre(ocupados, '19:30', 60)).toBe('22:00'); // 19:30–20:30 bate no das 20h
+    expect(horarioLivre(ocupados, '08:00', 60, 14 * 60)).toBe('14:00'); // hoje: não antes de agora
+    expect(horarioLivre([{ inicio: '22:00', fim: '24:00' }], '22:30', 60)).toBe('21:00'); // depois não cabe
+    expect(horarioLivre([{ inicio: '00:00', fim: '24:00' }], '10:00', 60)).toBeNull();
+  });
+
+  describe('a sessão terminada risca os blocos do assunto naquele dia', () => {
+    const discs = [disciplina('rl', 'embu', 1, 10, [topico('rl1'), topico('rl2')]), disciplina('pt', 'embu', 1, 10, [topico('pt1')])];
+    const bloco = (id: string, inicio: string, fim: string, extra: Partial<BlocoPlanejado> = {}): BlocoPlanejado => ({
+      id, dia: '2026-10-16', inicio, fim, concursoId: 'embu', disciplinaId: 'rl', topicoId: 'rl1', tipo: 'questoes', status: 'planejado', motivo: 'questoes', ...extra,
+    });
+    // Sessão de RL das 08:39 às 09:44 em SP (65 min), sem pausas.
+    const sessao = (min: number, extra: Partial<Sessao> = {}): Sessao => ({
+      id: 's', concursoId: 'embu', disciplinaId: 'rl', topicoId: 'rl1', tipo: 'questoes', inicio: '2026-10-16T11:39:00.000Z',
+      fim: new Date(Date.parse('2026-10-16T11:39:00.000Z') + min * 60_000).toISOString(), pausas: [], segundosLiquidos: min * 60,
+      questoesFeitas: 0, acertos: 0, paginas: 0, anotacoes: '', origem: 'cronometro', concluiuTeoria: false, ...extra,
+    });
+    const blocos = [
+      bloco('rl-noite', '20:00', '21:00'),
+      bloco('pt-noite', '21:00', '22:00', { disciplinaId: 'pt', topicoId: 'pt1' }),
+      bloco('rl-outro-dia', '20:00', '21:00', { dia: '2026-10-17' }),
+      bloco('rev', '22:00', '23:00', { disciplinaId: null, topicoId: null, tipo: 'revisao', motivo: 'revisao', revisoes: ['pt1', 'rl2'] }),
+    ];
+
+    it('o bloco do assunto vira feito e vai para o horário da sessão; os outros assuntos e dias ficam', () => {
+      const m = blocosDaSessao(sessao(65), blocos, discs, Date.parse('2026-10-16T13:00:00Z'));
+      expect(m).toEqual([{ ...blocos[0], status: 'feito', inicio: '08:39', fim: '09:39' }]);
+    });
+
+    it('sessão longa risca também a revisão com um tópico do assunto; curta deixa parcial', () => {
+      const longa = blocosDaSessao(sessao(125), blocos, discs, Date.parse('2026-10-16T14:00:00Z'));
+      expect(longa.map((b) => [b.id, b.status, b.inicio, b.fim])).toEqual([
+        ['rl-noite', 'feito', '08:39', '09:39'],
+        ['rev', 'feito', '09:39', '10:39'],
+      ]);
+      expect(blocosDaSessao(sessao(20), blocos, discs, Date.parse('2026-10-16T13:00:00Z')).map((b) => b.status)).toEqual(['parcial']);
+      expect(blocosDaSessao(sessao(10), blocos, discs, Date.parse('2026-10-16T13:00:00Z'))).toEqual([]); // menos de 25%
+    });
+
+    it('bloco que cai no horário da sessão é riscado onde está', () => {
+      const naHora = [bloco('rl-manha', '08:30', '09:30'), ...blocos];
+      const m = blocosDaSessao(sessao(65), naHora, discs, Date.parse('2026-10-16T13:00:00Z'));
+      expect(m[0]).toEqual({ ...naHora[0], status: 'feito' });
+    });
+
+    it('sem assunto, nada é riscado', () => {
+      expect(blocosDaSessao(sessao(65, { disciplinaId: null, topicoId: null }), blocos, discs, Date.parse('2026-10-16T13:00:00Z'))).toEqual([]);
+    });
   });
 });
 

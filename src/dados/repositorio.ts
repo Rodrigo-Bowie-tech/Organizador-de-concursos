@@ -24,14 +24,14 @@
 //   provas/<id>               ProvaAnterior (questões dentro, PDF no armazenamento de arquivos)
 
 import * as crono from '../dominio/cronometro';
-import { diaSP, inicioDaSemana, instanteSP, somarDias } from '../dominio/datas';
+import { diaSP, formatarHora, inicioDaSemana, instanteSP, somarDias } from '../dominio/datas';
 import { mesclarOportunidades } from '../radar/radar';
 import type { ItensPorUf } from '../radar/radar';
 import { chavePar, topicosDaImportacao } from '../dominio/edital';
 import { capacidadeParaPlano, capacidadeReal } from '../dominio/adaptacao';
 import { revisarErro, todasAsQuestoes } from '../dominio/desempenho';
 import { diagnosticoPorAssunto, relevanciaPorTopico } from '../dominio/diagnostico';
-import { acertoRecente, DISPONIBILIDADE_VAZIA, gerarPlano, minutos } from '../dominio/planejador';
+import { acertoRecente, blocoDeEstudo, blocosDaSessao, blocosDoAssuntoDaSessao, DISPONIBILIDADE_VAZIA, gerarPlano, horarioLivre, minutos } from '../dominio/planejador';
 import type { DisciplinaImportada } from '../dominio/edital';
 import { lerLote, topicosDoLote } from '../dominio/lote';
 import { comIncidenciaDasProvas } from '../dominio/provas';
@@ -773,7 +773,7 @@ export class Repositorio {
       ultimaQuestao: this.ultimaQuestaoPorTopico(),
       novoId,
     });
-    await this.substituirFuturos(novos);
+    await this.substituirFuturos(novos, this.saemNoReplanejamento());
     await this.store.definir('estado/planejamento', { ultimoReplanejamento: diaSP(agora) });
     return novos.length;
   }
@@ -952,13 +952,29 @@ export class Repositorio {
     return antes;
   }
 
+  /**
+   * O que o replanejamento tira: os planejados de agora em diante que não foram movidos e os blocos de
+   * estudo que já passaram sem ser marcados (o que não foi feito volta para dias novos: o plano conta só
+   * o estudo de verdade). O do assunto em andamento no cronômetro espera a sessão terminar, que o risca.
+   */
+  private saemNoReplanejamento(): BlocoPlanejado[] {
+    const agora = this.relogio().getTime();
+    const ativa = this.dados.ativa;
+    const esperam = new Set(ativa ? blocosDoAssuntoDaSessao(ativa, this.dados.blocos, this.dados.disciplinas).map((b) => b.id) : []);
+    return this.dados.blocos.filter((b) => {
+      if (b.status !== 'planejado') return false;
+      if (!b.fixo && instanteSP(b.dia, b.inicio).getTime() >= agora) return true;
+      return blocoDeEstudo(b) && instanteSP(b.dia, b.fim).getTime() <= agora && !esperam.has(b.id);
+    });
+  }
+
   private futurosPlanejados(): BlocoPlanejado[] {
     const agora = this.relogio().getTime();
     return this.dados.blocos.filter((b) => b.status === 'planejado' && !b.fixo && instanteSP(b.dia, b.inicio).getTime() >= agora);
   }
 
-  private async substituirFuturos(novos: BlocoPlanejado[]): Promise<void> {
-    const sair = new Set(this.futurosPlanejados().map((b) => b.id));
+  private async substituirFuturos(novos: BlocoPlanejado[], saem = this.futurosPlanejados()): Promise<void> {
+    const sair = new Set(saem.map((b) => b.id));
     const porSemana = new Map<string, Record<Id, Json>>();
     const semanasTocadas = new Set<string>();
     for (const b of this.dados.blocos) {
@@ -993,15 +1009,37 @@ export class Repositorio {
     await this.replanejarSePuder();
   }
 
-  /** Move o bloco para outro dia e horário, mantendo a duração. */
-  async moverBloco(id: Id, dia: string, inicio: string): Promise<void> {
+  /**
+   * Move o bloco para outro dia e horário, mantendo a duração. Cada bloco fica com o seu horário: se
+   * já houver outro bloco que fica (marcado, movido, simulado, gestão), vai para logo depois dele. Os
+   * planejados pelo app que estiverem no caminho são refeitos em seguida. Devolve o início usado.
+   */
+  async moverBloco(id: Id, dia: string, inicio: string): Promise<string> {
     const b = this.dados.blocos.find((x) => x.id === id);
     if (!b) throw falha('nao_encontrado', 'Bloco não encontrado.');
-    const [h, m] = inicio.split(':').map(Number);
-    const fimMin = h * 60 + m + minutos(b);
-    if (fimMin > 24 * 60) throw falha('horario_invalido', 'O bloco passaria da meia-noite. Escolha um horário mais cedo.');
+    const agora = this.relogio();
+    const hoje = diaSP(agora);
+    if (dia < hoje) throw falha('horario_invalido', 'Esse dia já passou. Escolha hoje ou um dia à frente.');
+    const [h, m] = formatarHora(agora).split(':').map(Number);
+    const minimo = dia === hoje ? Math.ceil((h * 60 + m + 1) / 5) * 5 : 0;
+    const saem = new Set(this.saemNoReplanejamento().map((x) => x.id));
+    const ocupados = this.dados.blocos.filter((x) => x.id !== id && x.dia === dia && !saem.has(x.id));
+    const livre = horarioLivre(ocupados, inicio, minutos(b), minimo);
+    if (!livre) throw falha('horario_invalido', 'Não há horário livre nesse dia para este bloco. Escolha outro dia.');
+    const [lh, lm] = livre.split(':').map(Number);
+    const fimMin = lh * 60 + lm + minutos(b);
     const fim = `${String(Math.floor(fimMin / 60)).padStart(2, '0')}:${String(fimMin % 60).padStart(2, '0')}`;
-    await this.gravarItemSemanal('plano', inicioDaSemana(dia), { ...b, dia, inicio, fim, fixo: true } as BlocoPlanejado);
+    await this.gravarItemSemanal('plano', inicioDaSemana(dia), { ...b, dia, inicio: livre, fim, fixo: true } as BlocoPlanejado);
+    await this.replanejarSePuder();
+    return livre;
+  }
+
+  /** A sessão terminada risca os blocos planejados do assunto naquele dia (`blocosDaSessao`). */
+  private async riscarBlocosDaSessao(s: Sessao): Promise<void> {
+    for (const b of blocosDaSessao(s, this.dados.blocos, this.dados.disciplinas, this.relogio())) {
+      if (b.motivo === 'teoria') this.tocarTeoria(b.topicoId);
+      await this.gravarItemSemanal('plano', inicioDaSemana(b.dia), b);
+    }
   }
 
   // ------------------------------------------------------------ desempenho
@@ -1271,6 +1309,7 @@ export class Repositorio {
     if (s.tipo === 'teoria') this.tocarTeoria(s.topicoId);
     await this.gravarSessao(s);
     await this.store.definir('estado/cronometro', { sessao: null });
+    await this.riscarBlocosDaSessao(s);
     if (s.concluiuTeoria) await this.avancarStatus(s.disciplinaId, s.topicoId, 'teoria_concluida');
     await this.replanejarSePuder();
     return s;
@@ -1312,6 +1351,7 @@ export class Repositorio {
     };
     if (s.tipo === 'teoria') this.tocarTeoria(s.topicoId);
     await this.gravarSessao(s);
+    await this.riscarBlocosDaSessao(s);
     if (s.concluiuTeoria) await this.avancarStatus(s.disciplinaId, s.topicoId, 'teoria_concluida');
     await this.replanejarSePuder();
     return s;

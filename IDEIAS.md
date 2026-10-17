@@ -24,6 +24,9 @@ Coisas que ficaram de fora para manter as fases simples. Não são compromisso.
   ou se vale só a incidência, e mostrar no cartão quanto cada assunto ganhou pelo piso.
 - Cadernos: importar um caderno novo pela tela (PDF de questões + PDF de gabaritos), sem passar pela conversa;
   folha de respostas rápida (todas as letras de uma parte numa tela só) para quem resolve no papel.
+- Guardar quantos minutos de blocos passaram sem ser feitos (o replanejamento os tira desde 17/10) para o
+  planejado × realizado das semanas passadas continuar mostrando o que ficou para trás.
+- Calendário em grade de horas (cada bloco na sua linha de horário), além da lista por dia.
 
 ## Painel e histórico
 - Escolher se a semana começa no domingo ou na segunda.

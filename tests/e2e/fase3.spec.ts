@@ -30,9 +30,14 @@ test('disponibilidade, plano semanal e bloco do dia: começar, estudar e marcar 
   await page.getByRole('dialog').getByRole('button', { name: 'Salvar sessão' }).click();
   await expect(page.getByText('Sessão salva: 0h50min líquidas.')).toBeVisible();
 
-  // O bloco sugere "feito" pelo tempo cronometrado no horário.
+  // Terminar pelo cronômetro já risca o bloco do assunto (50 de 60 min: feito), no horário em que foi feito.
   await menu(page, 'Planejamento');
   await page.getByLabel('Visão').selectOption('dia');
+  await expect(page.getByRole('button', { name: /^20:00 Engenharia Elétrica.*\(Feito\)/ })).toBeVisible();
+  // Desmarcado, o modal sugere de novo pelo tempo cronometrado no horário.
+  await page.getByRole('button', { name: /^20:00 .*\(Feito\)/ }).click();
+  await page.getByRole('button', { name: 'Voltar a planejado' }).click();
+  await expect(page.getByText('Bloco marcado como planejado.')).toBeVisible();
   await page.getByRole('button', { name: /^20:00 .*\(Planejado\)/ }).click();
   await expect(page.getByText('Você estudou 0h50min nesse horário. Marcar como feito?')).toBeVisible();
   await page.getByRole('button', { name: 'Marcar feito' }).click();

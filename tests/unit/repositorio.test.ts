@@ -438,6 +438,62 @@ describe('adaptação no repositório (Fase 4)', () => {
     expect(repo.atual.blocos.find((x) => x.id === b.id)).toMatchObject({ dia: '2026-10-10', inicio: '09:00', fixo: true });
   });
 
+  it('mover para um horário que já tem bloco põe logo depois dele; dia passado não', async () => {
+    const { repo } = await comPlano();
+    // Mover replaneja: os planejados pelo app ganham ids novos, então cada um é buscado de novo.
+    const livre = () => repo.atual.blocos.find((b) => b.status === 'planejado' && !b.fixo && b.motivo !== 'gestao' && b.dia !== '2026-10-10')!;
+    const b1 = livre();
+    expect(await repo.moverBloco(b1.id, '2026-10-10', '20:00')).toBe('20:00');
+    const b2 = livre();
+    expect(await repo.moverBloco(b2.id, '2026-10-10', '20:00')).toBe('21:00');
+    const no10 = repo.atual.blocos.filter((b) => b.dia === '2026-10-10').sort((x, y) => x.inicio.localeCompare(y.inicio));
+    expect(no10.map((b) => [b.id, b.inicio, b.fim])).toEqual([[b1.id, '20:00', '21:00'], [b2.id, '21:00', '22:00']]);
+    // Hoje (domingo, 09:00): não antes de agora.
+    const b3 = livre();
+    expect(await repo.moverBloco(b3.id, '2026-09-27', '08:00')).toBe('09:05');
+    await expect(repo.moverBloco(b3.id, '2026-09-26', '20:00')).rejects.toMatchObject({ codigo: 'horario_invalido' });
+  });
+
+  it('replanejar tira os blocos que passaram sem ser feitos e põe o conteúdo em dias novos', async () => {
+    const { repo } = await comPlano();
+    const doDia = () => repo.atual.blocos.filter((b) => b.dia === '2026-09-27');
+    const [vinte, vinteUma] = doDia().filter((b) => b.motivo !== 'gestao').sort((x, y) => x.inicio.localeCompare(y.inicio));
+    await repo.marcarBloco(vinte.id, 'feito');
+    const topico = repo.atual.blocos.find((b) => b.dia === '2026-09-27' && b.inicio === '21:00')!.topicoId;
+    const futurosDo = (t: string | null) => repo.atual.blocos.filter((b) => b.topicoId === t && b.status === 'planejado' && b.dia >= diaHoje()).length;
+    const diaHoje = () => (agora.getTime() >= Date.parse('2026-09-28T03:00:00Z') ? '2026-09-28' : '2026-09-27');
+    const antes = futurosDo(topico);
+    agora = new Date('2026-09-28T12:00:00Z'); // segunda, 09:00: o bloco das 21h de domingo passou sem ser feito
+    await repo.replanejar();
+    expect(repo.atual.blocos.find((b) => b.id === vinte.id)?.status).toBe('feito');
+    expect(repo.atual.blocos.some((b) => b.id === vinteUma.id)).toBe(false);
+    expect(doDia().filter((b) => b.status === 'planejado').map((b) => b.motivo)).toEqual(['gestao']); // a gestão não é estudo
+    expect(futurosDo(topico)).toBe(antes); // o que não foi feito voltou em dias novos
+  });
+
+  it('o cronômetro risca o bloco do assunto e o põe no horário em que foi feito', async () => {
+    const { repo, concursoId, disciplinaId } = await comPlano(); // domingo, 09:00
+    const vinte = repo.atual.blocos.find((b) => b.dia === '2026-09-27' && b.inicio === '20:00')!;
+    await repo.iniciarSessao({ concursoId, disciplinaId, topicoId: vinte.topicoId, tipo: 'teoria' });
+    avancar(55);
+    await repo.finalizarSessao({ concursoId, disciplinaId, topicoId: vinte.topicoId, tipo: 'teoria' });
+    expect(repo.atual.blocos.find((b) => b.id === vinte.id)).toMatchObject({ status: 'feito', inicio: '09:00', fim: '10:00' });
+    // O horário das 20h ficou livre e o plano o usou de novo.
+    expect(repo.atual.blocos.some((b) => b.dia === '2026-09-27' && b.inicio === '20:00' && b.status === 'planejado')).toBe(true);
+  });
+
+  it('o bloco do assunto em andamento no cronômetro espera a sessão terminar', async () => {
+    const { repo, concursoId, disciplinaId } = await comPlano();
+    const vinte = repo.atual.blocos.find((b) => b.dia === '2026-09-27' && b.inicio === '20:00')!;
+    agora = new Date('2026-09-27T23:05:00Z'); // 20:05
+    await repo.iniciarSessao({ concursoId, disciplinaId, topicoId: vinte.topicoId, tipo: 'teoria' });
+    agora = new Date('2026-09-28T00:10:00Z'); // 21:10: o bloco das 20h já acabou
+    await repo.replanejar();
+    expect(repo.atual.blocos.find((b) => b.id === vinte.id)?.status).toBe('planejado');
+    await repo.finalizarSessao({ concursoId, disciplinaId, topicoId: vinte.topicoId, tipo: 'teoria' });
+    expect(repo.atual.blocos.find((b) => b.id === vinte.id)).toMatchObject({ status: 'feito', inicio: '20:00' });
+  });
+
   it('marcar bloco replaneja sozinho; replanejar do dia roda uma vez por dia', async () => {
     const { repo } = await comPlano();
     const antes = repo.atual.blocos.filter((b) => b.status === 'planejado').map((b) => b.id);

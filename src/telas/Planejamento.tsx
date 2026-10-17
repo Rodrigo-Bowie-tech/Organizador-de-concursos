@@ -21,6 +21,10 @@ const CHAVE_VISAO = 'organizador-concursos:visao-planejamento';
 const STATUS: Record<BlocoPlanejado['status'], string> = { planejado: 'Planejado', feito: 'Feito', parcial: 'Parcial', pulado: 'Pulado' };
 
 const capitalizar = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** Aviso depois de mover: o horário pedido podia já ter outro bloco. */
+const avisoDoMovimento = (pedido: string, usado: string) => (usado === pedido ? `Bloco movido para as ${usado}.` : `Bloco movido para as ${usado}: às ${pedido} já havia outro bloco.`);
+/** Minutos do dia de um `HH:mm`. */
+const emMinutos = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
 
 function lerCamadas(): Camadas {
   try {
@@ -92,8 +96,9 @@ function CartaoBloco({ b, sessoesDoDia, agora, aoAbrir, arrastavel }: { b: Bloco
         {nomeDoBloco(b, d)}
       </span>
       <span className="flex flex-wrap gap-1">
-        <span className="numeros rounded-full bg-superficie px-1.5 text-xs font-bold">{b.inicio}</span>
-        <span className="numeros rounded-full bg-superficie px-1.5 text-xs font-bold">{formatarDuracao(minutos(b) * 60)}</span>
+        <span className="numeros rounded-full bg-superficie px-1.5 text-xs font-bold">
+          {b.inicio}–{b.fim}
+        </span>
         {b.motivo === 'gestao' ? (
           <span className="numeros rounded-full bg-superficie px-1.5 text-xs font-bold text-roxo">{(b.tarefas ?? []).length}/5 tarefas</span>
         ) : (
@@ -115,8 +120,8 @@ function CartaoBloco({ b, sessoesDoDia, agora, aoAbrir, arrastavel }: { b: Bloco
 }
 
 function ModalBloco({ bloco, aoFechar }: { bloco: BlocoPlanejado | null; aoFechar: () => void }) {
-  const { dados, repo, executar, irPara } = useApp();
-  const { agora, porDia } = useDiaInfo();
+  const { dados, repo, executar, irPara, avisar } = useApp();
+  const { agora, hoje, porDia } = useDiaInfo();
   const [dia, setDia] = useState('');
   const [inicio, setInicio] = useState('');
   if (!bloco) return null;
@@ -149,11 +154,23 @@ function ModalBloco({ bloco, aoFechar }: { bloco: BlocoPlanejado | null; aoFecha
         </p>
         {bloco.revisoes && bloco.revisoes.length > 1 && (
           <div>
-            <p className="mb-1 font-bold">Revise neste bloco (cerca de 20 min cada):</p>
-            <ul className="list-disc pl-5 text-sm">
-              {titulosDasRevisoes(bloco, dados.disciplinas).map((titulo, i) => (
-                <li key={i}>{titulo}</li>
-              ))}
+            <p className="mb-1 font-bold">Revise neste bloco, uma de cada vez:</p>
+            <ul className="grid gap-1 text-sm">
+              {titulosDasRevisoes(bloco, dados.disciplinas).map((titulo, i, todas) => {
+                const passo = Math.floor(minutos(bloco) / todas.length);
+                const hora = (n: number) => {
+                  const m = emMinutos(bloco.inicio) + n * passo;
+                  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+                };
+                return (
+                  <li key={i} className="flex gap-2">
+                    <span className="numeros shrink-0 font-bold">
+                      {hora(i)}–{i === todas.length - 1 ? bloco.fim : hora(i + 1)}
+                    </span>
+                    <span>{titulo}</span>
+                  </li>
+                );
+              })}
             </ul>
             <p className="mt-1 text-xs text-suave">Avalie cada uma na tela Revisões para o app marcar a próxima.</p>
           </div>
@@ -201,15 +218,16 @@ function ModalBloco({ bloco, aoFechar }: { bloco: BlocoPlanejado | null; aoFecha
             className="flex flex-wrap items-end gap-2 border-t border-borda pt-4"
             onSubmit={async (e) => {
               e.preventDefault();
-              const ok = await executar(async () => {
-                await repo.moverBloco(bloco.id, dia || bloco.dia, inicio || bloco.inicio);
-                return true;
-              }, 'Bloco movido.');
-              if (ok) aoFechar();
+              const pedido = inicio || bloco.inicio;
+              const usado = await executar(() => repo.moverBloco(bloco.id, dia || (bloco.dia < hoje ? hoje : bloco.dia), pedido));
+              if (usado) {
+                avisar(avisoDoMovimento(pedido, usado));
+                aoFechar();
+              }
             }}
           >
             <Campo rotulo="Mover para o dia">
-              {(id) => <Entrada id={id} type="date" value={dia || bloco.dia} onChange={(e) => setDia(e.target.value)} />}
+              {(id) => <Entrada id={id} type="date" min={hoje} value={dia || (bloco.dia < hoje ? hoje : bloco.dia)} onChange={(e) => setDia(e.target.value)} />}
             </Campo>
             <Campo rotulo="Às">
               {(id) => <Entrada id={id} type="time" value={inicio || bloco.inicio} onChange={(e) => setInicio(e.target.value)} />}
@@ -232,34 +250,39 @@ function ItensDoDia({ dia, camadas, aoAbrir, arrastavel, compacto }: { dia: DiaI
   const sessoes = porDia.get(dia) ?? [];
   const blocos = blocosPorDia.get(dia) ?? [];
   const revisoes = camadas.revisoes ? revisoesDoDia(dia) : [];
+  // Blocos e sessões na ordem do relógio, cada um no seu horário (o bloco antes da sessão que começa junto).
+  const itens = [
+    ...(camadas.planejamento ? blocos.map((b) => ({ chave: `b${b.id}`, minuto: emMinutos(b.inicio), ordem: 0, bloco: b, sessao: null })) : []),
+    ...(camadas.historico ? sessoes.map((s) => ({ chave: `s${s.id}`, minuto: emMinutos(formatarHora(s.inicio)), ordem: 1, bloco: null, sessao: s })) : []),
+  ].sort((a, b) => a.minuto - b.minuto || a.ordem - b.ordem);
   return (
     <div className="grid grid-cols-1 content-start gap-1.5">
-      {camadas.planejamento && blocos.map((b) => <CartaoBloco key={b.id} b={b} sessoesDoDia={sessoes} agora={agora} aoAbrir={() => aoAbrir(b)} arrastavel={arrastavel} />)}
       {revisoes.map((r) => (
         <span key={r.id} className={cx('rounded-md px-2 py-1 text-xs font-bold', r.atrasada ? 'bg-alerta/15 text-alerta' : 'bg-roxo/10 text-roxo', r.feita && 'opacity-70')}>
           {r.feita ? 'Revisado' : r.atrasada ? 'Revisão atrasada' : 'Revisão'}: {r.titulo}
         </span>
       ))}
-      {camadas.historico &&
-        sessoes.map((s) => {
-          const d = dados.disciplinas.find((x) => x.id === s.disciplinaId);
-          return (
-            <span key={s.id} className="rounded-md border border-borda bg-superficie-2 px-2 py-1 text-xs text-suave">
-              <span className="numeros font-bold">
-                {formatarHora(s.inicio)} · {formatarDuracao(segundosLiquidos(s, agora))}
-              </span>{' '}
-              {d?.nome ?? 'Estudo'}
-              {!s.fim && ' (agora)'}
-            </span>
-          );
-        })}
-      {!compacto && !blocos.length && !revisoes.length && !sessoes.length && <span className="py-2 text-center text-xs text-suave">—</span>}
+      {itens.map(({ chave, bloco: b, sessao: s }) => {
+        if (b) return <CartaoBloco key={chave} b={b} sessoesDoDia={sessoes} agora={agora} aoAbrir={() => aoAbrir(b)} arrastavel={arrastavel} />;
+        const sessao = s as Sessao;
+        const d = dados.disciplinas.find((x) => x.id === sessao.disciplinaId);
+        return (
+          <span key={chave} className="rounded-md border border-borda bg-superficie-2 px-2 py-1 text-xs text-suave">
+            <span className="numeros font-bold">
+              {formatarHora(sessao.inicio)} · {formatarDuracao(segundosLiquidos(sessao, agora))}
+            </span>{' '}
+            {d?.nome ?? 'Estudo'}
+            {!sessao.fim && ' (agora)'}
+          </span>
+        );
+      })}
+      {!compacto && !itens.length && !revisoes.length && <span className="py-2 text-center text-xs text-suave">—</span>}
     </div>
   );
 }
 
 function VisaoSemana({ base: dataRef, camadas, aoAbrir }: { base: DiaISO; camadas: Camadas; aoAbrir: (b: BlocoPlanejado) => void }) {
-  const { repo, executar } = useApp();
+  const { repo, executar, avisar } = useApp();
   const { hoje } = useDiaInfo();
   const inicio = inicioDaSemana(dataRef);
   const dias = Array.from({ length: 7 }, (_, i) => somarDias(inicio, i));
@@ -268,7 +291,9 @@ function VisaoSemana({ base: dataRef, camadas, aoAbrir }: { base: DiaISO; camada
     const id = e.dataTransfer.getData('text/plain');
     if (!id) return;
     const b = repo.atual.blocos.find((x) => x.id === id);
-    if (b && b.dia !== dia) void executar(() => repo.moverBloco(id, dia, b.inicio), 'Bloco movido.');
+    if (b && b.dia !== dia) {
+      void executar(() => repo.moverBloco(id, dia, b.inicio)).then((usado) => usado && avisar(avisoDoMovimento(b.inicio, usado)));
+    }
   };
   return (
     <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0" tabIndex={0} role="region" aria-label="Semana (role para os lados)">
