@@ -711,7 +711,7 @@ export function blocosDoAssuntoDaSessao(s: Sessao, blocos: BlocoPlanejado[], dis
 
 /**
  * Blocos que uma sessão terminada risca: os planejados do mesmo assunto no dia em que ela começou (os
- * que caem no horário dela primeiro, depois os do mesmo tópico, depois os mais perto). O tempo da sessão
+ * que caem no horário dela primeiro, depois os do mesmo tópico, os do mesmo tipo e os mais perto). O tempo da sessão
  * cobre um bloco por vez, como em `statusSugerido` (≥ 75% feito, ≥ 25% parcial). O bloco que estava em
  * outro horário passa para o horário da sessão (cada bloco fica no horário em que foi feito), sem cair
  * sobre um bloco que já foi marcado; os planejados que ficarem por baixo saem no replanejamento.
@@ -727,6 +727,7 @@ export function blocosDaSessao(s: Sessao, blocos: BlocoPlanejado[], disciplinas:
       (a, b) =>
         naSessao(b) - naSessao(a) ||
         Number(doTopico(b)) - Number(doTopico(a)) ||
+        Number(b.tipo === s.tipo) - Number(a.tipo === s.tipo) ||
         Math.abs(instanteSP(a.dia, a.inicio).getTime() - ini) - Math.abs(instanteSP(b.dia, b.inicio).getTime() - ini),
     );
   const marcados = blocos.filter((b) => b.dia === dia && b.status !== 'planejado');

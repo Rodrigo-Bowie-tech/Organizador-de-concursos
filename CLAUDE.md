@@ -281,7 +281,8 @@ seed sozinho.
     horário que já tem um bloco que fica põe logo depois dele (o aviso diz o horário usado), nunca antes de
     agora nem num dia que já passou, e replaneja em seguida. Na tela, os blocos mostram início–fim e o dia
     lista blocos e sessões na ordem do relógio (revisões do dia, sem horário, no topo); o bloco de revisões
-    mostra o horário de cada uma;
+    mostra o horário de cada uma; o mini calendário e as agendas ficam ao lado só a partir de `2xl` (abaixo
+    disso, embaixo), para a semana ter largura;
   - terminar uma sessão (cronômetro ou registro manual) risca os blocos planejados do mesmo assunto no dia
     dela (`blocosDaSessao`): os que caem no horário da sessão primeiro, depois o mesmo tópico, depois o mais
     perto; o tempo cobre um bloco por vez (≥ 75% feito, ≥ 25% parcial) e o bloco que estava em outro horário

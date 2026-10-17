@@ -86,18 +86,19 @@ function CartaoBloco({ b, sessoesDoDia, agora, aoAbrir, arrastavel }: { b: Bloco
       onDragStart={(e) => e.dataTransfer.setData('text/plain', b.id)}
       aria-label={`${b.inicio} ${nomeDoBloco(b, d)}: ${t?.titulo ?? ''} (${STATUS[b.status]})`}
       className={cx(
-        'grid w-full gap-1 rounded-lg border-l-4 p-2 text-left text-sm transition hover:brightness-95',
+        'grid w-full min-w-0 gap-1 rounded-lg border-l-4 p-2 text-left text-sm transition hover:brightness-95',
         b.status === 'pulado' && 'border-dashed opacity-60',
       )}
       style={{ borderLeftColor: cor, background: feito ? 'var(--superficie-2)' : `color-mix(in srgb, ${cor} 16%, var(--superficie))` }}
     >
-      <span className={cx('flex items-start gap-1 font-bold leading-tight', feito && 'text-suave line-through')}>
+      <span className={cx('flex min-w-0 items-start gap-1 font-bold leading-tight hyphens-auto [overflow-wrap:anywhere]', feito && 'text-suave line-through')}>
         {feito && <Check size={15} className="mt-0.5 shrink-0 text-verde-forte" aria-hidden />}
         {nomeDoBloco(b, d)}
       </span>
       <span className="flex flex-wrap gap-1">
         <span className="numeros rounded-full bg-superficie px-1.5 text-xs font-bold">
-          {b.inicio}–{b.fim}
+          {b.inicio}–<wbr />
+          {b.fim}
         </span>
         {b.motivo === 'gestao' ? (
           <span className="numeros rounded-full bg-superficie px-1.5 text-xs font-bold text-roxo">{(b.tarefas ?? []).length}/5 tarefas</span>
@@ -267,7 +268,7 @@ function ItensDoDia({ dia, camadas, aoAbrir, arrastavel, compacto }: { dia: DiaI
         const sessao = s as Sessao;
         const d = dados.disciplinas.find((x) => x.id === sessao.disciplinaId);
         return (
-          <span key={chave} className="rounded-md border border-borda bg-superficie-2 px-2 py-1 text-xs text-suave">
+          <span key={chave} className="min-w-0 rounded-md border border-borda bg-superficie-2 px-2 py-1 text-xs text-suave hyphens-auto [overflow-wrap:anywhere]">
             <span className="numeros font-bold">
               {formatarHora(sessao.inicio)} · {formatarDuracao(segundosLiquidos(sessao, agora))}
             </span>{' '}
@@ -475,7 +476,8 @@ export function Planejamento() {
       ) : (
         <>
         <AvisosPlano />
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_17rem]">
+        {/* O calendário lateral só fica ao lado em telas bem largas: a semana precisa de espaço para cada bloco. */}
+        <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[1fr_17rem]">
           <Cartao className="min-w-0">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-1">
@@ -531,7 +533,7 @@ export function Planejamento() {
             )}
           </Cartao>
 
-          <Cartao className="grid grid-cols-1 content-start gap-5">
+          <Cartao className="grid grid-cols-1 content-start gap-5 sm:grid-cols-[17rem_1fr] 2xl:grid-cols-1">
             <MiniCalendario base={dataRef} aoEscolher={setDataRef} />
             <div>
               <p className="mb-2 text-sm font-extrabold tracking-wide text-suave uppercase">Minhas agendas</p>

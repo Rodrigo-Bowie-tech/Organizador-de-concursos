@@ -261,6 +261,15 @@ describe('realizado × planejado', () => {
       expect(m[0]).toEqual({ ...naHora[0], status: 'feito' });
     });
 
+    it('a sessão de teoria risca primeiro o bloco de teoria do tópico, mesmo com a revisão dele mais perto', () => {
+      const comRevisao = [
+        bloco('rev-rl1', '07:00', '07:30', { tipo: 'revisao', motivo: 'revisao' }),
+        bloco('teo-rl1', '21:00', '22:00', { tipo: 'teoria', motivo: 'teoria' }),
+      ];
+      const m = blocosDaSessao(sessao(65, { tipo: 'teoria' }), comRevisao, discs, Date.parse('2026-10-16T13:00:00Z'));
+      expect(m.map((b) => [b.id, b.status])).toEqual([['teo-rl1', 'feito']]); // sobram 5 min: pouco para a revisão
+    });
+
     it('sem assunto, nada é riscado', () => {
       expect(blocosDaSessao(sessao(65, { disciplinaId: null, topicoId: null }), blocos, discs, Date.parse('2026-10-16T13:00:00Z'))).toEqual([]);
     });
