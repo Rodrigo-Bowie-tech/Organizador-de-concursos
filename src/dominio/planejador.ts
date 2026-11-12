@@ -694,6 +694,11 @@ export function horarioLivre(ocupados: Pick<BlocoHorario, 'inicio' | 'fim'>[], i
  * Blocos de estudo ainda planejados do assunto da sessão (pela disciplina, ou pelos tópicos de uma
  * revisão) no dia em que ela começou.
  */
+/** O bloco de estudo ainda planejado a que a sessão foi ligada (`blocoId`), em qualquer dia. */
+export function blocoLigadoASessao(s: Pick<Sessao, 'blocoId'>, blocos: BlocoPlanejado[]): BlocoPlanejado | undefined {
+  return s.blocoId ? blocos.find((b) => b.id === s.blocoId && b.status === 'planejado' && blocoDeEstudo(b)) : undefined;
+}
+
 export function blocosDoAssuntoDaSessao(s: Sessao, blocos: BlocoPlanejado[], disciplinas: Disciplina[]): BlocoPlanejado[] {
   const disciplinaDoTopico = new Map<Id, Id>();
   for (const d of disciplinas) for (const id of Object.keys(d.topicos)) disciplinaDoTopico.set(id, d.id);
@@ -710,8 +715,9 @@ export function blocosDoAssuntoDaSessao(s: Sessao, blocos: BlocoPlanejado[], dis
 }
 
 /**
- * Blocos que uma sessão terminada risca: os planejados do mesmo assunto no dia em que ela começou (os
- * que caem no horário dela primeiro, depois os do mesmo tópico, os do mesmo tipo e os mais perto). O tempo da sessão
+ * Blocos que uma sessão terminada risca: primeiro o bloco ligado a ela (`blocoId`, de qualquer dia), depois
+ * os planejados do mesmo assunto no dia em que ela começou (os que caem no horário dela primeiro, depois
+ * os do mesmo tópico, os do mesmo tipo e os mais perto). O tempo da sessão
  * cobre um bloco por vez, como em `statusSugerido` (≥ 75% feito, ≥ 25% parcial). O bloco que estava em
  * outro horário passa para o horário da sessão (cada bloco fica no horário em que foi feito), sem cair
  * sobre um bloco que já foi marcado; os planejados que ficarem por baixo saem no replanejamento.
@@ -723,13 +729,15 @@ export function blocosDaSessao(s: Sessao, blocos: BlocoPlanejado[], disciplinas:
   const fim = s.fim ? Date.parse(s.fim) : Number(agora);
   const naSessao = (b: BlocoPlanejado) => Math.max(0, Math.min(fim, instanteSP(b.dia, b.fim).getTime()) - Math.max(ini, instanteSP(b.dia, b.inicio).getTime()));
   const doTopico = (b: BlocoPlanejado) => Boolean(s.topicoId) && (b.topicoId === s.topicoId || (b.revisoes ?? []).includes(s.topicoId as Id));
-  const candidatos = blocosDoAssuntoDaSessao(s, blocos, disciplinas).sort(
+  const ligado = blocoLigadoASessao(s, blocos);
+  const doAssunto = blocosDoAssuntoDaSessao(s, blocos, disciplinas).filter((b) => b.id !== ligado?.id).sort(
       (a, b) =>
         naSessao(b) - naSessao(a) ||
         Number(doTopico(b)) - Number(doTopico(a)) ||
         Number(b.tipo === s.tipo) - Number(a.tipo === s.tipo) ||
         Math.abs(instanteSP(a.dia, a.inicio).getTime() - ini) - Math.abs(instanteSP(b.dia, b.inicio).getTime() - ini),
     );
+  const candidatos = ligado ? [ligado, ...doAssunto] : doAssunto;
   const marcados = blocos.filter((b) => b.dia === dia && b.status !== 'planejado');
   const mudados: BlocoPlanejado[] = [];
   let resta = segundosLiquidos(s, agora);
@@ -742,7 +750,7 @@ export function blocosDaSessao(s: Sessao, blocos: BlocoPlanejado[], disciplinas:
     if (!naSessao(b)) {
       const inicio = horarioLivre([...marcados, ...mudados], cursor, minutos(b));
       if (inicio) {
-        novo = { ...novo, inicio, fim: paraHora(paraMin(inicio) + minutos(b)) };
+        novo = { ...novo, dia, inicio, fim: paraHora(paraMin(inicio) + minutos(b)) };
         cursor = novo.fim;
       }
     }

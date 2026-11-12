@@ -193,7 +193,9 @@ function ModalBloco({ bloco, aoFechar }: { bloco: BlocoPlanejado | null; aoFecha
               disabled={Boolean(dados.ativa)}
               title={dados.ativa ? 'Já existe uma sessão em andamento' : undefined}
               onClick={async () => {
-                const s = await executar(() => repo.iniciarSessao({ concursoId: bloco.concursoId, disciplinaId: bloco.disciplinaId, topicoId: bloco.topicoId, tipo: tipoSessao }));
+                const s = await executar(() =>
+                  repo.iniciarSessao({ concursoId: bloco.concursoId, disciplinaId: bloco.disciplinaId, topicoId: bloco.topicoId, tipo: tipoSessao, blocoId: bloco.id }),
+                );
                 if (s) {
                   aoFechar();
                   irPara('cronometro');

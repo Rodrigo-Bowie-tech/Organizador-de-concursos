@@ -286,7 +286,10 @@ seed sozinho.
   - terminar uma sessão (cronômetro ou registro manual) risca os blocos planejados do mesmo assunto no dia
     dela (`blocosDaSessao`): os que caem no horário da sessão primeiro, depois o mesmo tópico, depois o mais
     perto; o tempo cobre um bloco por vez (≥ 75% feito, ≥ 25% parcial) e o bloco que estava em outro horário
-    vai para o horário da sessão. O horário que ele liberou volta para o plano.
+    vai para o horário da sessão. O horário que ele liberou volta para o plano. A sessão pode ser ligada a um
+    bloco (`Sessao.blocoId`: "Começar" no bloco ou "Trocar tópico, tipo ou bloco" no cronômetro, sem mexer no
+    início nem nas pausas); o ligado vira `fixo`, é o primeiro riscado, de qualquer dia, e vem para o dia e o
+    horário da sessão (12/11, a pedido do usuário: uma revisão de vários assuntos não tinha como ser riscada).
 - **Adaptação** (Fase 4, `dominio/adaptacao.ts`): replaneja ao finalizar/registrar sessão, ao marcar bloco, ao
   lançar ou importar questões (inclusive prova ou caderno refeito), ao salvar ou excluir simulado e na primeira
   abertura do dia (`replanejarDoDia` em `main.tsx`). Capacidade real = média dos últimos 14 dias

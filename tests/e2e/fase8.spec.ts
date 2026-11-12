@@ -49,7 +49,7 @@ test('cronômetro: espaço pausa e retoma, mas não dentro de um campo', async (
   await page.keyboard.press('Space');
   await expect(page.getByText('Estudando')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Trocar tópico ou tipo' }).click().catch(() => undefined);
+  await page.getByRole('button', { name: 'Trocar tópico, tipo ou bloco' }).click();
   const campo = page.locator('select, input').first();
   if (await campo.count()) {
     await campo.focus();

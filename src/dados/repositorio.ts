@@ -155,6 +155,8 @@ export interface DetalhesSessao {
   paginas?: number;
   anotacoes?: string;
   concluiuTeoria?: boolean;
+  /** Bloco do plano que a sessão cumpre (ver `Sessao.blocoId`). */
+  blocoId?: Id | null;
 }
 
 export function novoId(): Id {
@@ -961,6 +963,7 @@ export class Repositorio {
     const agora = this.relogio().getTime();
     const ativa = this.dados.ativa;
     const esperam = new Set(ativa ? blocosDoAssuntoDaSessao(ativa, this.dados.blocos, this.dados.disciplinas).map((b) => b.id) : []);
+    if (ativa?.blocoId) esperam.add(ativa.blocoId);
     return this.dados.blocos.filter((b) => {
       if (b.status !== 'planejado') return false;
       if (!b.fixo && instanteSP(b.dia, b.inicio).getTime() >= agora) return true;
@@ -1253,10 +1256,18 @@ export class Repositorio {
       anotacoes: '',
       origem: 'cronometro',
       concluiuTeoria: false,
+      ...(d.blocoId ? { blocoId: d.blocoId } : {}),
     };
     await this.store.definir('estado/cronometro', { sessao: s as unknown as Json });
+    await this.fixarBlocoLigado(s.blocoId);
     await this.avancarStatus(d.disciplinaId, d.topicoId, 'em_estudo');
     return s;
+  }
+
+  /** O bloco ligado à sessão vira compromisso (`fixo`): o replanejamento não o troca enquanto ela corre. */
+  private async fixarBlocoLigado(id: Id | null | undefined): Promise<void> {
+    const b = id ? this.dados.blocos.find((x) => x.id === id) : undefined;
+    if (b && b.status === 'planejado' && !b.fixo) await this.gravarItemSemanal('plano', inicioDaSemana(b.dia), { ...b, fixo: true } as BlocoPlanejado);
   }
 
   private ativaOuFalha(): Sessao {
@@ -1275,9 +1286,12 @@ export class Repositorio {
   }
 
   /** Troca tópico ou tipo sem parar o relógio. */
+  /** Troca assunto, tipo ou bloco da sessão em andamento; o tempo (início e pausas) continua o mesmo. */
   async atualizarSessaoAtiva(d: Partial<DetalhesSessao>): Promise<void> {
-    const s = { ...this.ativaOuFalha(), ...d };
+    const s: Sessao = { ...this.ativaOuFalha(), ...d };
+    if (!s.blocoId) delete s.blocoId;
     await this.store.definir('estado/cronometro', { sessao: s as unknown as Json });
+    await this.fixarBlocoLigado(s.blocoId);
     await this.avancarStatus(s.disciplinaId, s.topicoId, 'em_estudo');
   }
 

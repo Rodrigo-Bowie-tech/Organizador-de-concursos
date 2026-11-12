@@ -270,6 +270,16 @@ describe('realizado × planejado', () => {
       expect(m.map((b) => [b.id, b.status])).toEqual([['teo-rl1', 'feito']]); // sobram 5 min: pouco para a revisão
     });
 
+    it('o bloco ligado à sessão é riscado primeiro, mesmo sem assunto e de outro dia, e vem para o horário dela', () => {
+      const revisaoDeAmanha = bloco('rev-amanha', '09:00', '10:00', { dia: '2026-10-17', disciplinaId: null, topicoId: null, tipo: 'revisao', motivo: 'revisao', revisoes: ['pt1', 'rl2'] });
+      const semAssunto = sessao(65, { disciplinaId: null, topicoId: null, tipo: 'revisao', blocoId: 'rev-amanha' });
+      const m = blocosDaSessao(semAssunto, [...blocos, revisaoDeAmanha], discs, Date.parse('2026-10-16T13:00:00Z'));
+      expect(m).toEqual([{ ...revisaoDeAmanha, status: 'feito', dia: '2026-10-16', inicio: '08:39', fim: '09:39' }]);
+      // Com assunto, depois do ligado vêm os do assunto no dia (aqui sobra pouco tempo: só o ligado).
+      const comAssunto = blocosDaSessao({ ...semAssunto, disciplinaId: 'rl', topicoId: 'rl1' }, [...blocos, revisaoDeAmanha], discs, Date.parse('2026-10-16T13:00:00Z'));
+      expect(comAssunto.map((b) => b.id)).toEqual(['rev-amanha']);
+    });
+
     it('sem assunto, nada é riscado', () => {
       expect(blocosDaSessao(sessao(65, { disciplinaId: null, topicoId: null }), blocos, discs, Date.parse('2026-10-16T13:00:00Z'))).toEqual([]);
     });

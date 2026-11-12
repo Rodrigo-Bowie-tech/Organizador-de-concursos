@@ -158,6 +158,11 @@ export interface Sessao {
   origem: 'cronometro' | 'manual' | 'pratica_ia';
   /** Marcado no fechamento: "concluí a teoria deste tópico". */
   concluiuTeoria: boolean;
+  /**
+   * Bloco do plano que a sessão cumpre (começada pelo bloco ou ligada no cronômetro): ao terminar,
+   * é o primeiro que ela risca, em qualquer dia, e vai para o horário em que foi feito.
+   */
+  blocoId?: Id | null;
 }
 
 export interface ConfigPomodoro {

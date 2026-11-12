@@ -482,6 +482,24 @@ describe('adaptação no repositório (Fase 4)', () => {
     expect(repo.atual.blocos.some((b) => b.dia === '2026-09-27' && b.inicio === '20:00' && b.status === 'planejado')).toBe(true);
   });
 
+  it('ligar o cronômetro a um bloco não muda o tempo; ao terminar, o bloco é riscado e vem para o horário da sessão', async () => {
+    const { repo, concursoId } = await comPlano(); // domingo, 09:00
+    const amanha = repo.atual.blocos.find((b) => b.dia === '2026-09-28' && b.inicio === '20:00')!;
+    await repo.iniciarSessao({ concursoId, disciplinaId: null, topicoId: null, tipo: 'revisao' });
+    avancar(20);
+    await repo.pausarSessao();
+    avancar(10);
+    await repo.retomarSessao();
+    const antes = { ...repo.atual.ativa! };
+    await repo.atualizarSessaoAtiva({ blocoId: amanha.id });
+    expect(repo.atual.ativa).toMatchObject({ inicio: antes.inicio, pausas: antes.pausas, blocoId: amanha.id });
+    await repo.replanejar(); // o bloco ligado não sai do plano enquanto a sessão corre
+    expect(repo.atual.blocos.find((b) => b.id === amanha.id)?.status).toBe('planejado');
+    avancar(30);
+    await repo.finalizarSessao({ concursoId, disciplinaId: null, topicoId: null, tipo: 'revisao' });
+    expect(repo.atual.blocos.find((b) => b.id === amanha.id)).toMatchObject({ status: 'feito', dia: '2026-09-27', inicio: '09:00', fim: '10:00' });
+  });
+
   it('o bloco do assunto em andamento no cronômetro espera a sessão terminar', async () => {
     const { repo, concursoId, disciplinaId } = await comPlano();
     const vinte = repo.atual.blocos.find((b) => b.dia === '2026-09-27' && b.inicio === '20:00')!;

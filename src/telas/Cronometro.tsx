@@ -4,15 +4,27 @@ import { CamposEstudo } from '../componentes/CamposSessao';
 import { ListaMateriais, materiaisDe } from '../componentes/Materiais';
 import { BotaoPraticar } from '../componentes/PraticaIA';
 import { ModalFinalizar, ModalSessao } from '../componentes/ModaisSessao';
-import { Botao, Cartao, Confirmar, Etiqueta, Progresso, cx } from '../componentes/ui';
+import { Botao, Campo, Cartao, Confirmar, Etiqueta, Progresso, Selecao, cx } from '../componentes/ui';
 import type { DetalhesSessao } from '../dados/repositorio';
 import { estadoDaSessao, fasePomodoro, segundosDePausa, segundosLiquidos } from '../dominio/cronometro';
-import { formatarDuracao, formatarHora, formatarRelogio } from '../dominio/datas';
-import { TIPO_SESSAO } from '../dominio/rotulos';
+import { formatarData, formatarDuracao, formatarHora, formatarRelogio, nomeDiaCurto, somarDias } from '../dominio/datas';
+import { hojeSP } from '../dominio/painel';
+import { blocoDeEstudo } from '../dominio/planejador';
+import { TIPO_SESSAO, nomeDoBloco, titulosDasRevisoes } from '../dominio/rotulos';
+import type { BlocoPlanejado, Disciplina } from '../dominio/tipos';
 import { useAgora, useApp } from '../estado';
 import { manterTelaAcesa, prepararAudio } from '../plataforma';
 
 const FASES = { foco: 'Foco', pausa_curta: 'Pausa curta', pausa_longa: 'Pausa longa' };
+
+/** "sex 13/11 09:00–10:00 · Revisões: Luminotécnica, …" */
+function rotuloDoBloco(b: BlocoPlanejado, disciplinas: Disciplina[]): string {
+  const d = disciplinas.find((x) => x.id === b.disciplinaId);
+  const t = d && b.topicoId ? d.topicos[b.topicoId] : undefined;
+  const detalhe = t?.titulo ?? titulosDasRevisoes(b, disciplinas).join(', ');
+  const texto = `${nomeDiaCurto(b.dia)} ${formatarData(b.dia).slice(0, 5)} ${b.inicio}–${b.fim} · ${nomeDoBloco(b, d)}${detalhe ? `: ${detalhe}` : ''}`;
+  return texto.length > 110 ? `${texto.slice(0, 107)}…` : texto;
+}
 
 export function Cronometro() {
   const { dados, repo, executar, concursoAtivo, disciplinas } = useApp();
@@ -65,6 +77,7 @@ export function Cronometro() {
   const fase = ativa && pomodoro.ativo ? fasePomodoro(ativa, pomodoro, agora) : null;
   const disciplina = ativa ? dados.disciplinas.find((d) => d.id === ativa.disciplinaId) : null;
   const topico = ativa && disciplina && ativa.topicoId ? disciplina.topicos[ativa.topicoId] : null;
+  const blocoLigado = ativa?.blocoId ? dados.blocos.find((b) => b.id === ativa.blocoId) : undefined;
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
@@ -99,9 +112,14 @@ export function Cronometro() {
             <p className="text-sm text-suave">
               {topico ? topico.titulo : 'Disciplina inteira'} · {TIPO_SESSAO[ativa.tipo]}
             </p>
+            {blocoLigado && (
+              <p className="mt-1 text-sm">
+                <span className="font-bold">Bloco do plano:</span> {rotuloDoBloco(blocoLigado, dados.disciplinas)}
+              </p>
+            )}
             {!trocando && (
               <button type="button" className="mt-1 text-sm font-bold text-verde-forte underline" onClick={() => setTrocando(true)}>
-                Trocar tópico ou tipo
+                Trocar tópico, tipo ou bloco
               </button>
             )}
           </div>
@@ -144,7 +162,7 @@ export function Cronometro() {
       </Cartao>
 
       {(!ativa || trocando) && (
-        <Cartao titulo={ativa ? 'Trocar tópico ou tipo' : 'O que você vai estudar?'}>
+        <Cartao titulo={ativa ? 'Trocar tópico, tipo ou bloco' : 'O que você vai estudar?'}>
           {ativa ? (
             <TrocarEstudo aoFechar={() => setTrocando(false)} />
           ) : (
@@ -236,11 +254,36 @@ function TrocarEstudo({ aoFechar }: { aoFechar: () => void }) {
   const { dados, repo, executar } = useApp();
   const ativa = dados.ativa;
   const [valor, setValor] = useState<DetalhesSessao | null>(() =>
-    ativa ? { concursoId: ativa.concursoId, disciplinaId: ativa.disciplinaId, topicoId: ativa.topicoId, tipo: ativa.tipo } : null,
+    ativa ? { concursoId: ativa.concursoId, disciplinaId: ativa.disciplinaId, topicoId: ativa.topicoId, tipo: ativa.tipo, blocoId: ativa.blocoId ?? null } : null,
   );
   if (!ativa || !valor) return null;
+  // Blocos de estudo ainda planejados, de hoje até daqui a uma semana (e o já ligado, se for outro).
+  const hoje = hojeSP(Date.now());
+  const ate = somarDias(hoje, 7);
+  const opcoes = dados.blocos
+    .filter((b) => (b.status === 'planejado' && blocoDeEstudo(b) && b.dia >= hoje && b.dia <= ate) || b.id === valor.blocoId)
+    .sort((a, b) => (a.dia + a.inicio).localeCompare(b.dia + b.inicio));
+  const escolherBloco = (id: string) => {
+    const b = dados.blocos.find((x) => x.id === id);
+    // Bloco de um assunto só: a sessão passa a ser dele. Bloco de revisões variadas: o assunto fica como está.
+    if (b?.disciplinaId && b.tipo !== 'gestao' && b.tipo !== 'simulado') {
+      setValor({ ...valor, blocoId: id, concursoId: b.concursoId, disciplinaId: b.disciplinaId, topicoId: b.topicoId, tipo: b.tipo });
+    } else setValor({ ...valor, blocoId: id || null });
+  };
   return (
     <div className="grid grid-cols-1 gap-4">
+      <Campo rotulo="Bloco do plano" dica="Ao terminar, a sessão risca este bloco e o põe no horário em que você estudou. O tempo do cronômetro continua o mesmo.">
+        {(id) => (
+          <Selecao id={id} value={valor.blocoId ?? ''} onChange={(e) => escolherBloco(e.target.value)}>
+            <option value="">Nenhum (risca os blocos do mesmo assunto no dia)</option>
+            {opcoes.map((b) => (
+              <option key={b.id} value={b.id}>
+                {rotuloDoBloco(b, dados.disciplinas)}
+              </option>
+            ))}
+          </Selecao>
+        )}
+      </Campo>
       <CamposEstudo valor={valor} aoMudar={setValor} />
       <div className="flex justify-end gap-2">
         <Botao variante="secundario" onClick={aoFechar}>
