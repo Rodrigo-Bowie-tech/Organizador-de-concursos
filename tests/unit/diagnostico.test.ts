@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { todasAsQuestoes } from '../../src/dominio/desempenho';
 import {
+  chanceDeErro,
   diagnosticoPorAssunto,
   minutosNoPlano,
   relevanciaPorTopico,
@@ -58,6 +59,34 @@ describe('relevância: o quanto estudar segue a incidência na prova', () => {
     expect(r.get('a')).toBeCloseTo(2); // fatores 2, 1 e 1: 4 × 2/4
     expect(r.get('b')).toBeCloseTo(1);
     expect(r.get('c')).toBeCloseTo(1);
+  });
+});
+
+describe('chance de errar: teoria, simulados e questões, com esquecimento', () => {
+  const hoje = '2026-11-13';
+  it('sem questões, vem do estado da teoria: nunca estudado erra mais que dominado', () => {
+    const r = chanceDeErro({ disciplinas: [disciplina('nova', [topico('a')]), disciplina('sabida', [topico('b', { status: 'dominado' })])], simulados: [], questoes: [], hoje });
+    expect(r.get('nova')).toBeCloseTo(0.65);
+    expect(r.get('sabida')).toBeCloseTo(0.15);
+  });
+
+  it('o simulado puxa a estimativa; o resultado antigo pesa menos (meia-vida de 30 dias)', () => {
+    const discs = [disciplina('orc', [topico('o', { status: 'em_estudo' })])];
+    const zerou = (dia: string) => simulado(dia, [['orc', 0, 4]]);
+    const recente = chanceDeErro({ disciplinas: discs, simulados: [zerou('2026-11-13')], questoes: [], hoje }).get('orc')!;
+    const antigo = chanceDeErro({ disciplinas: discs, simulados: [zerou('2026-10-14')], questoes: [], hoje }).get('orc')!;
+    expect(recente).toBeCloseTo(1 - (0.55 * 2) / (2 + 4)); // 4 erros valendo inteiro
+    expect(antigo).toBeCloseTo(1 - (0.55 * 2) / (2 + 2)); // 30 dias: valem metade
+    expect(recente).toBeGreaterThan(antigo);
+    // Gabaritar há muito tempo e não praticar volta a ficar incerto: o acerto antigo também pesa menos.
+    const gabaritou = (dia: string) => chanceDeErro({ disciplinas: discs, simulados: [simulado(dia, [['orc', 4, 4]])], questoes: [], hoje }).get('orc')!;
+    expect(gabaritou('2026-09-14')).toBeGreaterThan(gabaritou('2026-11-13'));
+  });
+
+  it('questões de treino contam metade de uma de simulado', () => {
+    const discs = [disciplina('rl', [topico('r', { status: 'revisado' })])];
+    const q = todasAsQuestoes([], [registro('rl', 'r', 10, 4)]).map((x) => ({ ...x, dia: hoje }));
+    expect(chanceDeErro({ disciplinas: discs, simulados: [], questoes: q, hoje }).get('rl')).toBeCloseTo(1 - (0.75 * 2 + 4 * 0.5) / (2 + 10 * 0.5));
   });
 });
 

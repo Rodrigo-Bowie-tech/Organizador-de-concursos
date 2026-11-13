@@ -448,6 +448,35 @@ describe('cronograma por assuntos: rodízio, simulados e horizonte', () => {
     expect(q[0].disciplinaId).toBe('rl');
   });
 
+  it('com a chance de errar, o assunto que mais se erra leva mais horas que outro que cai o mesmo tanto', () => {
+    const pronto = (id: string, ordem: number) => ({
+      ...disciplina(id, 'embu', 1, 2, [topico(`${id}1`, { status: 'revisado' }), topico(`${id}2`, { status: 'revisado', ordem: 1 })]),
+      ordem,
+    });
+    const discs = [pronto('fraco', 0), pronto('forte', 1)];
+    const p = gerarPlano(base({ disciplinas: discs, horizonteDias: 28, relevancia: relevanciaPorTopico(discs), risco: new Map([['fraco', 0.7], ['forte', 0.1]]) }));
+    const conta = (id: string) => p.filter((b) => b.disciplinaId === id).length;
+    // Pesos 0,5 + 0,7 = 1,2 e 0,5 + 0,1 = 0,6: o fraco fica com o dobro dos blocos, e o forte não some.
+    expect(conta('fraco') / conta('forte')).toBeGreaterThan(1.7);
+    expect(conta('forte')).toBeGreaterThan(0);
+    // Sem a chance de errar, os dois ficam iguais.
+    const q = gerarPlano(base({ disciplinas: discs, horizonteDias: 28, relevancia: relevanciaPorTopico(discs) }));
+    expect(Math.abs(q.filter((b) => b.disciplinaId === 'fraco').length - q.filter((b) => b.disciplinaId === 'forte').length)).toBeLessThanOrEqual(1);
+  });
+
+  it('tópico já estudado ganha questões antes de concluir a teoria; na última semana, só questões', () => {
+    const discs = [{ ...disciplina('bt', 'embu', 1, 4, [topico('bt1', { status: 'em_estudo', blocosTeoria: 6 }), topico('bt2', { ordem: 1, blocosTeoria: 6 })]), ordem: 0 }];
+    const feitos = new Map([['bt1', 1]]);
+    const p = gerarPlano(base({ disciplinas: discs, horizonteDias: 14, relevancia: relevanciaPorTopico(discs), feitos }));
+    expect(p.some((b) => b.motivo === 'questoes' && b.topicoId === 'bt1')).toBe(true);
+    expect(p.some((b) => b.motivo === 'questoes' && b.topicoId === 'bt2')).toBe(false); // nunca estudado: ainda não
+    expect(p.filter((b) => b.motivo === 'teoria').length).toBeGreaterThan(p.filter((b) => b.motivo === 'questoes').length);
+    // Prova em 5 dias: nada de teoria nova, só questões do que já foi visto.
+    const final = gerarPlano(base({ concursos: [concurso('embu', '2026-10-03', 5)], disciplinas: discs, relevancia: relevanciaPorTopico(discs), feitos }));
+    expect(final.length).toBeGreaterThan(0);
+    expect(final.filter((b) => b.motivo !== 'gestao').every((b) => b.motivo === 'questoes' && b.topicoId === 'bt1')).toBe(true);
+  });
+
   it('entre concursos, a prova mais próxima e de maior prioridade não perde o tempo para a que tem mais questões', () => {
     // Embu (prova em 06/12, prioridade 5) com 20 questões; Câmara (prova em 2027, prioridade 1) com 80.
     const embu = { ...disciplina('emb', 'embu', 1, 20, [topico('e1', { status: 'revisado' }), topico('e2', { status: 'revisado', ordem: 1 })]), ordem: 0 };

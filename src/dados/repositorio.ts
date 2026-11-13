@@ -30,7 +30,7 @@ import type { ItensPorUf } from '../radar/radar';
 import { chavePar, topicosDaImportacao } from '../dominio/edital';
 import { capacidadeParaPlano, capacidadeReal } from '../dominio/adaptacao';
 import { revisarErro, todasAsQuestoes } from '../dominio/desempenho';
-import { diagnosticoPorAssunto, relevanciaPorTopico } from '../dominio/diagnostico';
+import { chanceDeErro, diagnosticoPorAssunto, relevanciaPorTopico } from '../dominio/diagnostico';
 import { acertoRecente, blocoDeEstudo, blocosDaSessao, blocosDoAssuntoDaSessao, DISPONIBILIDADE_VAZIA, gerarPlano, horarioLivre, minutos } from '../dominio/planejador';
 import type { DisciplinaImportada } from '../dominio/edital';
 import { lerLote, topicosDoLote } from '../dominio/lote';
@@ -769,8 +769,10 @@ export class Repositorio {
       ultimoEstudo: this.ultimoEstudoDeTeoria(),
       simulados: this.dados.simulados,
       feitos: this.blocosFeitos(),
-      // Quanto cada assunto aparece segue a incidência na prova; o desempenho só ordena.
+      // Quanto cada assunto aparece segue a incidência na prova...
       relevancia: relevanciaPorTopico(disciplinas),
+      // ...ajustada pela chance de errar cada assunto hoje (simulados e questões, com esquecimento).
+      risco: chanceDeErro({ disciplinas, simulados: this.dados.simulados, questoes: todasAsQuestoes(this.dados.sessoes, this.dados.registrosQuestoes), hoje: diaSP(agora) }),
       usoRecente: this.usoRecenteDoAssunto(),
       ultimaQuestao: this.ultimaQuestaoPorTopico(),
       novoId,

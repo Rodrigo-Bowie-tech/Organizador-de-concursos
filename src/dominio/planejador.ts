@@ -276,6 +276,11 @@ export interface EntradaPlano {
   relevancia?: Map<Id, number>;
   /** Minutos estudados em cada disciplina nos últimos 14 dias: o plano continua de onde parou. */
   usoRecente?: Map<Id, number>;
+  /**
+   * Chance de errar o assunto hoje (0 a 1, `chanceDeErro` em dominio/diagnostico.ts). No plano pela
+   * relevância, o peso do assunto vira incidência × (0,5 + chance de errar): os pontos em risco.
+   */
+  risco?: Map<Id, number>;
   /** Últimas questões de cada tópico (instante ISO): o rodízio das questões continua de onde parou. */
   ultimaQuestao?: Map<Id, string>;
   novoId: () => Id;
@@ -324,13 +329,16 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
     }
   }
   // Tópicos concluídos, candidatos a blocos de questões (pior acerto primeiro). Os "dominados"
-  // ficam de fora, a não ser que o último simulado da disciplina tenha ficado abaixo de 70%.
+  // ficam de fora, a não ser que o último simulado da disciplina tenha ficado abaixo de 70%. Pela
+  // relevância, também os tópicos já estudados (pelo menos um bloco de teoria), mesmo sem a teoria
+  // concluída: questão é o que mostra o erro e segura o esquecimento.
   const fracaNoSimulado = (d: Disciplina) => (ajustes.get(d.id)?.taxa ?? 1) < 0.7;
+  const jaVisto = (t: Topico) => topicoConcluido(t) || (Boolean(e.relevancia) && (e.feitos?.get(t.id) ?? 0) >= 1);
   const paraQuestoes = e.disciplinas
     .filter((d) => ativos.has(d.concursoId))
     .flatMap((d) =>
       topicosFolha(d.topicos)
-        .filter((t) => topicoConcluido(t) && !t.cortado && (t.status !== 'dominado' || fracaNoSimulado(d)))
+        .filter((t) => jaVisto(t) && !t.cortado && (t.status !== 'dominado' || fracaNoSimulado(d)))
         .map((t) => ({ d, t, aPartirDe: hoje })),
     )
     .sort(
@@ -436,7 +444,8 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
   // fica para o fim da fila. Até 2 blocos seguidos do mesmo assunto quando há outro (mais, só para
   // quem merece mais de 2/3 do tempo).
   // Peso = relevância dos tópicos que ainda recebem estudo (teoria pela frente ou questões; dominados
-  // e cortados não) × peso do concurso × atraso da teoria (piso de cobertura, abaixo). Dentro do
+  // e cortados não) × (0,5 + chance de errar, com `risco`) × peso do concurso × atraso da teoria
+  // (piso de cobertura, abaixo). Dentro do
   // assunto, teoria primeiro, com 20% de questões dos tópicos já vistos; terminada a teoria, questões.
   // Todos os assuntos entram ao mesmo tempo (o rodízio entre N, `intercalar`, fica para o caminho sem relevância).
   const pesoDoAssunto = new Map<Id, number>();
@@ -444,7 +453,9 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
     const recebem = new Set<Id>([...restantes.map((i) => i.topico.id), ...paraQuestoes.map((q) => q.t.id)]);
     for (const d of e.disciplinas) {
       const p = Object.values(d.topicos).reduce((t, x) => t + (recebem.has(x.id) ? relevancia(x) : 0), 0);
-      if (p > 0) pesoDoAssunto.set(d.id, p);
+      // Pontos em risco: o que mais cai e mais se erra (ou se esqueceu) leva mais horas.
+      const risco = e.risco ? 0.5 + (e.risco.get(d.id) ?? 0.3) : 1;
+      if (p > 0) pesoDoAssunto.set(d.id, p * risco);
     }
   }
   const uso = new Map(e.usoRecente ?? []);
@@ -497,8 +508,11 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
     const blocos = restantes.filter((i) => i.disciplina.id === id).reduce((t, i) => t + i.blocos, 0);
     const prova = dataProva.get(e.disciplinas.find((d) => d.id === id)?.concursoId ?? '');
     if (!blocos || !prova) return 1;
+    // Na última semana o prazo da teoria já passou: o peso volta a ser só os pontos em risco.
+    const horarios = horariosEntre(dia, somarDias(prova, -7));
+    if (horarios <= 0) return 1;
     // Revisões levam cerca de 15% dos horários; com teoria pela frente, 80% dos do assunto são de teoria.
-    const ritmo = 0.85 * (1 - FRACAO_COM_TEORIA) * ((pesoDoAssunto.get(id) ?? 0) / somaDosPesos) * horariosEntre(dia, somarDias(prova, -7));
+    const ritmo = 0.85 * (1 - FRACAO_COM_TEORIA) * ((pesoDoAssunto.get(id) ?? 0) / somaDosPesos) * horarios;
     return Math.max(1, blocos / Math.max(0.5, ritmo));
   };
 
@@ -540,7 +554,10 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
     let b: BlocoPlanejado | null = null;
     // Com teoria pela frente, as questões do assunto ficam em 20% dos horários dele (o resto vai para
     // terminar a teoria, para nenhum tópico ficar sem ser visto); sem teoria, tudo vai para questões.
-    if (temQuestoes && (!item || c.questoes + 1 <= Math.min(fracao, FRACAO_COM_TEORIA) * (c.teoria + c.questoes + 1))) {
+    // Na última semana antes da prova do assunto, só questões (e revisões): nada de teoria nova.
+    const provaDoAssunto = dataProva.get(concursoDe.get(alvo) ?? '');
+    const ultimaSemana = Boolean(provaDoAssunto) && diasEntre(dia, provaDoAssunto as DiaISO) <= 7;
+    if (temQuestoes && (!item || ultimaSemana || c.questoes + 1 <= Math.min(fracao, FRACAO_COM_TEORIA) * (c.teoria + c.questoes + 1))) {
       const q = proximaQuestao(dia, quando, alvo);
       if (q) {
         b = bloco(dia, s, q.d, q.t, q.d.concursoId, 'questoes');

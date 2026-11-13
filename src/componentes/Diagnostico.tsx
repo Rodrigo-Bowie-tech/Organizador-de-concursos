@@ -52,7 +52,8 @@ function Assunto({ a, escala }: { a: DiagnosticoAssunto; escala: number }) {
       </div>
       <p className="text-sm">
         No plano até a prova: <strong className="numeros">{formatarDuracao(a.minutosNoPlano * 60)}</strong>{' '}
-        <span className="numeros text-suave">({pct(a.fracaoPlano)} das horas)</span>
+        <span className="numeros text-suave">({pct(a.fracaoPlano)} das horas)</span> · chance de errar hoje{' '}
+        <strong className="numeros">{pct(a.chanceDeErro)}</strong>
       </p>
       <p className="text-xs text-suave">
         {[
@@ -93,8 +94,8 @@ function Assunto({ a, escala }: { a: DiagnosticoAssunto; escala: number }) {
 
 /**
  * Quanto estudar de cada assunto: a parte dele na prova (incidência, questões × peso) ao lado da
- * parte das horas que o plano reserva até a prova. O desempenho fica como informação e marca o que
- * estudar logo (foi mal no último simulado), sem mudar as horas.
+ * parte das horas que o plano reserva até a prova, que segue os pontos em risco (incidência × chance
+ * de errar hoje). Marca o que estudar logo (foi mal no último simulado).
  */
 export function CartaoDiagnostico({
   disciplinas,
@@ -152,8 +153,8 @@ export function CartaoDiagnostico({
     >
       <div className="grid grid-cols-1 gap-4">
         <p>
-          O tempo de cada assunto segue a incidência dele na prova (questões × peso): o que mais cai aparece mais no plano. O desempenho não muda as horas,
-          só diz o que estudar primeiro.
+          O tempo de cada assunto segue os pontos que ele pode tirar de você na prova: o quanto cai (questões × peso) vezes a chance de você errar hoje. A
+          chance de errar vem dos simulados e das questões, e o que fica sem prática volta a pesar (esquecimento).
         </p>
         {urgentes.length > 0 && (
           <p>
@@ -172,11 +173,10 @@ export function CartaoDiagnostico({
           </Botao>
         )}
         <p className="text-xs text-suave">
-          Escala de 0 a {pct(escala)}. O plano conta o que você estudou nos últimos 14 dias, as revisões e os blocos fixos no tempo de cada
-          assunto. As horas passam da parte da prova quando a teoria do assunto é longa para a incidência (toda a teoria precisa caber até uma semana
-          antes da prova) e ficam abaixo quando há tópicos dominados; a sobra vai para os outros. Estudar logo = menos de {pct(URGENTE_ABAIXO)} de acerto
-          no último simulado em que o assunto caiu: o plano o põe antes, sem mais horas. Questões dos cadernos, das sessões e de Questões contam no
-          desempenho.
+          Escala de 0 a {pct(escala)}. Horas do assunto = incidência × (0,5 + chance de errar). A chance de errar parte do estado da teoria (nunca
+          estudado erra mais) e se ajusta pelos simulados e pelas questões dos cadernos, das sessões e de Questões; cada resultado vale metade a cada 30
+          dias sem praticar. O plano conta o que você estudou nos últimos 14 dias, as revisões e os blocos fixos, e toda a teoria precisa caber até uma
+          semana antes da prova. Estudar logo = menos de {pct(URGENTE_ABAIXO)} de acerto no último simulado em que o assunto caiu: o plano o põe antes.
         </p>
       </div>
     </Cartao>

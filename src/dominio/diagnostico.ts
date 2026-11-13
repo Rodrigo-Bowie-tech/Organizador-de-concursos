@@ -1,18 +1,18 @@
-// Quanto estudar por assunto (disciplina). O tempo de cada assunto no plano segue só a relevância
-// dele na prova: a incidência, questões × peso, dividida entre os tópicos pela incidência de cada um
-// quando se sabe (provas da banca ou o campo do Edital). Os assuntos que mais caem aparecem mais no
-// plano. O desempenho (simulados e questões) não muda quanto tempo o assunto leva: diz o que estudar
-// primeiro (o planejador põe antes o que foi mal no simulado) e fica aqui como informação.
+// Quanto estudar por assunto (disciplina). O tempo de cada assunto no plano parte da relevância
+// dele na prova (a incidência, questões × peso, dividida entre os tópicos pela incidência de cada um
+// quando se sabe) e é ajustado pela chance de errar o assunto hoje (`chanceDeErro`): simulados e
+// questões, com o que não se pratica há tempo perdendo peso (esquecimento), e o quanto da teoria já
+// foi estudado. Assim o plano vai atrás dos pontos que mais podem se perder na prova.
 
 import { valorNaProva } from './balanco';
 import { segundosLiquidos } from './cronometro';
-import { instanteSP } from './datas';
+import { diaSP, diasEntre, instanteSP } from './datas';
 import type { Questoes } from './desempenho';
 import { topicoConcluido } from './painel';
 import { minutos, URGENTE_ABAIXO } from './planejador';
 import { estimativaTeoria } from './teoria';
 import { achatar } from './topicos';
-import type { BlocoPlanejado, Disciplina, Id, Sessao, Simulado, Topico } from './tipos';
+import type { BlocoPlanejado, DiaISO, Disciplina, Id, Sessao, Simulado, StatusTopico, Topico } from './tipos';
 
 export { URGENTE_ABAIXO };
 
@@ -40,6 +40,60 @@ const acertoDaNota = (n: Simulado['notas'][number], peso: number): Acerto => ({
   feitas: n.maximo / peso,
   acertos: Math.min(n.maximo, Math.max(0, n.nota)) / peso,
 });
+
+const somarEm = <K>(m: Map<K, Acerto>, k: K, feitas: number, acertos: number) => {
+  const a = m.get(k) ?? { feitas: 0, acertos: 0 };
+  a.feitas += feitas;
+  a.acertos += acertos;
+  m.set(k, a);
+};
+
+/** O que um simulado ou uma questão diz sobre o assunto perde metade do peso a cada 30 dias sem praticar. */
+export const MEIA_VIDA_DESEMPENHO_DIAS = 30;
+/** Acerto esperado antes de qualquer questão, pelo estado da teoria do tópico. */
+const ACERTO_PELO_STATUS: Record<StatusTopico, number> = { nao_iniciado: 0.35, em_estudo: 0.55, teoria_concluida: 0.65, revisado: 0.75, dominado: 0.85 };
+/** Peso da estimativa pela teoria, em questões; uma questão de simulado vale 1 e uma de treino, 0,5. */
+const PESO_PELO_STATUS = 2;
+const PESO_SIMULADO = 1;
+const PESO_TREINO = 0.5;
+
+/**
+ * Chance de errar uma questão do assunto se a prova fosse hoje (0 a 1). Começa pelo estado da teoria
+ * dos tópicos que contam (nunca estudado ≈ 65% de erro; dominado ≈ 15%) e se ajusta pelos acertos nos
+ * simulados e nas questões, cada um valendo menos quanto mais antigo (`MEIA_VIDA_DESEMPENHO_DIAS`): o
+ * que foi bem há muito tempo e não voltou a ser praticado tende de novo à estimativa pela teoria.
+ */
+export function chanceDeErro(e: { disciplinas: Disciplina[]; simulados: Simulado[]; questoes: Questoes[]; hoje: DiaISO }): Map<Id, number> {
+  const disciplinaDo = new Map<Id, Id>();
+  for (const d of e.disciplinas) for (const id of Object.keys(d.topicos)) disciplinaDo.set(id, d.id);
+  const peso = new Map(e.disciplinas.map((d) => [d.id, d.peso > 0 ? d.peso : 1]));
+  const decai = (dia: DiaISO) => 0.5 ** (Math.max(0, diasEntre(dia, e.hoje)) / MEIA_VIDA_DESEMPENHO_DIAS);
+  const evidencia = new Map<Id, Acerto>();
+  for (const s of e.simulados) {
+    for (const n of s.notas) {
+      const p = n.disciplinaId ? peso.get(n.disciplinaId) : undefined;
+      if (!p || !(n.maximo > 0) || s.dia > e.hoje) continue;
+      const x = acertoDaNota(n, p);
+      const w = PESO_SIMULADO * decai(s.dia);
+      somarEm(evidencia, n.disciplinaId as Id, x.feitas * w, x.acertos * w);
+    }
+  }
+  for (const q of e.questoes) {
+    const disciplinaId = q.disciplinaId ?? (q.topicoId ? disciplinaDo.get(q.topicoId) : undefined);
+    if (!disciplinaId || !peso.has(disciplinaId) || q.dia > e.hoje) continue;
+    const w = PESO_TREINO * decai(q.dia);
+    somarEm(evidencia, disciplinaId, q.feitas * w, Math.min(q.acertos, q.feitas) * w);
+  }
+  const saida = new Map<Id, number>();
+  for (const d of e.disciplinas) {
+    const folhas = achatar(d.topicos).filter((l) => !l.temFilhos && !l.topico.cortado).map((l) => l.topico);
+    const pelaTeoria = folhas.length ? folhas.reduce((t, x) => t + ACERTO_PELO_STATUS[x.status], 0) / folhas.length : 0.55;
+    const ev = evidencia.get(d.id) ?? { feitas: 0, acertos: 0 };
+    const acerto = (pelaTeoria * PESO_PELO_STATUS + ev.acertos) / (PESO_PELO_STATUS + ev.feitas);
+    saida.set(d.id, Math.min(1, Math.max(0, 1 - acerto)));
+  }
+  return saida;
+}
 
 /** Questões de cada disciplina nos simulados, somadas (nota ÷ peso = acertos; máximo ÷ peso = questões). */
 export function simuladosPorDisciplina(simulados: Simulado[], disciplinas: Disciplina[]): Map<Id, Acerto> {
@@ -147,6 +201,8 @@ export interface DiagnosticoAssunto {
   ultimoSimulado: Acerto | null;
   /** Foi mal no último simulado em que caiu (acerto abaixo de `URGENTE_ABAIXO`): estudar logo. */
   urgente: boolean;
+  /** Chance de errar uma questão do assunto hoje (`chanceDeErro`), que ajusta as horas do plano. */
+  chanceDeErro: number;
   /** Tópicos-folha na ordem do edital. */
   topicos: DiagnosticoTopico[];
 }
@@ -164,13 +220,6 @@ export interface EntradaDiagnostico {
   blocoMin?: number;
   agora: Date | number;
 }
-
-const somarEm = <K>(m: Map<K, Acerto>, k: K, feitas: number, acertos: number) => {
-  const a = m.get(k) ?? { feitas: 0, acertos: 0 };
-  a.feitas += feitas;
-  a.acertos += acertos;
-  m.set(k, a);
-};
 
 export function diagnosticoPorAssunto(e: EntradaDiagnostico): DiagnosticoAssunto[] {
   const disciplinaDo = new Map<Id, Id>();
@@ -199,6 +248,7 @@ export function diagnosticoPorAssunto(e: EntradaDiagnostico): DiagnosticoAssunto
   }
 
   const sims = simuladosPorDisciplina(e.simulados, e.disciplinas);
+  const erro = chanceDeErro({ disciplinas: e.disciplinas, simulados: e.simulados, questoes: e.questoes, hoje: diaSP(e.agora) });
   const ultimos = ultimoSimuladoPorDisciplina(e.simulados, e.disciplinas);
   const plano = minutosNoPlano(e.blocos, e.disciplinas, e.agora);
   // As partes da prova e do plano contam dentro de cada concurso.
@@ -240,6 +290,7 @@ export function diagnosticoPorAssunto(e: EntradaDiagnostico): DiagnosticoAssunto
       simulados: sims.get(d.id) ?? zero(),
       ultimoSimulado: ultimo,
       urgente: Boolean(ultimo && ultimo.feitas > 0 && ultimo.acertos / ultimo.feitas < URGENTE_ABAIXO),
+      chanceDeErro: erro.get(d.id) ?? 0,
       topicos,
     };
   });

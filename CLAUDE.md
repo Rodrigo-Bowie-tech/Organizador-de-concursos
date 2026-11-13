@@ -262,7 +262,15 @@ seed sozinho.
     (`relevanciaPorTopico`; dominados e cortados não) × peso do concurso (prioridade ÷ 5 × (1 + proximidade
     da prova): um concurso distante com muitas questões não toma o tempo do mais próximo) × atraso da teoria
     (piso de cobertura: o assunto que não terminaria a teoria até uma semana antes da prova ganha peso na
-    medida do atraso). Dentro do assunto: teoria com 20% de questões enquanto houver teoria, depois só
+    medida do atraso). **Pontos em risco** (13/11, a pedido do usuário: "acertar mais, pelos assuntos que
+    tenho mais chance de errar ou esquecer", o que substitui o "só a incidência" de 12/10): o peso também
+    multiplica por 0,5 + `chanceDeErro` do assunto (`dominio/diagnostico.ts`: acerto esperado pelo estado
+    da teoria dos tópicos, nunca estudado 35%, dominado 85%, com peso de 2 questões, ajustado pelos
+    simulados, 1 por questão, e pelas questões de treino, 0,5 cada, todos valendo metade a cada 30 dias:
+    o que não se pratica volta a ser incerto). Questões entram também nos tópicos já estudados (pelo menos
+    um bloco de teoria), não só nos concluídos. Na última semana antes da prova do assunto, nada de teoria
+    nova: só questões e revisões, e o atraso da teoria deixa de pesar. Dentro do assunto: teoria com 20% de
+    questões enquanto houver teoria, depois só
     questões (tópico de maior relevância × tempo desde as últimas questões, `ultimaQuestao`). Todos os
     assuntos entram ao mesmo tempo (o rodízio entre N, `intercalar`, não vale aqui; saiu de Configurações).
     Revisões saem quando o bloco enche ou alguma espera 2 dias, sem cota;
@@ -402,7 +410,8 @@ seed sozinho.
   mais cai para o que menos cai, a parte da prova ao lado da parte das horas do plano até a prova (duas
   barras, tokens `--grafico-peso` e `--grafico-tempo`), as horas no plano e, como informação, horas
   estudadas, teoria feita (inclusive a estudada na disciplina inteira, sem tópico), questões e simulados;
-  "Estudar logo" = menos de 50% no último simulado em que o assunto caiu. Mostra os 6 que mais caem e o resto
+  "Estudar logo" = menos de 50% no último simulado em que o assunto caiu; desde 13/11 cada assunto mostra
+  também a chance de errar hoje, que ajusta as horas. Mostra os 6 que mais caem e o resto
   num botão. Lançar ou importar questões e salvar simulado replanejam.
   Cadernos (Provas anteriores, seção própria): `caderno: true` fica fora da incidência (`provasDoConcurso`);
   Refazer por parte (`grupo`), começando pela primeira não feita, com o número do caderno e o comentário do
