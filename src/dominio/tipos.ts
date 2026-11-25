@@ -270,6 +270,18 @@ export interface Disponibilidade {
   blocoMin: number;
   /** Horário semanal para cuidar dos concursos; `null` = desligado. */
   gestao?: GestaoSemanal | null;
+  /** Pausas da rotina entre os trechos de estudo; ausente ou `null` = sem pausas. */
+  rotina?: RotinaDoDia | null;
+}
+
+/**
+ * Rotina do dia: depois de cada `estudoMin` de estudo vem a próxima atividade da lista, sempre na
+ * mesma ordem (a lista recomeça a cada dia). As atividades empurram o resto do estudo para depois:
+ * as janelas da disponibilidade continuam sendo o tempo de estudo.
+ */
+export interface RotinaDoDia {
+  estudoMin: number;
+  atividades: { nome: string; minutos: number }[];
 }
 
 /** Um horário por semana para editais, outros concursos, inscrições, planejamento e resultados. */
@@ -293,14 +305,17 @@ export interface BlocoPlanejado {
   concursoId: Id | null;
   disciplinaId: Id | null;
   topicoId: Id | null;
-  /** O tipo de estudo; "gestao" no bloco semanal de cuidar dos concursos (não vira sessão). */
-  tipo: TipoSessao | 'gestao';
+  /** O tipo de estudo; "gestao" no bloco semanal de cuidar dos concursos e "rotina" nas pausas da rotina (não viram sessão). */
+  tipo: TipoSessao | 'gestao' | 'rotina';
   status: StatusBloco;
   /**
    * Por que o planejador escolheu este bloco ("simulado": marcado por você no cronograma;
-   * "gestao": o horário semanal de cuidar dos concursos, que não é estudo).
+   * "gestao": o horário semanal de cuidar dos concursos; "rotina": uma pausa da rotina, como música
+   * ou exercícios; nenhum dos dois é estudo).
    */
-  motivo: 'teoria' | 'revisao' | 'revisao_atrasada' | 'questoes' | 'simulado' | 'gestao';
+  motivo: 'teoria' | 'revisao' | 'revisao_atrasada' | 'questoes' | 'simulado' | 'gestao' | 'rotina';
+  /** Pausa da rotina: o nome da atividade ("Música"). */
+  atividade?: string;
   /** Movido por você: replanejar não mexe nele. */
   fixo?: boolean;
   /** Bloco de revisão que junta vários tópicos (cerca de 20 min cada); o primeiro fica em `topicoId` se for só um. */

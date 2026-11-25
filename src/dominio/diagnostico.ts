@@ -138,7 +138,7 @@ export function minutosNoPlano(blocos: BlocoPlanejado[], disciplinas: Disciplina
     if (id) saida.set(id, (saida.get(id) ?? 0) + m);
   };
   for (const b of blocos) {
-    if (b.status !== 'planejado' || b.motivo === 'gestao' || b.motivo === 'simulado') continue;
+    if (b.status !== 'planejado' || b.motivo === 'gestao' || b.motivo === 'simulado' || b.motivo === 'rotina') continue;
     if (instanteSP(b.dia, b.inicio).getTime() < Number(agora)) continue;
     const m = minutos(b);
     if (b.revisoes && b.revisoes.length > 1) for (const t of b.revisoes) somar(disciplinaDo.get(t), m / b.revisoes.length);

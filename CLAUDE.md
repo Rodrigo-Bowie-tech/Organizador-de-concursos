@@ -165,7 +165,7 @@ Limites: **5.000 documentos** no total e 256 KiB por documento. Por isso os regi
 | `biblioteca/<disciplinaId>` | `{ disciplinaId, itens: { <id>: Material } }`; PDFs no `assets`, id em `arquivoId` |
 | `editais/<id>` | Edital importado (cargo, trecho usado, PDF em `arquivoId`) |
 | `estado/vinculos` | `{ ignorados: string[] }` sugestões de tópicos equivalentes recusadas (`chavePar`) |
-| `disponibilidade/geral` | Disponibilidade: `dias` ("0"–"6" → janelas), `excecoes` (dia → janelas + motivo), `blocoMin`, `gestao` (dia, início, minutos; ausente = padrão domingo 19h, 1h; `null` = desligada) |
+| `disponibilidade/geral` | Disponibilidade: `dias` ("0"–"6" → janelas), `excecoes` (dia → janelas + motivo), `blocoMin`, `gestao` (dia, início, minutos; ausente = padrão domingo 19h, 1h; `null` = desligada), `rotina` (`estudoMin` + `atividades` nome/minutos; ausente ou `null` = sem pausas) |
 | `plano/<AAAA-MM-DD>` | `{ semana, itens: { <id>: BlocoPlanejado } }`, blocos do calendário por semana |
 | `estado/planejamento` | `{ ultimoReplanejamento }`: dia do último replanejamento (o "de madrugada") |
 | `questoes/<AAAA-MM-DD>` | `{ semana, itens: { <id>: RegistroQuestoes } }`, questões avulsas (lançamento rápido, CSV) |
@@ -275,6 +275,15 @@ seed sozinho.
     assuntos entram ao mesmo tempo (o rodízio entre N, `intercalar`, não vale aqui; saiu de Configurações).
     Revisões saem quando o bloco enche ou alguma espera 2 dias, sem cota;
   - blocos `fixo` (movidos por você ou simulados marcados, `motivo: 'simulado'`, sem disciplina) ficam;
+  - rotina do dia (`disponibilidade.rotina`, 25/11, a pedido do usuário: 2 h de estudo, 1 h de música, 2 h de
+    estudo, 1 h de exercícios, sempre nessa ordem, sem pular; `aplicarRotina`): depois de cada `estudoMin` de
+    estudo vem a próxima atividade da lista (recomeça a cada dia), empurrando o resto do estudo para depois, então
+    as janelas continuam sendo o tempo de estudo (9h–13h vira 9–11, música, 12–14, exercícios até 15h). O último
+    trecho do dia ganha a sua pausa; o simulado não é interrompido e vale como estudo (o de 4 h ganha as duas
+    pausas logo depois). As pausas viram blocos `tipo`/`motivo` `rotina` com `atividade` (não são estudo, como a
+    gestão); bloco fixo de estudo que caia numa pausa anda para o próximo horário de estudo livre do dia ao
+    replanejar (`acomodarNaRotina`; não o ligado à sessão em andamento), e mover um bloco não toma o horário de
+    uma pausa;
   - gestão semanal (`disponibilidade.gestao`): um bloco `motivo: 'gestao'` por semana no horário escolhido,
     se a semana ainda não tem um que fica (marcado, movido ou passado); o estudo não cai no horário, a
     viabilidade não o conta e ele fica fora da cota de revisão, do rodízio e do planejado × realizado;

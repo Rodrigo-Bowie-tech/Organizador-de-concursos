@@ -79,9 +79,9 @@ function BlocosDeHoje({ hoje }: { hoje: string }) {
         {blocos.map((b) => {
           const d = dados.disciplinas.find((x) => x.id === b.disciplinaId);
           const t = d && b.topicoId ? d.topicos[b.topicoId] : undefined;
-          const tipoSessao = b.tipo === 'gestao' ? null : b.tipo;
+          const tipoSessao = b.tipo === 'gestao' || b.tipo === 'rotina' ? null : b.tipo;
           return (
-            <li key={b.id} className="flex flex-wrap items-center gap-3 rounded-lg border-l-4 bg-superficie-2 px-3 py-2" style={{ borderLeftColor: b.motivo === 'gestao' ? 'var(--roxo)' : d?.cor }}>
+            <li key={b.id} className="flex flex-wrap items-center gap-3 rounded-lg border-l-4 bg-superficie-2 px-3 py-2" style={{ borderLeftColor: b.motivo === 'gestao' ? 'var(--roxo)' : b.motivo === 'rotina' ? 'var(--alerta)' : d?.cor }}>
               <span className="numeros w-24 shrink-0 font-bold">
                 {b.inicio}–{b.fim}
               </span>
@@ -90,7 +90,9 @@ function BlocosDeHoje({ hoje }: { hoje: string }) {
                 <span className="block truncate text-sm text-suave">
                   {b.motivo === 'gestao'
                     ? `Editais, outros concursos, inscrições, planejamento e resultados · ${(b.tarefas ?? []).length} de 5 feitas`
-                    : t?.titulo ??
+                    : b.motivo === 'rotina'
+                      ? 'Pausa da rotina, fora do estudo'
+                      : t?.titulo ??
                       (b.revisoes?.length
                         ? titulosDasRevisoes(b, dados.disciplinas).join(' · ')
                         : b.disciplinaId
@@ -99,7 +101,11 @@ function BlocosDeHoje({ hoje }: { hoje: string }) {
                   · {TIPO_BLOCO[b.tipo]} · {Math.round(minutos(b))} min
                 </span>
               </span>
-              {b.status === 'planejado' && !tipoSessao ? (
+              {b.status === 'planejado' && b.motivo === 'rotina' ? (
+                <Botao tamanho="pequeno" variante="secundario" onClick={() => void executar(() => repo.marcarBloco(b.id, 'feito'), `${nomeDoBloco(b)}: feito.`)}>
+                  <Check size={15} /> Feito
+                </Botao>
+              ) : b.status === 'planejado' && !tipoSessao ? (
                 <Botao tamanho="pequeno" onClick={() => setGestao(b.id)}>
                   <ClipboardList size={15} /> Abrir
                 </Botao>

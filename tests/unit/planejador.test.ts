@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { diaDaSemana } from '../../src/dominio/datas';
-import { ajusteDosSimulados, blocosDaSessao, dominio, filaDeTeoria, fracaoRevisao, gerarPlano, horarioLivre, janelasDoDia, slotsDoDia, statusSugerido } from '../../src/dominio/planejador';
+import { acomodarNaRotina, ajusteDosSimulados, aplicarRotina, blocoDeEstudo, blocosDaSessao, dominio, filaDeTeoria, fracaoRevisao, gerarPlano, horarioLivre, janelasDoDia, slotsDoDia, statusSugerido } from '../../src/dominio/planejador';
 import type { EntradaPlano } from '../../src/dominio/planejador';
 import { relevanciaPorTopico } from '../../src/dominio/diagnostico';
 import { iniciarRevisao } from '../../src/dominio/revisoes';
@@ -66,6 +66,85 @@ describe('disponibilidade', () => {
   it('exceção substitui a grade do dia', () => {
     expect(janelasDoDia(GRADE, '2026-09-30')).toEqual([]);
     expect(janelasDoDia(GRADE, '2026-10-01')).toEqual([{ inicio: '14:00', fim: '16:00' }]);
+  });
+});
+
+describe('rotina do dia: pausas entre os trechos de estudo', () => {
+  const ROTINA = { estudoMin: 120, atividades: [{ nome: 'Música', minutos: 60 }, { nome: 'Exercícios físicos', minutos: 60 }] };
+  const h = (inicio: string, fim: string) => ({ inicio, fim });
+
+  it('2 h de estudo, música, 2 h de estudo, exercícios: as pausas empurram o estudo', () => {
+    expect(aplicarRotina([h('09:00', '13:00')], ROTINA)).toEqual({
+      janelas: [h('09:00', '11:00'), h('12:00', '14:00')],
+      pausas: [{ ...h('11:00', '12:00'), rotulo: 'Música' }, { ...h('14:00', '15:00'), rotulo: 'Exercícios físicos' }],
+    });
+    expect(aplicarRotina([h('15:00', '19:00')], ROTINA).pausas.map((p) => `${p.inicio} ${p.rotulo}`)).toEqual(['17:00 Música', '20:00 Exercícios físicos']);
+  });
+
+  it('o último trecho do dia também ganha a sua pausa, e a lista recomeça a cada dia', () => {
+    expect(aplicarRotina([h('09:00', '11:00')], ROTINA).pausas).toEqual([{ ...h('11:00', '12:00'), rotulo: 'Música' }]);
+    expect(aplicarRotina([h('09:00', '12:00')], ROTINA)).toEqual({
+      janelas: [h('09:00', '11:00'), h('12:00', '13:00')],
+      pausas: [{ ...h('11:00', '12:00'), rotulo: 'Música' }, { ...h('13:00', '14:00'), rotulo: 'Exercícios físicos' }],
+    });
+    // 6 h de estudo: a ordem continua (música, exercícios, música).
+    expect(aplicarRotina([h('08:00', '14:00')], ROTINA).pausas.map((p) => p.rotulo)).toEqual(['Música', 'Exercícios físicos', 'Música']);
+  });
+
+  it('o simulado não é interrompido: a pausa vem logo depois dele e o dia mantém as horas de estudo', () => {
+    expect(aplicarRotina([h('09:00', '13:00')], ROTINA, [h('09:00', '12:00')])).toEqual({
+      janelas: [h('09:00', '12:00'), h('13:00', '14:00')],
+      pausas: [{ ...h('12:00', '13:00'), rotulo: 'Música' }, { ...h('14:00', '15:00'), rotulo: 'Exercícios físicos' }],
+    });
+    // Simulado de 4 h com a correção: vale as 4 h de estudo, então vêm a música e os exercícios.
+    expect(aplicarRotina([h('09:00', '13:00')], ROTINA, [h('09:00', '13:00')])).toEqual({
+      janelas: [h('09:00', '13:00')],
+      pausas: [{ ...h('13:00', '14:00'), rotulo: 'Música' }, { ...h('14:00', '15:00'), rotulo: 'Exercícios físicos' }],
+    });
+  });
+
+  it('janela seguinte que a pausa alcança começa depois dela; sem rotina, nada muda', () => {
+    expect(aplicarRotina([h('09:00', '11:00'), h('11:30', '12:30')], ROTINA).janelas).toEqual([h('09:00', '11:00'), h('12:00', '13:00')]);
+    expect(aplicarRotina([h('09:00', '13:00')], null)).toEqual({ janelas: [h('09:00', '13:00')], pausas: [] });
+    expect(aplicarRotina([h('09:00', '13:00')], { estudoMin: 120, atividades: [] }).pausas).toEqual([]);
+  });
+
+  it('o plano põe as pausas como blocos que não são estudo, e o estudo nos horários entre elas', () => {
+    const d: Disponibilidade = { blocoMin: 60, dias: { '2': [h('09:00', '13:00')] }, excecoes: {}, rotina: ROTINA };
+    const plano = gerarPlano(entrada({ disponibilidade: d }));
+    const terca = plano.filter((b) => b.dia === '2026-09-29').sort((a, b) => a.inicio.localeCompare(b.inicio));
+    expect(terca.map((b) => `${b.inicio}-${b.fim} ${b.motivo === 'rotina' ? b.atividade : 'estudo'}`)).toEqual([
+      '09:00-10:00 estudo',
+      '10:00-11:00 estudo',
+      '11:00-12:00 Música',
+      '12:00-13:00 estudo',
+      '13:00-14:00 estudo',
+      '14:00-15:00 Exercícios físicos',
+    ]);
+    const pausas = terca.filter((b) => b.motivo === 'rotina');
+    expect(pausas.every((b) => b.tipo === 'rotina' && !b.disciplinaId && !blocoDeEstudo(b))).toBe(true);
+    // Replanejar com a pausa marcada não a duplica.
+    const feita = { ...pausas[0], status: 'feito' as const };
+    const de_novo = gerarPlano(entrada({ disponibilidade: d, existentes: [feita] }));
+    expect(de_novo.filter((b) => b.dia === '2026-09-29' && b.atividade === 'Música')).toHaveLength(0);
+  });
+
+  it('bloco fixo que cai numa pausa anda para o próximo horário de estudo, e os seguintes vão junto', () => {
+    const d: Disponibilidade = { blocoMin: 60, dias: { '2': [h('09:00', '13:00')] }, excecoes: {}, rotina: ROTINA };
+    const fixo = (id: string, inicio: string, fim: string, extra: Partial<BlocoPlanejado> = {}): BlocoPlanejado => ({
+      id, dia: '2026-09-29', inicio, fim, concursoId: 'ff', disciplinaId: 'eletrica', topicoId: id, tipo: 'teoria', status: 'planejado', motivo: 'teoria', fixo: true, ...extra,
+    });
+    const blocos = [fixo('a', '09:00', '10:00'), fixo('b', '10:00', '11:00'), fixo('c', '11:00', '12:00'), fixo('d', '12:00', '13:00')];
+    expect(acomodarNaRotina(blocos, d, AGORA).map((b) => `${b.id} ${b.inicio}-${b.fim}`)).toEqual(['c 12:00-13:00', 'd 13:00-14:00']);
+    // Marcado não anda; o bloco ligado à sessão também não; sem rotina, nada muda.
+    expect(acomodarNaRotina([fixo('c', '11:00', '12:00', { status: 'feito' })], d, AGORA)).toEqual([]);
+    expect(acomodarNaRotina([fixo('c', '11:00', '12:00')], d, AGORA, new Set(['c']))).toEqual([]);
+    expect(acomodarNaRotina(blocos, { ...d, rotina: null }, AGORA)).toEqual([]);
+    // O plano refeito com os blocos acomodados tem a música e os exercícios.
+    const acomodados = acomodarNaRotina(blocos, d, AGORA);
+    const existentes = blocos.map((b) => acomodados.find((x) => x.id === b.id) ?? b);
+    const plano = gerarPlano(entrada({ disponibilidade: d, existentes }));
+    expect(plano.filter((b) => b.dia === '2026-09-29' && b.motivo === 'rotina').map((b) => `${b.inicio} ${b.atividade}`)).toEqual(['11:00 Música', '14:00 Exercícios físicos']);
   });
 });
 

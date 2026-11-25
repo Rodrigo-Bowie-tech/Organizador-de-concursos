@@ -8,7 +8,7 @@ import { diaDaSemana, diaSP, diasEntre, formatarHora, inicioDaSemana, instanteSP
 import { topicoConcluido, topicosFolha } from './painel';
 import { restanteDeTeoria } from './teoria';
 import { achatar } from './topicos';
-import type { BlocoHorario, BlocoPlanejado, Concurso, DiaISO, Disciplina, Disponibilidade, GestaoSemanal, Id, Sessao, Simulado, Topico } from './tipos';
+import type { BlocoHorario, BlocoPlanejado, Concurso, DiaISO, Disciplina, Disponibilidade, GestaoSemanal, Id, RotinaDoDia, Sessao, Simulado, Topico } from './tipos';
 
 export const DISPONIBILIDADE_VAZIA: Disponibilidade = { dias: {}, excecoes: {}, blocoMin: 60 };
 /** Horizonte quando falta a data de alguma prova. */
@@ -54,11 +54,82 @@ export function minutosDeclarados(d: Disponibilidade, dia: DiaISO): number {
   return janelasDoDia(d, dia).reduce((t, b) => t + minutos(b), 0);
 }
 
-/** Divide as janelas em blocos de `blocoMin`; sobra de pelo menos 25 min vira bloco menor. */
-export function slotsDoDia(d: Disponibilidade, dia: DiaISO): BlocoHorario[] {
+/**
+ * Encaixa as pausas da rotina nas janelas de estudo de um dia: depois de cada `estudoMin` de
+ * estudo vem a próxima atividade da lista (que recomeça a cada dia), e o resto do estudo é
+ * empurrado para depois dela. O último trecho de estudo do dia também ganha a sua pausa. Um bloco
+ * de `inteiros` (o simulado) não é interrompido: as pausas que cairiam no meio dele vêm logo depois,
+ * uma para cada `estudoMin` que ele cobriu (o simulado de 4 h vale as duas), e o tempo dele conta
+ * como estudo daquela janela. Nada passa da meia-noite.
+ */
+export function aplicarRotina(
+  janelas: BlocoHorario[],
+  rotina: RotinaDoDia | null | undefined,
+  inteiros: Pick<BlocoHorario, 'inicio' | 'fim'>[] = [],
+): { janelas: BlocoHorario[]; pausas: BlocoHorario[] } {
+  const atividades = (rotina?.atividades ?? []).filter((a) => a.minutos > 0 && a.nome.trim());
+  if (!rotina || !(rotina.estudoMin > 0) || !atividades.length || !janelas.length) return { janelas, pausas: [] };
+  const FIM_DO_DIA = 24 * 60;
+  const blocosInteiros = inteiros.map((b) => [paraMin(b.inicio), paraMin(b.fim)] as const);
+  const estudo: [number, number][] = [];
+  const pausas: BlocoHorario[] = [];
+  let cursor = 0;
+  let desdeAPausa = 0;
+  let k = 0;
+  const estudar = (a: number, z: number) => {
+    const ultimo = estudo[estudo.length - 1];
+    if (ultimo && ultimo[1] === a) ultimo[1] = z;
+    else estudo.push([a, z]);
+  };
+  const pausar = (em: number) => {
+    const atividade = atividades[k++ % atividades.length];
+    const fim = Math.min(FIM_DO_DIA, em + atividade.minutos);
+    if (fim > em) pausas.push({ inicio: paraHora(em), fim: paraHora(fim), rotulo: atividade.nome.trim() });
+    cursor = Math.max(cursor, fim);
+  };
+  for (const j of [...janelas].sort((a, b) => a.inicio.localeCompare(b.inicio))) {
+    let pos = Math.max(paraMin(j.inicio), cursor);
+    let resta = minutos(j);
+    while (resta > 0 && pos < FIM_DO_DIA) {
+      const trecho = Math.min(resta, rotina.estudoMin - desdeAPausa, FIM_DO_DIA - pos);
+      estudar(pos, pos + trecho);
+      pos += trecho;
+      resta -= trecho;
+      desdeAPausa += trecho;
+      if (desdeAPausa < rotina.estudoMin) continue;
+      const dentro = blocosInteiros.find(([a, z]) => a < pos && pos < z);
+      if (dentro) {
+        const ate = Math.min(dentro[1], FIM_DO_DIA);
+        estudar(pos, ate);
+        resta = Math.max(0, resta - (ate - pos));
+        desdeAPausa += ate - pos;
+        pos = ate;
+      }
+      while (desdeAPausa >= rotina.estudoMin) {
+        desdeAPausa -= rotina.estudoMin;
+        pausar(Math.max(pos, cursor));
+      }
+      pos = cursor;
+    }
+    cursor = Math.max(cursor, pos);
+  }
+  if (desdeAPausa > 0) pausar(cursor);
+  return { janelas: estudo.map(([a, z]) => ({ inicio: paraHora(a), fim: paraHora(z) })), pausas };
+}
+
+/** As pausas da rotina num dia (`inteiros`: os simulados do dia, que não são interrompidos). */
+export function pausasDoDia(d: Disponibilidade, dia: DiaISO, inteiros: Pick<BlocoHorario, 'inicio' | 'fim'>[] = []): BlocoHorario[] {
+  return aplicarRotina(janelasDoDia(d, dia), d.rotina, inteiros).pausas;
+}
+
+/**
+ * Divide as janelas (com as pausas da rotina já encaixadas) em blocos de `blocoMin`; sobra de pelo
+ * menos 25 min vira bloco menor.
+ */
+export function slotsDoDia(d: Disponibilidade, dia: DiaISO, inteiros: Pick<BlocoHorario, 'inicio' | 'fim'>[] = []): BlocoHorario[] {
   const passo = Math.max(15, d.blocoMin || 60);
   const slots: BlocoHorario[] = [];
-  for (const j of janelasDoDia(d, dia)) {
+  for (const j of aplicarRotina(janelasDoDia(d, dia), d.rotina, inteiros).janelas) {
     let ini = paraMin(j.inicio);
     const fim = paraMin(j.fim);
     while (fim - ini >= MINIMO_BLOCO_MIN) {
@@ -351,9 +422,11 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
   const agoraMs = e.agora.getTime();
   const ficam = e.existentes.filter((b) => b.status !== 'planejado' || b.fixo || instanteSP(b.dia, b.inicio).getTime() < agoraMs);
   const fixosFuturos = e.existentes.filter((b) => b.status === 'planejado' && b.fixo && instanteSP(b.dia, b.inicio).getTime() >= agoraMs);
-  /** Blocos semanais de gestão dos concursos (não são estudo: ficam fora da cota e do rodízio). */
+  /** Blocos de gestão dos concursos e pausas da rotina (não são estudo: ficam fora da cota e do rodízio). */
   const gestao: BlocoPlanejado[] = [];
   const ocupado = (dia: DiaISO, s: BlocoHorario) => ficam.some((b) => b.dia === dia && sobrepoe(b, s)) || gestao.some((b) => b.dia === dia && sobrepoe(b, s));
+  /** Simulados do dia: as pausas da rotina não os interrompem. */
+  const simuladosDoDia = (dia: DiaISO) => ficam.filter((b) => b.dia === dia && b.motivo === 'simulado');
 
   const plano: BlocoPlanejado[] = [];
   const restantes = fila.map((i) => ({ ...i }));
@@ -481,7 +554,7 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
   };
   // Os blocos fixos que ficam (semana de foco, movidos) contam desde já como estudo do assunto: o
   // assunto que já tem horário reservado não passa na frente dos outros.
-  if (e.relevancia) for (const b of fixosFuturos) if (b.motivo !== 'simulado' && b.motivo !== 'gestao') contarUso(b);
+  if (e.relevancia) for (const b of fixosFuturos) if (blocoDeEstudo(b)) contarUso(b);
   const feitosNoPlano = new Map<Id, { teoria: number; questoes: number }>();
   const somaDosPesos = [...pesoDoAssunto.values()].reduce((a, b) => a + b, 0) || 1;
   // Piso de cobertura: horários de estudo que restam até uma semana antes da prova de cada
@@ -495,7 +568,7 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
     const ate = Math.min(400, Math.max(horizonte, ultimaProva ? diasEntre(hoje, ultimaProva) + 1 : 0));
     const dias = Array.from({ length: ate }, (_, n) => somarDias(hoje, n));
     const porDia = dias.map((dia) => {
-      const livres = slotsDoDia(e.disponibilidade, dia).filter((x) => instanteSP(dia, x.inicio).getTime() >= agoraMs && !ficam.some((b) => b.dia === dia && sobrepoe(b, x)));
+      const livres = slotsDoDia(e.disponibilidade, dia, simuladosDoDia(dia)).filter((x) => instanteSP(dia, x.inicio).getTime() >= agoraMs && !ficam.some((b) => b.dia === dia && sobrepoe(b, x)));
       const cap = e.capacidadeMin?.[String(diaDaSemana(dia))];
       return cap === undefined ? livres.length : Math.min(livres.length, Math.ceil(cap / Math.max(1, e.disponibilidade.blocoMin || 60)));
     });
@@ -599,7 +672,15 @@ export function gerarPlano(e: EntradaPlano): BlocoPlanejado[] {
         gestao.push({ id: e.novoId(), dia, ...hg, concursoId: null, disciplinaId: null, topicoId: null, tipo: 'gestao', status: 'planejado', motivo: 'gestao' });
       }
     }
-    let slots = slotsDoDia(e.disponibilidade, dia).filter(
+    // Pausas da rotina (música, exercícios): entre os trechos de estudo, que elas empurram para depois.
+    for (const p of pausasDoDia(e.disponibilidade, dia, simuladosDoDia(dia))) {
+      if (instanteSP(dia, p.inicio).getTime() < agoraMs || ocupado(dia, p)) continue;
+      gestao.push({
+        id: e.novoId(), dia, inicio: p.inicio, fim: p.fim, concursoId: null, disciplinaId: null, topicoId: null,
+        tipo: 'rotina', status: 'planejado', motivo: 'rotina', atividade: p.rotulo,
+      });
+    }
+    let slots = slotsDoDia(e.disponibilidade, dia, simuladosDoDia(dia)).filter(
       (s) => instanteSP(dia, s.inicio).getTime() >= agoraMs && !ocupado(dia, s),
     );
     // Fase 4: capacidade real do dia da semana.
@@ -689,8 +770,55 @@ export function segundosNoBloco(b: Pick<BlocoPlanejado, 'dia' | 'inicio' | 'fim'
   return Math.floor(ms / 1000);
 }
 
-/** Bloco de estudo (o simulado e a gestão dos concursos não são). */
-export const blocoDeEstudo = (b: Pick<BlocoPlanejado, 'motivo'>) => b.motivo !== 'simulado' && b.motivo !== 'gestao';
+/** Bloco de estudo (o simulado, a gestão dos concursos e as pausas da rotina não são). */
+export const blocoDeEstudo = (b: Pick<BlocoPlanejado, 'motivo'>) => b.motivo !== 'simulado' && b.motivo !== 'gestao' && b.motivo !== 'rotina';
+
+/**
+ * Com a rotina ligada, as pausas não são puladas: um bloco de estudo fixo (movido por você, de uma
+ * semana montada à mão) que caia numa pausa vai para o próximo horário de estudo livre do mesmo dia, e
+ * os fixos seguintes andam junto se for preciso, na mesma ordem. Sem horário livre depois dele, o
+ * primeiro livre antes; sem nenhum, fica onde está. Marcados, passados, simulados e os de `exceto`
+ * (o bloco ligado à sessão em andamento) não andam. Devolve os blocos que mudaram de horário.
+ */
+export function acomodarNaRotina(blocos: BlocoPlanejado[], d: Disponibilidade, agora: Date | number, exceto: Set<Id> = new Set()): BlocoPlanejado[] {
+  if (!d.rotina) return [];
+  const agoraMs = typeof agora === 'number' ? agora : agora.getTime();
+  const futuro = (b: BlocoPlanejado) => instanteSP(b.dia, b.inicio).getTime() >= agoraMs;
+  const movel = (b: BlocoPlanejado) => b.fixo && b.status === 'planejado' && blocoDeEstudo(b) && futuro(b) && !exceto.has(b.id);
+  const mudados: BlocoPlanejado[] = [];
+  for (const dia of [...new Set(blocos.filter(movel).map((b) => b.dia))]) {
+    const doDia = blocos.filter((b) => b.dia === dia);
+    const simulados = doDia.filter((b) => b.motivo === 'simulado');
+    const pausas = pausasDoDia(d, dia, simulados);
+    if (!pausas.length) continue;
+    const slots = slotsDoDia(d, dia, simulados).filter((s) => instanteSP(dia, s.inicio).getTime() >= agoraMs);
+    const moveis = doDia.filter(movel).sort((a, b) => a.inicio.localeCompare(b.inicio));
+    // Os que não andam: marcados, passados, simulados, gestão e os fixos de `exceto`.
+    const postos: Pick<BlocoHorario, 'inicio' | 'fim'>[] = doDia.filter(
+      (b) => !moveis.includes(b) && b.motivo !== 'rotina' && (b.status !== 'planejado' || b.fixo || !futuro(b)),
+    );
+    const conflita = (x: Pick<BlocoHorario, 'inicio' | 'fim'>) => pausas.some((p) => sobrepoe(p, x)) || postos.some((p) => sobrepoe(p, x));
+    for (const b of moveis) {
+      if (!conflita(b)) {
+        postos.push(b);
+        continue;
+      }
+      const dur = minutos(b);
+      const candidatos = slots
+        .map((s) => ({ inicio: s.inicio, fim: paraHora(Math.min(24 * 60 - 1, paraMin(s.inicio) + dur)) }))
+        .filter((x) => !conflita(x));
+      const novo = candidatos.find((x) => x.inicio >= b.inicio) ?? candidatos[candidatos.length - 1];
+      if (!novo) {
+        postos.push(b);
+        continue;
+      }
+      const movido = { ...b, inicio: novo.inicio, fim: novo.fim };
+      postos.push(movido);
+      mudados.push(movido);
+    }
+  }
+  return mudados;
+}
 
 /**
  * Primeiro horário livre do dia para `duracao` minutos, a partir de `inicio` (e nunca antes de

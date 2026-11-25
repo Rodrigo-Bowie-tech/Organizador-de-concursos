@@ -266,7 +266,7 @@ function TrocarEstudo({ aoFechar }: { aoFechar: () => void }) {
   const escolherBloco = (id: string) => {
     const b = dados.blocos.find((x) => x.id === id);
     // Bloco de um assunto só: a sessão passa a ser dele. Bloco de revisões variadas: o assunto fica como está.
-    if (b?.disciplinaId && b.tipo !== 'gestao' && b.tipo !== 'simulado') {
+    if (b?.disciplinaId && b.tipo !== 'gestao' && b.tipo !== 'rotina' && b.tipo !== 'simulado') {
       setValor({ ...valor, blocoId: id, concursoId: b.concursoId, disciplinaId: b.disciplinaId, topicoId: b.topicoId, tipo: b.tipo });
     } else setValor({ ...valor, blocoId: id || null });
   };

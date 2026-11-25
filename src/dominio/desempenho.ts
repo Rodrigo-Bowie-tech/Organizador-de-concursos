@@ -75,8 +75,8 @@ export function planejadoRealizado(blocos: BlocoPlanejado[], sessoes: Sessao[], 
   return Array.from({ length: semanas }, (_, i) => {
     const semana = somarDias(ultima, (i - semanas + 1) * 7);
     const fim = somarDias(semana, 6);
-    // O horário de gestão dos concursos não é estudo.
-    const planejado = blocos.filter((b) => b.motivo !== 'gestao' && b.dia >= semana && b.dia <= fim).reduce((t, b) => t + minutos(b), 0);
+    // O horário de gestão dos concursos e as pausas da rotina não são estudo.
+    const planejado = blocos.filter((b) => b.motivo !== 'gestao' && b.motivo !== 'rotina' && b.dia >= semana && b.dia <= fim).reduce((t, b) => t + minutos(b), 0);
     const realizado = sessoes.filter((s) => {
       const d = diaSP(s.inicio);
       return d >= semana && d <= fim;

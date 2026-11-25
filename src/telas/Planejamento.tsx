@@ -77,7 +77,7 @@ function CartaoBloco({ b, sessoesDoDia, agora, aoAbrir, arrastavel }: { b: Bloco
   const t = d && b.topicoId ? d.topicos[b.topicoId] : undefined;
   const estudado = segundosNoBloco(b, sessoesDoDia, agora);
   const feito = b.status === 'feito';
-  const cor = b.motivo === 'gestao' ? 'var(--roxo)' : d?.cor ?? 'var(--verde)';
+  const cor = b.motivo === 'gestao' ? 'var(--roxo)' : b.motivo === 'rotina' ? 'var(--alerta)' : d?.cor ?? 'var(--verde)';
   return (
     <button
       type="button"
@@ -129,8 +129,8 @@ function ModalBloco({ bloco, aoFechar }: { bloco: BlocoPlanejado | null; aoFecha
   const d = dados.disciplinas.find((x) => x.id === bloco.disciplinaId);
   const t = d && bloco.topicoId ? d.topicos[bloco.topicoId] : undefined;
   const concurso = dados.concursos.find((c) => c.id === bloco.concursoId);
-  // O bloco de gestão dos concursos não é estudo: sem cronômetro e sem sugestão pelo tempo.
-  const tipoSessao = bloco.tipo === 'gestao' ? null : bloco.tipo;
+  // A gestão dos concursos e as pausas da rotina não são estudo: sem cronômetro e sem sugestão pelo tempo.
+  const tipoSessao = bloco.tipo === 'gestao' || bloco.tipo === 'rotina' ? null : bloco.tipo;
   const estudado = tipoSessao ? segundosNoBloco(bloco, porDia.get(bloco.dia) ?? [], agora) : 0;
   const sugestao = bloco.status === 'planejado' ? statusSugerido(bloco, estudado) : null;
 
@@ -146,7 +146,9 @@ function ModalBloco({ bloco, aoFechar }: { bloco: BlocoPlanejado | null; aoFecha
     <Modal aberto aoFechar={aoFechar} titulo={t?.titulo ?? nomeDoBloco(bloco, d)} largo>
       <div className="grid grid-cols-1 gap-4">
         <p className="text-suave">
-          {[concurso?.nome, d?.nome].filter(Boolean).join(' › ') || 'Todos os concursos'} · {TIPO_BLOCO[bloco.tipo]}
+          {bloco.motivo === 'rotina'
+            ? 'Pausa da rotina, fora do estudo (Disponibilidade › Rotina do dia)'
+            : `${[concurso?.nome, d?.nome].filter(Boolean).join(' › ') || 'Todos os concursos'} · ${TIPO_BLOCO[bloco.tipo]}`}
           <br />
           <span className="numeros">
             {nomeDiaCurto(bloco.dia)}, {formatarData(bloco.dia)} · {bloco.inicio}–{bloco.fim} ({formatarDuracao(minutos(bloco) * 60)})
@@ -186,7 +188,7 @@ function ModalBloco({ bloco, aoFechar }: { bloco: BlocoPlanejado | null; aoFecha
             </Botao>
           </div>
         )}
-        {!tipoSessao && <ListaGestao bloco={bloco} />}
+        {bloco.motivo === 'gestao' && <ListaGestao bloco={bloco} />}
         <div className="flex flex-wrap gap-2">
           {tipoSessao && (
             <Botao
@@ -344,7 +346,7 @@ function VisaoMes({ base: dataRef, aoEscolher }: { base: DiaISO; aoEscolher: (di
               <span
                 key={b.id}
                 className={cx('h-1.5 rounded-full', b.status === 'feito' && 'opacity-40')}
-                style={{ background: b.motivo === 'gestao' ? 'var(--roxo)' : dados.disciplinas.find((x) => x.id === b.disciplinaId)?.cor ?? 'var(--verde)' }}
+                style={{ background: b.motivo === 'gestao' ? 'var(--roxo)' : b.motivo === 'rotina' ? 'var(--alerta)' : dados.disciplinas.find((x) => x.id === b.disciplinaId)?.cor ?? 'var(--verde)' }}
               />
             ))}
             {blocos.length > 3 && <span className="text-xs text-suave">+{blocos.length - 3}</span>}

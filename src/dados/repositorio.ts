@@ -31,7 +31,7 @@ import { chavePar, topicosDaImportacao } from '../dominio/edital';
 import { capacidadeParaPlano, capacidadeReal } from '../dominio/adaptacao';
 import { revisarErro, todasAsQuestoes } from '../dominio/desempenho';
 import { chanceDeErro, diagnosticoPorAssunto, relevanciaPorTopico } from '../dominio/diagnostico';
-import { acertoRecente, blocoDeEstudo, blocosDaSessao, blocosDoAssuntoDaSessao, DISPONIBILIDADE_VAZIA, gerarPlano, horarioLivre, minutos } from '../dominio/planejador';
+import { acertoRecente, acomodarNaRotina, blocoDeEstudo, blocosDaSessao, blocosDoAssuntoDaSessao, DISPONIBILIDADE_VAZIA, gerarPlano, horarioLivre, minutos } from '../dominio/planejador';
 import type { DisciplinaImportada } from '../dominio/edital';
 import { lerLote, topicosDoLote } from '../dominio/lote';
 import { comIncidenciaDasProvas } from '../dominio/provas';
@@ -757,12 +757,16 @@ export class Repositorio {
   async replanejar(): Promise<number> {
     const agora = this.relogio();
     const disciplinas = comIncidenciaDasProvas(this.dados.disciplinas, this.dados.concursos, this.dados.provas);
+    // Rotina do dia: os blocos fixos que caem numa pausa andam para o próximo horário de estudo.
+    const ligado = this.dados.ativa?.blocoId;
+    const acomodados = acomodarNaRotina(this.dados.blocos, this.dados.disponibilidade, agora, new Set(ligado ? [ligado] : []));
+    const existentes = acomodados.length ? this.dados.blocos.map((b) => acomodados.find((x) => x.id === b.id) ?? b) : this.dados.blocos;
     const novos = gerarPlano({
       agora,
       concursos: this.dados.concursos,
       disciplinas,
       disponibilidade: this.dados.disponibilidade,
-      existentes: this.dados.blocos,
+      existentes,
       acertos: acertoRecente(this.registrosDeQuestoes(), diaSP(agora)),
       capacidadeMin: this.capacidadeDoPlano(),
       intercalar: this.dados.config.intercalarAssuntos,
@@ -777,7 +781,7 @@ export class Repositorio {
       ultimaQuestao: this.ultimaQuestaoPorTopico(),
       novoId,
     });
-    await this.substituirFuturos(novos, this.saemNoReplanejamento());
+    await this.substituirFuturos([...novos, ...acomodados], [...this.saemNoReplanejamento(), ...acomodados]);
     await this.store.definir('estado/planejamento', { ultimoReplanejamento: diaSP(agora) });
     return novos.length;
   }
@@ -1028,7 +1032,8 @@ export class Repositorio {
     const [h, m] = formatarHora(agora).split(':').map(Number);
     const minimo = dia === hoje ? Math.ceil((h * 60 + m + 1) / 5) * 5 : 0;
     const saem = new Set(this.saemNoReplanejamento().map((x) => x.id));
-    const ocupados = this.dados.blocos.filter((x) => x.id !== id && x.dia === dia && !saem.has(x.id));
+    // As pausas da rotina também ocupam: o bloco não toma o horário da música ou dos exercícios.
+    const ocupados = this.dados.blocos.filter((x) => x.id !== id && x.dia === dia && (!saem.has(x.id) || x.motivo === 'rotina'));
     const livre = horarioLivre(ocupados, inicio, minutos(b), minimo);
     if (!livre) throw falha('horario_invalido', 'Não há horário livre nesse dia para este bloco. Escolha outro dia.');
     const [lh, lm] = livre.split(':').map(Number);

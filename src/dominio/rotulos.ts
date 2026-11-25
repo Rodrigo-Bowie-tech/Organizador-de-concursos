@@ -31,7 +31,7 @@ export const TIPO_SESSAO: Record<TipoSessao, string> = {
 };
 
 /** Tipo do bloco do Planejamento: os de sessão e o da gestão semanal dos concursos. */
-export const TIPO_BLOCO: Record<BlocoPlanejado['tipo'], string> = { ...TIPO_SESSAO, gestao: 'Gestão' };
+export const TIPO_BLOCO: Record<BlocoPlanejado['tipo'], string> = { ...TIPO_SESSAO, gestao: 'Gestão', rotina: 'Pausa' };
 
 /** Cores das disciplinas, na ordem em que são atribuídas. Legíveis nos dois temas. */
 export const CORES_DISCIPLINA = [
@@ -40,8 +40,9 @@ export const CORES_DISCIPLINA = [
 ];
 
 /** Nome do bloco no calendário: a disciplina; sem disciplina, "Simulado", "Revisões" ou "Estudo". */
-export function nomeDoBloco(b: { tipo: BlocoPlanejado['tipo']; disciplinaId: string | null }, disciplina?: { nome: string }): string {
+export function nomeDoBloco(b: { tipo: BlocoPlanejado['tipo']; disciplinaId: string | null; atividade?: string }, disciplina?: { nome: string }): string {
   if (b.tipo === 'gestao') return 'Gestão dos concursos';
+  if (b.tipo === 'rotina') return b.atividade || 'Pausa';
   if (disciplina) return disciplina.nome;
   if (b.tipo === 'simulado') return 'Simulado';
   if (b.tipo === 'revisao' && !b.disciplinaId) return 'Revisões';

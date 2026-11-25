@@ -39,7 +39,7 @@ export function pontosDaGestao(e: {
   const aguardando = e.concursos.filter((c) => c.status === 'prova_feita');
 
   const semana = somarDias(inicioDaSemana(e.hoje), -7);
-  const daSemana = e.blocos.filter((b) => b.motivo !== 'gestao' && b.dia >= semana && b.dia <= somarDias(semana, 6));
+  const daSemana = e.blocos.filter((b) => b.motivo !== 'gestao' && b.motivo !== 'rotina' && b.dia >= semana && b.dia <= somarDias(semana, 6));
   const feitos = daSemana.filter((b) => b.status === 'feito').length;
 
   return {
