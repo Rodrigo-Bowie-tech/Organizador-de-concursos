@@ -414,6 +414,40 @@ describe('planejamento no repositório', () => {
   });
 });
 
+describe('plano mantido', () => {
+  const grade = {
+    blocoMin: 60,
+    excecoes: {},
+    dias: Object.fromEntries(['0', '1', '2', '3', '4', '5', '6'].map((d) => [d, [{ inicio: '20:00', fim: '22:00' }]])),
+  };
+
+  it('nada é refeito sozinho; na virada do dia o não feito passa para a frente e empurra os demais', async () => {
+    agora = new Date('2026-09-27T12:00:00Z'); // domingo, 09:00 em SP
+    const { repo } = await novoRepo();
+    await concursoComDisciplina(repo);
+    await repo.salvarDisponibilidade({ ...grade, gestao: null });
+    await repo.replanejar();
+    await repo.salvarConfig({ ...repo.atual.config, planoMantido: true });
+    const ordem = () => repo.atual.blocos.filter((b) => b.status === 'planejado').map((b) => `${b.dia} ${b.inicio} ${b.id}`);
+    const ids = () => repo.atual.blocos.filter((b) => b.status === 'planejado').map((b) => b.id);
+    const antes = repo.atual.blocos.map((b) => b.id);
+    // Marcar um bloco não refaz o plano: os outros ficam iguais.
+    await repo.marcarBloco(repo.atual.blocos[0].id, 'feito');
+    expect(repo.atual.blocos.map((b) => b.id)).toEqual(antes);
+    // Domingo: o bloco das 21h fica sem fazer. Segunda: ele vem para as 20h e os seguintes andam um horário.
+    const domingo21 = repo.atual.blocos.find((b) => b.dia === '2026-09-27' && b.inicio === '21:00')!;
+    const seguintes = ids().filter((id) => id !== domingo21.id);
+    const total = ids().length;
+    agora = new Date('2026-09-28T12:00:00Z');
+    expect(await repo.replanejarDoDia()).toBe(true);
+    expect(ids()).toHaveLength(total);
+    expect(repo.atual.blocos.find((b) => b.id === domingo21.id)).toMatchObject({ dia: '2026-09-28', inicio: '20:00', status: 'planejado' });
+    expect(repo.atual.blocos.find((b) => b.id === seguintes[0])).toMatchObject({ dia: '2026-09-28', inicio: '21:00' });
+    expect(ordem()[0]).toContain(domingo21.id);
+    expect(await repo.replanejarDoDia()).toBe(false); // uma vez por dia
+  });
+});
+
 describe('adaptação no repositório (Fase 4)', () => {
   const grade = {
     blocoMin: 60,

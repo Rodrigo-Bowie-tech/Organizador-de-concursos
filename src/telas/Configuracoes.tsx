@@ -162,6 +162,21 @@ export function Configuracoes() {
               </span>
             </span>
           </label>
+          <label className="mt-4 flex items-start gap-2">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 accent-[var(--verde)]"
+              checked={Boolean(dados.config.planoMantido)}
+              onChange={(e) => salvar({ ...dados.config, planoMantido: e.target.checked }, 'Planejamento atualizado.')}
+            />
+            <span>
+              <span className="font-bold">Manter o plano</span>
+              <span className="block text-sm text-suave">
+                O app não refaz o plano sozinho: nenhum bloco é tirado nem posto. O que não for feito no dia passa para o dia seguinte e empurra os
+                demais, na mesma ordem. Para refazer, use "Replanejar" no Planejamento.
+              </span>
+            </span>
+          </label>
         </Cartao>
 
         <Cartao titulo="Tema">

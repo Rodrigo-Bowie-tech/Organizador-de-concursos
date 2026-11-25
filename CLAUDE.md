@@ -284,6 +284,15 @@ seed sozinho.
     gestão); bloco fixo de estudo que caia numa pausa anda para o próximo horário de estudo livre do dia ao
     replanejar (`acomodarNaRotina`; não o ligado à sessão em andamento), e mover um bloco não toma o horário de
     uma pausa;
+  - **plano mantido** (`config.planoMantido`, 25/11, a pedido do usuário: "o que não for feito no dia deve ser
+    posto no dia seguinte, ajustando os demais, sem retirar nem pôr blocos, a não ser que eu peça"): nenhuma
+    mudança replaneja sozinha (`replanejarSePuder` não faz nada); na primeira abertura do dia (e ao voltar
+    para o app aberto num dia novo), `adiarNaoFeitos` põe os blocos de estudo ainda planejados de dias
+    anteriores à frente dos de hoje e cada bloco seguinte anda para o horário do próximo, na mesma ordem; os
+    que sobram no fim ganham os próximos horários de estudo livres depois do último bloco (podem cair depois
+    da prova). Pausas, simulados, gestão e marcados não andam. Mover um bloco não refaz nada (todos os
+    blocos do dia ocupam). "Replanejar" no Planejamento e "Salvar e refazer" na Disponibilidade continuam
+    refazendo tudo, porque são pedidos seus;
   - gestão semanal (`disponibilidade.gestao`): um bloco `motivo: 'gestao'` por semana no horário escolhido,
     se a semana ainda não tem um que fica (marcado, movido ou passado); o estudo não cai no horário, a
     viabilidade não o conta e ele fica fora da cota de revisão, do rodízio e do planejado × realizado;

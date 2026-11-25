@@ -53,8 +53,11 @@ async function iniciar() {
     // Antes de replanejar o dia, traz o que os outros aparelhos fizeram (espera no máximo 4 s).
     await sinc.iniciar(4000);
   }
-  // O "replanejar de madrugada": na primeira abertura do dia.
+  // O "replanejar de madrugada": na primeira abertura do dia (e ao voltar para o app aberto num dia novo).
   void repo.replanejarDoDia().catch(() => undefined);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void repo.replanejarDoDia().catch(() => undefined);
+  });
   raiz.render(
     <ProvedorDados repo={repo} recursos={recursos}>
       <App />

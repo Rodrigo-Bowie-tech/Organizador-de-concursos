@@ -31,7 +31,7 @@ import { chavePar, topicosDaImportacao } from '../dominio/edital';
 import { capacidadeParaPlano, capacidadeReal } from '../dominio/adaptacao';
 import { revisarErro, todasAsQuestoes } from '../dominio/desempenho';
 import { chanceDeErro, diagnosticoPorAssunto, relevanciaPorTopico } from '../dominio/diagnostico';
-import { acertoRecente, acomodarNaRotina, blocoDeEstudo, blocosDaSessao, blocosDoAssuntoDaSessao, DISPONIBILIDADE_VAZIA, gerarPlano, horarioLivre, minutos } from '../dominio/planejador';
+import { acertoRecente, acomodarNaRotina, adiarNaoFeitos, blocoDeEstudo, blocosDaSessao, blocosDoAssuntoDaSessao, DISPONIBILIDADE_VAZIA, gerarPlano, horarioLivre, minutos } from '../dominio/planejador';
 import type { DisciplinaImportada } from '../dominio/edital';
 import { lerLote, topicosDoLote } from '../dominio/lote';
 import { comIncidenciaDasProvas } from '../dominio/provas';
@@ -102,6 +102,7 @@ export const CONFIG_PADRAO: Configuracao = {
   tema: 'sistema',
   usarCapacidadeReal: true,
   intercalarAssuntos: 0,
+  planoMantido: false,
 };
 
 export interface Dados {
@@ -927,15 +928,27 @@ export class Repositorio {
   }
 
   /** Replaneja se houver disponibilidade configurada (depois de sessões e blocos marcados, ou do plano juntado de dois aparelhos). */
+  /** Replaneja depois de uma mudança; com o plano mantido, não (só quando você pede). */
   async replanejarSePuder(): Promise<void> {
-    if (this.temDisponibilidade()) await this.replanejar();
+    if (this.temDisponibilidade() && !this.dados.config.planoMantido) await this.replanejar();
   }
 
-  /** Na primeira abertura do dia, refaz o plano (o "replanejar de madrugada"). */
+  /**
+   * Na primeira abertura do dia, refaz o plano (o "replanejar de madrugada"). Com o plano mantido,
+   * só passa os blocos não feitos dos dias anteriores para a frente (`adiarNaoFeitos`).
+   */
   async replanejarDoDia(): Promise<boolean> {
+    const hoje = diaSP(this.relogio());
     const ultimo = this.col('estado').get('planejamento')?.ultimoReplanejamento;
-    if (ultimo === diaSP(this.relogio()) || !this.temDisponibilidade()) return false;
-    await this.replanejar();
+    if (ultimo === hoje || !this.temDisponibilidade()) return false;
+    if (!this.dados.config.planoMantido) {
+      await this.replanejar();
+      return true;
+    }
+    const ligado = this.dados.ativa?.blocoId;
+    const adiados = adiarNaoFeitos(this.dados.blocos, this.dados.disponibilidade, hoje, new Set(ligado ? [ligado] : []));
+    if (adiados.length) await this.substituirFuturos(adiados, adiados);
+    await this.store.definir('estado/planejamento', { ultimoReplanejamento: hoje });
     return true;
   }
 
@@ -1031,7 +1044,8 @@ export class Repositorio {
     if (dia < hoje) throw falha('horario_invalido', 'Esse dia já passou. Escolha hoje ou um dia à frente.');
     const [h, m] = formatarHora(agora).split(':').map(Number);
     const minimo = dia === hoje ? Math.ceil((h * 60 + m + 1) / 5) * 5 : 0;
-    const saem = new Set(this.saemNoReplanejamento().map((x) => x.id));
+    // Com o plano mantido nada é refeito: todos os blocos do dia ocupam o horário.
+    const saem = new Set(this.dados.config.planoMantido ? [] : this.saemNoReplanejamento().map((x) => x.id));
     // As pausas da rotina também ocupam: o bloco não toma o horário da música ou dos exercícios.
     const ocupados = this.dados.blocos.filter((x) => x.id !== id && x.dia === dia && (!saem.has(x.id) || x.motivo === 'rotina'));
     const livre = horarioLivre(ocupados, inicio, minutos(b), minimo);

@@ -189,6 +189,12 @@ export interface Configuracao {
    * estudada há mais tempo. 0 ou 1 = desligado (no máximo 2 blocos seguidos da mesma disciplina).
    */
   intercalarAssuntos: number;
+  /**
+   * Plano mantido (25/11, a pedido do usuário): o app não refaz o plano sozinho (nem põe nem tira
+   * blocos); na virada do dia, os blocos de estudo não feitos vão para o dia seguinte e empurram os
+   * demais, na mesma ordem. Refazer o plano só quando você pede.
+   */
+  planoMantido?: boolean;
 }
 
 // ------------------------------------------------- Fases seguintes (tipos já definidos)

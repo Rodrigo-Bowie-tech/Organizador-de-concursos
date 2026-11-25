@@ -821,6 +821,44 @@ export function acomodarNaRotina(blocos: BlocoPlanejado[], d: Disponibilidade, a
 }
 
 /**
+ * Plano mantido: os blocos de estudo de dias anteriores a `hoje` que ficaram planejados (não feitos)
+ * passam para a frente, antes dos de hoje, e cada bloco seguinte anda para o horário do próximo, na
+ * mesma ordem. Ninguém é tirado nem posto: os horários são os dos blocos de hoje em diante e, para os
+ * que sobram no fim, os próximos horários de estudo livres da disponibilidade depois do último bloco
+ * (que podem cair depois da prova). Pausas da rotina, simulados, gestão e blocos marcados não andam;
+ * os de `exceto` (o ligado à sessão em andamento) também não. Devolve os blocos que mudaram.
+ */
+export function adiarNaoFeitos(blocos: BlocoPlanejado[], d: Disponibilidade, hoje: DiaISO, exceto: Set<Id> = new Set()): BlocoPlanejado[] {
+  const ordem = (a: BlocoPlanejado, b: BlocoPlanejado) => `${a.dia}${a.inicio}`.localeCompare(`${b.dia}${b.inicio}`);
+  const movel = (b: BlocoPlanejado) => b.status === 'planejado' && blocoDeEstudo(b) && !exceto.has(b.id);
+  const atrasados = blocos.filter((b) => movel(b) && b.dia < hoje).sort(ordem);
+  if (!atrasados.length) return [];
+  const seguintes = blocos.filter((b) => movel(b) && b.dia >= hoje).sort(ordem);
+  const posicoes: Pick<BlocoPlanejado, 'dia' | 'inicio' | 'fim'>[] = seguintes.map((b) => ({ dia: b.dia, inicio: b.inicio, fim: b.fim }));
+  // Horários a mais para os que sobram: depois do último bloco, nos horários de estudo livres.
+  const ultimo = posicoes[posicoes.length - 1];
+  let falta = atrasados.length;
+  for (let n = 0; falta > 0 && n < 400; n++) {
+    const dia = somarDias(ultimo?.dia ?? hoje, n);
+    const doDia = blocos.filter((b) => b.dia === dia);
+    for (const s of slotsDoDia(d, dia, doDia.filter((b) => b.motivo === 'simulado'))) {
+      if (falta <= 0) break;
+      if (ultimo && dia === ultimo.dia && s.inicio < ultimo.fim) continue;
+      if (doDia.some((b) => sobrepoe(b, s))) continue;
+      posicoes.push({ dia, inicio: s.inicio, fim: s.fim });
+      falta--;
+    }
+  }
+  const mudados: BlocoPlanejado[] = [];
+  [...atrasados, ...seguintes].forEach((b, i) => {
+    const p = posicoes[i];
+    if (!p || (p.dia === b.dia && p.inicio === b.inicio && p.fim === b.fim)) return;
+    mudados.push({ ...b, dia: p.dia, inicio: p.inicio, fim: p.fim });
+  });
+  return mudados;
+}
+
+/**
  * Primeiro horário livre do dia para `duracao` minutos, a partir de `inicio` (e nunca antes de
  * `minimo`, em minutos do dia): se o horário já tem outro bloco, logo depois dele, e assim por diante;
  * sem lugar até a meia-noite, o mais tarde que couber antes. `null` = o dia não tem lugar.

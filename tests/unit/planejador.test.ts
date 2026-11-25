@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { diaDaSemana } from '../../src/dominio/datas';
-import { acomodarNaRotina, ajusteDosSimulados, aplicarRotina, blocoDeEstudo, blocosDaSessao, dominio, filaDeTeoria, fracaoRevisao, gerarPlano, horarioLivre, janelasDoDia, slotsDoDia, statusSugerido } from '../../src/dominio/planejador';
+import { acomodarNaRotina, adiarNaoFeitos, ajusteDosSimulados, aplicarRotina, blocoDeEstudo, blocosDaSessao, dominio, filaDeTeoria, fracaoRevisao, gerarPlano, horarioLivre, janelasDoDia, slotsDoDia, statusSugerido } from '../../src/dominio/planejador';
 import type { EntradaPlano } from '../../src/dominio/planejador';
 import { relevanciaPorTopico } from '../../src/dominio/diagnostico';
 import { iniciarRevisao } from '../../src/dominio/revisoes';
@@ -145,6 +145,38 @@ describe('rotina do dia: pausas entre os trechos de estudo', () => {
     const existentes = blocos.map((b) => acomodados.find((x) => x.id === b.id) ?? b);
     const plano = gerarPlano(entrada({ disponibilidade: d, existentes }));
     expect(plano.filter((b) => b.dia === '2026-09-29' && b.motivo === 'rotina').map((b) => `${b.inicio} ${b.atividade}`)).toEqual(['11:00 Música', '14:00 Exercícios físicos']);
+  });
+});
+
+describe('plano mantido: o não feito passa para o dia seguinte', () => {
+  const ROTINA = { estudoMin: 120, atividades: [{ nome: 'Música', minutos: 60 }, { nome: 'Exercícios físicos', minutos: 60 }] };
+  const d: Disponibilidade = { blocoMin: 60, dias: Object.fromEntries(['0', '1', '2', '3', '4', '5', '6'].map((k) => [k, [{ inicio: '09:00', fim: '13:00' }]])), excecoes: {}, rotina: ROTINA };
+  const b = (id: string, dia: string, inicio: string, fim: string, extra: Partial<BlocoPlanejado> = {}): BlocoPlanejado => ({
+    id, dia, inicio, fim, concursoId: 'ff', disciplinaId: 'eletrica', topicoId: id, tipo: 'teoria', status: 'planejado', motivo: 'teoria', ...extra,
+  });
+  const pausa = (id: string, dia: string, inicio: string, fim: string, atividade: string) =>
+    b(id, dia, inicio, fim, { disciplinaId: null, topicoId: null, tipo: 'rotina', motivo: 'rotina', atividade });
+
+  it('os não feitos vêm primeiro no dia seguinte, os demais andam na mesma ordem e as pausas ficam', () => {
+    const blocos = [
+      b('spda', '2026-11-25', '16:00', '17:00', { status: 'feito' }),
+      pausa('m1', '2026-11-25', '17:00', '18:00', 'Música'),
+      b('rl', '2026-11-25', '18:00', '19:00'),
+      b('pt', '2026-11-25', '19:00', '20:00'),
+      b('a', '2026-11-26', '09:00', '10:00'),
+      b('b', '2026-11-26', '10:00', '11:00'),
+      pausa('m2', '2026-11-26', '11:00', '12:00', 'Música'),
+      b('c', '2026-11-26', '12:00', '13:00'),
+      b('d', '2026-11-26', '13:00', '14:00'),
+      pausa('e2', '2026-11-26', '14:00', '15:00', 'Exercícios físicos'),
+    ];
+    const mudados = adiarNaoFeitos(blocos, d, '2026-11-26');
+    const onde = Object.fromEntries(mudados.map((x) => [x.id, `${x.dia.slice(8)} ${x.inicio}`]));
+    expect(onde).toEqual({ rl: '26 09:00', pt: '26 10:00', a: '26 12:00', b: '26 13:00', c: '27 09:00', d: '27 10:00' });
+    expect(mudados.every((x) => x.status === 'planejado' && x.motivo === 'teoria')).toBe(true);
+    // Sem atraso, nada muda; o bloco ligado à sessão em andamento não anda.
+    expect(adiarNaoFeitos(blocos, d, '2026-11-25')).toEqual([]);
+    expect(adiarNaoFeitos(blocos, d, '2026-11-26', new Set(['rl', 'pt']))).toEqual([]);
   });
 });
 
