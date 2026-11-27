@@ -4,13 +4,10 @@ import { Botao, BotaoIcone, CabecalhoTela, Campo, Cartao, Entrada, Selecao } fro
 import { formatarData, formatarDuracao } from '../dominio/datas';
 import { GESTAO_PADRAO } from '../dominio/gestao';
 import { minutos } from '../dominio/planejador';
-import type { BlocoHorario, Disponibilidade as Disp, RotinaDoDia } from '../dominio/tipos';
+import type { BlocoHorario, Disponibilidade as Disp } from '../dominio/tipos';
 import { useApp } from '../estado';
 
 const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-
-/** Pausas sugeridas ao ligar a rotina do dia. */
-const ROTINA_PADRAO: RotinaDoDia = { estudoMin: 120, atividades: [{ nome: 'Música', minutos: 60 }, { nome: 'Exercícios físicos', minutos: 60 }] };
 
 function Janelas({ lista, aoMudar, rotulo }: { lista: BlocoHorario[]; aoMudar: (l: BlocoHorario[]) => void; rotulo: string }) {
   return (
@@ -55,7 +52,6 @@ export function Disponibilidade() {
     (!d.rotina || d.rotina.atividades.every((a) => a.nome.trim() && a.minutos > 0));
   const gestao = d.gestao ?? null;
   const rotina = d.rotina ?? null;
-  const mudarAtividades = (atividades: RotinaDoDia['atividades']) => rotina && setD({ ...d, rotina: { ...rotina, atividades } });
 
   async function salvar(replanejar: boolean) {
     const limpo: Disp = {
@@ -115,70 +111,6 @@ export function Disponibilidade() {
                 </Selecao>
               )}
             </Campo>
-          </Cartao>
-
-          <Cartao titulo="Rotina do dia">
-            <p className="mb-3 text-sm text-suave">
-              Pausas entre os trechos de estudo, todo dia e sempre na mesma ordem (a lista recomeça a cada dia). Elas empurram o resto do estudo
-              para depois, então os horários da grade e das exceções continuam sendo o tempo de estudo. O último trecho do dia também ganha a sua
-              pausa, e o simulado não é interrompido: a pausa vem logo depois dele.
-            </p>
-            <label className="flex items-center gap-2 font-bold">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-[var(--verde)]"
-                checked={Boolean(rotina)}
-                onChange={(e) => setD({ ...d, rotina: e.target.checked ? ROTINA_PADRAO : null })}
-              />
-              Fazer pausas entre os trechos de estudo
-            </label>
-            {rotina && (
-              <div className="mt-3 grid grid-cols-1 gap-3">
-                <Campo rotulo="Uma pausa a cada">
-                  {(id) => (
-                    <Selecao id={id} value={rotina.estudoMin} onChange={(e) => setD({ ...d, rotina: { ...rotina, estudoMin: Number(e.target.value) } })}>
-                      {[30, 45, 60, 90, 120, 150, 180].map((m) => (
-                        <option key={m} value={m}>
-                          {formatarDuracao(m * 60)} de estudo
-                        </option>
-                      ))}
-                    </Selecao>
-                  )}
-                </Campo>
-                <ol className="grid grid-cols-1 gap-2">
-                  {rotina.atividades.map((a, i) => (
-                    <li key={i} className="flex flex-wrap items-center gap-2">
-                      <span className="numeros w-5 shrink-0 font-bold text-suave">{i + 1}.</span>
-                      <Entrada
-                        aria-label={`Pausa ${i + 1}: atividade`}
-                        className="w-40 min-w-0 flex-1"
-                        placeholder="Atividade"
-                        value={a.nome}
-                        onChange={(e) => mudarAtividades(rotina.atividades.map((x, k) => (k === i ? { ...x, nome: e.target.value } : x)))}
-                      />
-                      <Selecao
-                        aria-label={`Pausa ${i + 1}: duração`}
-                        className="w-28"
-                        value={a.minutos}
-                        onChange={(e) => mudarAtividades(rotina.atividades.map((x, k) => (k === i ? { ...x, minutos: Number(e.target.value) } : x)))}
-                      >
-                        {[10, 15, 20, 30, 45, 60, 90, 120].map((m) => (
-                          <option key={m} value={m}>
-                            {formatarDuracao(m * 60)}
-                          </option>
-                        ))}
-                      </Selecao>
-                      <BotaoIcone rotulo={`Remover a pausa ${i + 1}`} onClick={() => mudarAtividades(rotina.atividades.filter((_, k) => k !== i))}>
-                        <Trash2 size={16} />
-                      </BotaoIcone>
-                    </li>
-                  ))}
-                </ol>
-                <Botao tamanho="pequeno" variante="fantasma" className="justify-self-start" onClick={() => mudarAtividades([...rotina.atividades, { nome: '', minutos: 30 }])}>
-                  <Plus size={15} /> Pausa
-                </Botao>
-              </div>
-            )}
           </Cartao>
 
           <Cartao titulo="Gestão dos concursos">

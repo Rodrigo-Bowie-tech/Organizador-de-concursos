@@ -15,6 +15,7 @@ import { TIPO_BLOCO, nomeDoBloco, titulosDasRevisoes } from '../dominio/rotulos'
 import { useAgora, useApp } from '../estado';
 import { oportunidadesNovas } from '../radar/radar';
 import { backupAtrasado } from '../dominio/exportacao';
+import { IconeVale, ProximoVale, useVales } from './Vales';
 
 const DIAS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 
@@ -58,6 +59,41 @@ function AlertaRadar({ hoje }: { hoje: string }) {
       </span>
       <span className="text-sm font-bold text-roxo">Ver radar</span>
     </button>
+  );
+}
+
+/** Vales de descanso: os guardados e quanto falta para o próximo. */
+function CartaoVales() {
+  const { dados, irPara } = useApp();
+  const estado = useVales(30_000);
+  if (!dados.config.vales) return null;
+  return (
+    <Cartao
+      titulo="Vales"
+      acao={
+        <Botao tamanho="pequeno" variante="fantasma" onClick={() => irPara('vales')}>
+          Abrir vales
+        </Botao>
+      }
+    >
+      <div className="grid grid-cols-1 gap-3">
+        {estado.emUso ? (
+          <p className="flex items-center gap-2 font-bold text-verde-forte">
+            <IconeVale nome={estado.emUso.atividade} /> {estado.emUso.atividade} em uso: faltam {formatarDuracao(estado.emUso.restaSeg)}
+          </p>
+        ) : estado.disponiveis.length > 0 ? (
+          <p className="flex flex-wrap items-center gap-2 font-bold">
+            {estado.disponiveis.length === 1 ? '1 vale guardado:' : `${estado.disponiveis.length} vales guardados:`}{' '}
+            {estado.disponiveis.map((v) => (
+              <span key={v.numero} className="inline-flex items-center gap-1 rounded-full bg-verde-suave px-2 py-0.5 text-sm text-verde-forte">
+                <IconeVale nome={v.atividade} size={14} /> {v.atividade}
+              </span>
+            ))}
+          </p>
+        ) : null}
+        <ProximoVale estado={estado} />
+      </div>
+    </Cartao>
   );
 }
 
@@ -200,6 +236,7 @@ export function Home() {
             </button>
           </p>
         )}
+        <CartaoVales />
         <BlocosDeHoje hoje={hoje} />
         <CartaoFimDaTeoria />
         <AvisosPlano compacto />

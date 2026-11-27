@@ -195,6 +195,28 @@ export interface Configuracao {
    * demais, na mesma ordem. Refazer o plano só quando você pede.
    */
   planoMantido?: boolean;
+  /** Vales de descanso ganhos com horas de estudo (tela Vales); ausente ou `null` = desligados. */
+  vales?: ConfigVales | null;
+}
+
+/** A cada `estudoMin` de estudo, um vale da próxima atividade da lista, contando desde `desde`. */
+export interface ConfigVales {
+  estudoMin: number;
+  atividades: { nome: string; minutos: number }[];
+  /** Instante ISO em que a contagem começou. */
+  desde: string;
+}
+
+/** Um vale usado, em `estado/vales` (`itens`). */
+export interface UsoVale {
+  id: Id;
+  /** O número do vale (ordem desde o começo da contagem). */
+  numero: number;
+  atividade: string;
+  minutos: number;
+  inicio: string;
+  /** Terminado antes da hora; `null` = a contagem vai até o fim. */
+  fim: string | null;
 }
 
 // ------------------------------------------------- Fases seguintes (tipos já definidos)

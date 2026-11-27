@@ -43,9 +43,9 @@ const icones = readdirSync(join(saida, 'icones')).map((n) => `icones/${n}`);
 
 const manifest = {
   id: './',
-  name: 'Organizador de Concursos',
-  short_name: 'Concursos',
-  description: 'Estudos para concursos: edital, cronômetro, planejamento, revisões e questões. Funciona sem internet.',
+  name: 'Organizador diário',
+  short_name: 'Organizador',
+  description: 'Rotina de estudos: cronômetro, planejamento, revisões, questões e vales de descanso. Funciona sem internet.',
   lang: 'pt-BR',
   dir: 'ltr',
   start_url: './',
@@ -68,7 +68,7 @@ const html = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Organizador de Concursos</title>
+<title>Organizador diário</title>
 <meta name="description" content="${manifest.description}">
 <meta name="theme-color" content="${COR_TEMA}" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="${COR_TEMA_ESCURO}" media="(prefers-color-scheme: dark)">
@@ -87,7 +87,7 @@ const html = `<!doctype html>
 </head>
 <body>
 <div id="raiz"></div>
-<noscript><p style="padding:16px">O Organizador de Concursos precisa de JavaScript ligado.</p></noscript>
+<noscript><p style="padding:16px">O Organizador diário precisa de JavaScript ligado.</p></noscript>
 <script src="${nomeJs}"></script>
 </body>
 </html>
@@ -96,7 +96,7 @@ writeFileSync(join(saida, 'index.html'), html);
 
 const precache = ['./', nomeJs, nomeCss, 'manifest.webmanifest', ...icones];
 const versao = resumo([html, js, css, JSON.stringify(manifest), ...icones].join('\n'));
-const sw = `// Service worker do Organizador de Concursos (gerado por scripts/montar-web.mjs).
+const sw = `// Service worker do Organizador diário (gerado por scripts/montar-web.mjs).
 // Guarda o app na instalação para abrir sem internet; os dados ficam no IndexedDB.
 const VERSAO = '${versao}';
 const CACHE_APP = 'organizador-app-' + VERSAO;

@@ -26,6 +26,7 @@ export type Tela =
   | 'biblioteca'
   | 'radar'
   | 'cronometro'
+  | 'vales'
   | 'configuracoes';
 
 export interface Aviso {

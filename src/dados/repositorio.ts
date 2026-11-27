@@ -64,6 +64,7 @@ import type {
   StatusTopico,
   TipoSessao,
   Topico,
+  UsoVale,
 } from '../dominio/tipos';
 import type { ErroStore, Json, Store } from './store';
 
@@ -135,6 +136,8 @@ export interface Dados {
   provas: ProvaAnterior[];
   /** Instante do último backup exportado (lembrete na Home). */
   ultimoBackup: string | null;
+  /** Vales de descanso já usados (`estado/vales`). */
+  usosVales: UsoVale[];
   config: Configuracao;
   erro: ErroStore | null;
 }
@@ -289,6 +292,9 @@ export class Repositorio {
       .sort((a, b) => (b.ano ?? 0) - (a.ano ?? 0) || b.importadaEm.localeCompare(a.importadaEm));
     const ultimoBackup = (this.col('estado').get('backup')?.ultimoEm as string | undefined) ?? null;
     const ativa = ((this.col('estado').get('cronometro')?.sessao as Sessao | null) ?? null) || null;
+    const usosVales = Object.values((this.col('estado').get('vales')?.itens as Record<Id, UsoVale | null> | undefined) ?? {})
+      .filter((u): u is UsoVale => Boolean(u))
+      .sort((a, b) => b.inicio.localeCompare(a.inicio));
     const cfg = this.col('config').get('geral') as Partial<Configuracao> | undefined;
     const config: Configuracao = {
       ...CONFIG_PADRAO,
@@ -316,6 +322,7 @@ export class Repositorio {
       radarVistoAte,
       provas,
       ultimoBackup,
+      usosVales,
       config,
       erro: this.erro,
     };
@@ -1469,6 +1476,31 @@ export class Repositorio {
 
   async salvarConfig(c: Configuracao): Promise<void> {
     await this.store.definir('config/geral', c as unknown as Json);
+  }
+
+  // ---------------------------------------------------------------- vales
+
+  /** Usa um vale ganho: a contagem de `minutos` começa agora. */
+  async usarVale(v: Pick<UsoVale, 'numero' | 'atividade' | 'minutos'>): Promise<Id> {
+    if (this.dados.usosVales.some((u) => u.numero === v.numero)) throw falha('vale_usado', 'Esse vale já foi usado.');
+    const uso: UsoVale = { id: novoId(), numero: v.numero, atividade: v.atividade, minutos: v.minutos, inicio: this.relogio().toISOString(), fim: null };
+    const itens = { [uso.id]: uso } as unknown as Json;
+    if (this.col('estado').has('vales')) await this.store.mesclar('estado/vales', { itens });
+    else await this.store.definir('estado/vales', { itens });
+    return uso.id;
+  }
+
+  /** Termina o vale em uso antes da hora. */
+  async terminarVale(id: Id): Promise<void> {
+    const u = this.dados.usosVales.find((x) => x.id === id);
+    if (!u) throw falha('nao_encontrado', 'Vale não encontrado.');
+    await this.store.mesclar('estado/vales', { itens: { [id]: { ...u, fim: this.relogio().toISOString() } } as unknown as Json });
+  }
+
+  /** Desfaz o uso (apertou sem querer): o vale volta a ficar disponível. */
+  async desfazerVale(id: Id): Promise<void> {
+    const itens = Object.fromEntries(this.dados.usosVales.filter((u) => u.id !== id).map((u) => [u.id, u])) as unknown as Json;
+    await this.store.definir('estado/vales', { itens });
   }
 
   // --------------------------------------------------------------- backup

@@ -32,7 +32,7 @@ const css = readFileSync(join(dist, 'build/app.css'), 'utf8').replaceAll('</styl
 function pagina(react, reactDom, reserva = true) {
   const plano = (global, url) =>
     reserva ? `\n<script>window.${global}||document.write('<script src="${url}"><\\/script>')</script>` : '';
-  return `<title>Organizador de Concursos</title>
+  return `<title>Organizador diário</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="${FONTES}">

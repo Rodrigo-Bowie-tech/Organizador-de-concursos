@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-App pessoal de estudos para concursos (usuário único). A especificação completa está em
+App pessoal de estudos para concursos (usuário único), chamado **Organizador diário** desde 27/11/2026
+(antes "Organizador de Concursos"; o repositório e os endereços continuam com o nome antigo). A especificação completa está em
 `SPEC_plataforma_estudos.md`; as referências visuais (Estudei) estão em `docs/referencias/`.
 
 - Interface em português do Brasil, datas `dd/mm/aaaa`, fuso America/Sao_Paulo.
@@ -77,6 +78,7 @@ src/
                    prova × parte do plano, desempenho como informação e "estudar logo"
     provas.ts      provas anteriores: dividir para a IA, pedido/validação, gabarito colado, incidência por tópico e banca
     exportacao.ts  planilhas CSV (sessões, questões) e regra do lembrete de backup
+    vales.ts       vales de descanso: ganhos a cada N horas de estudo, disponíveis, em uso e o próximo
   radar/         radar de concursos, sem React (roda também no Node pelo coletor)
     radar.ts       interface FonteConcursos, filtros (área por radical), id estável, junção com o banco
     pci.ts         parser das listagens do PCI Concursos (testado sobre HTML salvo) e leitor de robots.txt
@@ -92,7 +94,7 @@ src/
   estado.tsx     contexto React: dados, concurso ativo, navegação, avisos
   telas/         Home, Concursos, Disciplinas, Edital, ImportarEdital, Planejamento, Disponibilidade,
                  Revisoes, Questoes, CadernoErros, Simulados, Historico, Estatisticas, Balanco, Biblioteca,
-                 Provas, ImportarProva, Radar, Cronometro, Configuracoes
+                 Provas, ImportarProva, Radar, Cronometro, Vales, Configuracoes
   componentes/   ui.tsx (botões, modal <dialog>, campos), campos/modais de sessão, botão flutuante,
                  Pomodoro, Materiais (biblioteca), PraticaIA, Alternativas (questão respondida com um clique),
                  QuestoesProva (revisão de assunto/gabarito/anulada das questões de uma prova),
@@ -176,6 +178,7 @@ Limites: **5.000 documentos** no total e 256 KiB por documento. Por isso os regi
 | `estado/radar` | `{ vistoAte }`: oportunidades coletadas depois disso são "novas" (alerta na Home) |
 | `plano/<semana>` (fixos) | simulados marcados no cronograma: `tipo`/`motivo` `simulado`, sem disciplina, `fixo: true` |
 | `plano/<semana>` (gestão) | gestão semanal: `tipo`/`motivo` `gestao`, sem disciplina; `tarefas` marcadas (com alguma marcada, `fixo: true`) |
+| `estado/vales` | `{ itens: { <id>: UsoVale } }`: vales usados (número do vale, atividade, minutos, início, fim antecipado) |
 | `estado/backup` | `{ ultimoEm }`: último backup exportado (lembrete na Home depois de 30 dias, com ≥ 10 sessões) |
 | `provas/<id>` | ProvaAnterior com as questões dentro (`questoes: { <id>: QuestaoProva }`); PDF em `arquivoId`. Com `caderno: true`, caderno de estudo (questões com `rotulo` "01.D2", `grupo` "Bloco 01 · Diagnóstico" e `comentario` do gabarito) |
 
@@ -284,6 +287,14 @@ seed sozinho.
     gestão); bloco fixo de estudo que caia numa pausa anda para o próximo horário de estudo livre do dia ao
     replanejar (`acomodarNaRotina`; não o ligado à sessão em andamento), e mover um bloco não toma o horário de
     uma pausa;
+  - **vales** (`config.vales`, tela Vales e cartão na Home, `dominio/vales.ts`, 27/11, a pedido do usuário, no
+    lugar das pausas no plano: "preciso de vales para poder estudar música ou fazer exercícios"): a cada
+    `estudoMin` de estudo de verdade (sessões, inclusive a em andamento, só os trechos ativos e depois de
+    `desde`) ganha-se um vale da próxima atividade da lista (padrão: 2 h → 1 h de Música, depois 1 h de
+    Exercícios físicos), sem recomeçar a cada dia. Vales ficam guardados; "Usar vale" grava um `UsoVale` em
+    `estado/vales` (`itens`) e abre a contagem de `minutos` (bipe no fim com a tela aberta); dá para terminar
+    antes ou desfazer. O card "Rotina do dia" saiu da Disponibilidade (o `rotina` do planejador continua no
+    código, desligado no Embu);
   - **plano mantido** (`config.planoMantido`, 25/11, a pedido do usuário: "o que não for feito no dia deve ser
     posto no dia seguinte, ajustando os demais, sem retirar nem pôr blocos, a não ser que eu peça"): nenhuma
     mudança replaneja sozinha (`replanejarSePuder` não faz nada); na primeira abertura do dia (e ao voltar
@@ -443,6 +454,9 @@ seed sozinho.
   para o cronômetro: traz as 5 tarefas (analisar editais, pesquisar outros concursos, verificar
   inscrições, revisar o planejamento, conferir resultados) com o que pede atenção nos dados e um atalho
   para a tela; com as 5 marcadas, o bloco fica feito.
+- **Fim das férias** (27/11/2026): 2 h por dia (dias úteis 20h–22h, fins de semana 9h–11h), metas de 2 h/dia,
+  sem as exceções de férias de 27/11 a 04/12 (05/12 9h–11h e 06/12 sem estudo ficam), blocos fixos de estudo
+  das férias soltos e plano refeito; os simulados fixos de 30/11 e 01/12 às 9h ficaram (a decidir com o usuário).
 - **Rede do container**: o proxy bloqueia cdnjs, pciconcursos.com.br e github.io. A rotina do radar só funciona
   depois de liberar `www.pciconcursos.com.br` nas configurações de rede do ambiente.
 

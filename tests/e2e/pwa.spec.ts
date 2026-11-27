@@ -18,7 +18,7 @@ test('instalável: manifest com ícones e service worker ativo', async ({ page, 
   await preparar(page);
   const href = await page.locator('link[rel="manifest"]').getAttribute('href');
   const manifest = await (await request.get(new URL(href ?? '', page.url()).href)).json();
-  expect(manifest).toMatchObject({ name: 'Organizador de Concursos', short_name: 'Concursos', display: 'standalone', start_url: './', lang: 'pt-BR' });
+  expect(manifest).toMatchObject({ name: 'Organizador diário', short_name: 'Organizador', display: 'standalone', start_url: './', lang: 'pt-BR' });
   expect(manifest.icons.map((i: { purpose: string }) => i.purpose)).toContain('maskable');
   for (const icone of manifest.icons as { src: string }[]) expect((await request.get(new URL(icone.src, page.url()).href)).ok()).toBe(true);
   await expect.poll(() => swPronto(page)).toBe('activated');

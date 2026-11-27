@@ -4,7 +4,7 @@ import type { Page } from '@playwright/test';
 import { menu, preparar } from './apoio';
 
 // Fase 8: nenhuma violação WCAG 2.1 A/AA do axe em nenhuma tela, nos dois temas.
-const TELAS = ['Home', 'Concursos', 'Disciplinas', 'Edital', 'Planejamento', 'Revisões', 'Questões', 'Caderno de erros', 'Simulados', 'Provas anteriores', 'Histórico', 'Estatísticas', 'Balanço', 'Biblioteca', 'Radar', 'Cronômetro', 'Configurações'];
+const TELAS = ['Home', 'Concursos', 'Disciplinas', 'Edital', 'Planejamento', 'Vales', 'Revisões', 'Questões', 'Caderno de erros', 'Simulados', 'Provas anteriores', 'Histórico', 'Estatísticas', 'Balanço', 'Biblioteca', 'Radar', 'Cronômetro', 'Configurações'];
 
 const questao = (n: number, topicoId: string) => ({ id: `q${n}`, numero: n, enunciado: `Questão ${n}`, alternativas: ['a', 'b', 'c', 'd'], correta: 0, disciplinaId: 'ee', topicoId, anulada: false });
 const EXTRAS = {

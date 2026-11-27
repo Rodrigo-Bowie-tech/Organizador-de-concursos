@@ -1,4 +1,4 @@
-import { BookMarked, BookOpenCheck, CalendarDays, ChartColumnBig, ChartLine, ClipboardCheck, FileClock, ListChecks, FolderOpen, History, House, Layers, Library, Menu, Radar as IconeRadar, RefreshCcw, Settings, Timer, X } from 'lucide-react';
+import { BookMarked, BookOpenCheck, CalendarDays, ChartColumnBig, ChartLine, ClipboardCheck, FileClock, ListChecks, FolderOpen, History, House, Layers, Library, Menu, Radar as IconeRadar, RefreshCcw, Settings, Ticket, Timer, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
@@ -32,6 +32,7 @@ import { Planejamento } from './telas/Planejamento';
 import { ImportarEdital } from './telas/ImportarEdital';
 import { Revisoes } from './telas/Revisoes';
 import { Radar } from './telas/Radar';
+import { Vales } from './telas/Vales';
 import { oportunidadesNovas } from './radar/radar';
 
 const ITENS: { tela: Tela; rotulo: string; icone: LucideIcon }[] = [
@@ -40,6 +41,7 @@ const ITENS: { tela: Tela; rotulo: string; icone: LucideIcon }[] = [
   { tela: 'disciplinas', rotulo: 'Disciplinas', icone: Layers },
   { tela: 'edital', rotulo: 'Edital', icone: BookOpenCheck },
   { tela: 'planejamento', rotulo: 'Planejamento', icone: CalendarDays },
+  { tela: 'vales', rotulo: 'Vales', icone: Ticket },
   { tela: 'revisoes', rotulo: 'Revisões', icone: RefreshCcw },
   { tela: 'questoes', rotulo: 'Questões', icone: ListChecks },
   { tela: 'erros', rotulo: 'Caderno de erros', icone: BookMarked },
@@ -73,6 +75,7 @@ const TELAS: Record<Tela, ComponentType> = {
   biblioteca: Biblioteca,
   radar: Radar,
   cronometro: Cronometro,
+  vales: Vales,
   historico: Historico,
   configuracoes: Configuracoes,
 };
@@ -80,10 +83,10 @@ const TELAS: Record<Tela, ComponentType> = {
 function Marca() {
   return (
     <div className="flex items-center gap-2.5 text-menu-texto">
-      <span className="grid h-9 w-9 place-items-center rounded-lg bg-white/20 text-lg font-extrabold">OC</span>
+      <span className="grid h-9 w-9 place-items-center rounded-lg bg-white/20 text-lg font-extrabold">OD</span>
       <span className="leading-tight">
         <span className="block text-lg font-extrabold">Organizador</span>
-        <span className="block text-xs font-bold opacity-80">de concursos</span>
+        <span className="block text-xs font-bold opacity-80">diário</span>
       </span>
     </div>
   );
@@ -213,7 +216,7 @@ export function App() {
           className="rounded-md p-1.5 text-verde-forte hover:bg-verde-suave lg:hidden">
           <Menu size={24} />
         </button>
-        <span className="font-extrabold text-verde-forte lg:hidden">Organizador</span>
+        <span className="font-extrabold text-verde-forte lg:hidden">Organizador diário</span>
         <div className="ml-auto flex min-w-0 items-center gap-2">
           <IndicadorSinc />
           <SeletorConcurso />
